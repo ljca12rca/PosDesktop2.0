@@ -1,0 +1,1640 @@
+package com.posdesktop.pos;
+
+import com.posdesktop.pos.integration.PosApiClient;
+import com.posdesktop.pos.mockfx.MockData;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.NumberFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+import javafx.application.Platform;
+import javafx.application.Application;
+import javafx.beans.binding.Bindings;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.collections.ObservableList;
+import javafx.collections.FXCollections;
+import javafx.css.PseudoClass;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
+import javafx.print.PrinterJob;
+import javafx.scene.Node;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.SelectionMode;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ScrollPane.ScrollBarPolicy;
+import javafx.scene.control.Separator;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Alert;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.stage.Screen;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+import javafx.stage.Window;
+
+public class PosDesktopFxApplication extends Application {
+
+    private static final String APP_TITLE = "POS Desktop";
+    private static final PseudoClass COMPACT = PseudoClass.getPseudoClass("compact");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
+    private static final DateTimeFormatter RECEIPT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter RECEIPT_TIME_FORMATTER = DateTimeFormatter.ofPattern("hh:mm a");
+    private static final String RECEIPT_BUSINESS_NAME = "Milenaso del norte";
+    private static final String RECEIPT_OWNER_NAME = "KELI MONSALVE";
+    private static final String RECEIPT_ADDRESS = "CALLE 28 # 29-18";
+    private static final String RECEIPT_NIT = "NIT. 1.035.830.505-7";
+    private static final String RECEIPT_CASHIER = "Caja principal";
+    private final Map<String, Supplier<Node>> screenFactories = new LinkedHashMap<>();
+    private final StackPane contentHost = new StackPane();
+    private final PosApiClient posApiClient = PosApiClient.createDefault();
+    private final ObservableList<SaleDraftRow> saleDraftRows = FXCollections.observableArrayList();
+    private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO"));
+    private final SimpleObjectProperty<BigDecimal> saleTotal = new SimpleObjectProperty<>(BigDecimal.ZERO);
+
+    @Override
+    public void start(Stage stage) {
+        screenFactories.put("Ventas", this::createSalesScreen);
+        screenFactories.put("Cierre", this::createClosingScreen);
+        screenFactories.put("Separados", this::createLayawayScreen);
+        screenFactories.put("Movimientos", this::createMovementsScreen);
+
+        BorderPane shell = new BorderPane();
+        shell.getStyleClass().add("app-shell");
+        VBox sidebar = (VBox) createSidebar();
+        shell.setLeft(sidebar);
+        shell.setCenter(contentHost);
+
+        showScreen("Ventas");
+
+        Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
+        double initialWidth = Math.min(1360, visualBounds.getWidth() * 0.96);
+        double initialHeight = Math.min(860, visualBounds.getHeight() * 0.94);
+
+        Scene scene = new Scene(shell, initialWidth, initialHeight);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        bindRegionWidthToScene(sidebar, 0.17, 172, 210);
+        updateResponsiveState(shell, scene);
+        scene.widthProperty().addListener((obs, oldValue, newValue) -> updateResponsiveState(shell, scene));
+        scene.heightProperty().addListener((obs, oldValue, newValue) -> updateResponsiveState(shell, scene));
+
+        stage.setTitle(APP_TITLE);
+        stage.setMinWidth(Math.min(920, visualBounds.getWidth() * 0.78));
+        stage.setMinHeight(Math.min(620, visualBounds.getHeight() * 0.72));
+        stage.setScene(scene);
+        stage.centerOnScreen();
+        stage.show();
+    }
+
+    private Node createSidebar() {
+        VBox sidebar = new VBox(22);
+        sidebar.getStyleClass().add("sidebar");
+        sidebar.setPadding(new Insets(24, 16, 24, 16));
+        sidebar.setPrefWidth(200);
+        sidebar.setMinWidth(180);
+        sidebar.setMaxWidth(220);
+
+        VBox brand = new VBox(12);
+        brand.getStyleClass().add("brand-block");
+        StackPane avatar = createIconBadge("PD", "badge-xl");
+        Label title = new Label("POS Desktop");
+        title.getStyleClass().add("sidebar-title");
+        brand.setAlignment(Pos.CENTER);
+        brand.getChildren().addAll(avatar, title);
+
+        ToggleGroup navigation = new ToggleGroup();
+        VBox navButtons = new VBox(10);
+        navButtons.setFillWidth(true);
+        for (String key : screenFactories.keySet()) {
+            ToggleButton button = new ToggleButton(key);
+            button.setMaxWidth(Double.MAX_VALUE);
+            button.setToggleGroup(navigation);
+            button.getStyleClass().add("nav-button");
+            button.setOnAction(event -> showScreen(key));
+            navButtons.getChildren().add(button);
+        }
+        ((ToggleButton) navButtons.getChildren().get(0)).setSelected(true);
+
+        Region spacer = new Region();
+        VBox.setVgrow(spacer, Priority.ALWAYS);
+
+        sidebar.getChildren().addAll(brand, navButtons, spacer);
+        return sidebar;
+    }
+
+    private void showScreen(String key) {
+        contentHost.getChildren().setAll(wrapContent(screenFactories.get(key).get()));
+    }
+
+    private Node wrapContent(Node node) {
+        ScrollPane scrollPane = new ScrollPane(node);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setHbarPolicy(ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setPannable(false);
+        scrollPane.getStyleClass().add("content-scroll");
+        return scrollPane;
+    }
+
+    private Node createSalesScreen() {
+        VBox root = createScreenContainer("Sistema de Ventas", "");
+        root.setSpacing(14);
+        root.setPadding(new Insets(18, 22, 18, 22));
+
+        TextField valorUnitarioField = createField("");
+        valorUnitarioField.setPromptText("Valor unitario");
+        TextField cantidadField = createField("1");
+        TextField montoRecibidoField = createField("");
+        montoRecibidoField.setPromptText("Monto recibido opcional");
+        Label statusLabel = new Label("API configurada en 8083. Agrega articulos a la tabla para registrar la venta.");
+        statusLabel.getStyleClass().add("card-subtitle");
+        Label totalLabel = new Label(formatCurrency(saleTotal.get()));
+        totalLabel.getStyleClass().add("amount-main");
+        Label changeLabel = new Label("Monto recibido opcional");
+        changeLabel.getStyleClass().add("amount-helper");
+        CheckBox printReceiptCheck = new CheckBox("Imprimir comprobante");
+        printReceiptCheck.getStyleClass().add("soft-check");
+
+        TableView<SaleDraftRow> table = createSalesDraftTable();
+        table.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
+        table.setItems(saleDraftRows);
+
+        Button payButton = createActionButton("Cobrar", "primary-button");
+        payButton.setMaxWidth(Double.MAX_VALUE);
+        payButton.setOnAction(event -> registerSale(montoRecibidoField, statusLabel, valorUnitarioField, printReceiptCheck));
+
+        saleTotal.addListener((obs, oldValue, newValue) -> {
+            totalLabel.setText(formatCurrency(newValue));
+            updateReceivedLabel(montoRecibidoField.getText(), newValue, changeLabel);
+        });
+        montoRecibidoField.textProperty().addListener((obs, oldValue, newValue) -> {
+            updateReceivedLabel(newValue, saleTotal.get(), changeLabel);
+        });
+
+        configureSalesFocusFlow(valorUnitarioField, cantidadField, statusLabel);
+        montoRecibidoField.setOnAction(event -> registerSale(montoRecibidoField, statusLabel, valorUnitarioField, printReceiptCheck));
+        root.addEventFilter(KeyEvent.KEY_TYPED, event -> {
+            if ("+".equals(event.getCharacter())) {
+                if (saleDraftRows.isEmpty()) {
+                    setSalesStatusError(statusLabel, "Debe existir al menos un articulo en la tabla antes de cobrar.");
+                } else {
+                    montoRecibidoField.requestFocus();
+                    montoRecibidoField.selectAll();
+                }
+                event.consume();
+            }
+        });
+        Platform.runLater(valorUnitarioField::requestFocus);
+
+        HBox layout = new HBox(16);
+        layout.setAlignment(Pos.TOP_LEFT);
+
+        VBox left = new VBox(12,
+                createSalesEntryCard(cantidadField, valorUnitarioField, table, statusLabel),
+                createSalesTableCard(table)
+        );
+        left.setMinWidth(0);
+        HBox.setHgrow(left, Priority.ALWAYS);
+
+        VBox right = new VBox(14, createSummaryCard(montoRecibidoField, totalLabel, changeLabel, printReceiptCheck, payButton));
+        bindRegionWidthToScene(right, 0.22, 220, 280);
+
+        layout.getChildren().addAll(left, right);
+        root.getChildren().add(layout);
+        return root;
+    }
+
+    private Node createClosingScreen() {
+        VBox root = createScreenContainer("Cierre de caja", "Resumen diario elegante para validar ventas, base y consolidado.");
+        tuneCompactScreen(root);
+
+        DatePicker fechaOperacionPicker = new DatePicker(LocalDate.now());
+        TextField responsableField = createField("Caja principal");
+        TextField baseField = createField("0");
+        TextField egresosField = createField("0");
+        TextArea observacionArea = new TextArea();
+        observacionArea.setWrapText(true);
+        observacionArea.setPrefRowCount(2);
+        observacionArea.getStyleClass().add("soft-area");
+
+        Label ventasValue = createMetricValueLabel("$ 0");
+        Label ventasCaption = createMetricCaptionLabel("0 comprobantes");
+        Label recibidoValue = createMetricValueLabel("$ 0");
+        Label recibidoCaption = createMetricCaptionLabel("Ingresos del dia");
+        Label baseValue = createMetricValueLabel("$ 0");
+        Label baseCaption = createMetricCaptionLabel("Configurado en cierre");
+        Label totalValue = createMetricValueLabel("$ 0");
+        Label totalCaption = createMetricCaptionLabel("Total proyectado");
+
+        FlowPane cards = new FlowPane(12, 12,
+                createMetricCard("Ventas del dia", ventasValue, ventasCaption),
+                createMetricCard("Recibido", recibidoValue, recibidoCaption),
+                createMetricCard("Base sugerida", baseValue, baseCaption),
+                createMetricCard("Total proyectado", totalValue, totalCaption)
+        );
+
+        TableView<PosApiClient.CierreDiarioListadoResponse> historyTable = createClosingHistoryTable();
+
+        HBox grid = createAdaptivePanelRow(
+                createClosingFormCard(
+                        fechaOperacionPicker,
+                        responsableField,
+                        baseField,
+                        egresosField,
+                        observacionArea,
+                        ventasCaption,
+                        ventasValue,
+                        recibidoValue,
+                        baseValue,
+                        totalValue,
+                        totalCaption,
+                        historyTable
+                ),
+                createClosingHistoryCard(historyTable)
+        );
+        VBox.setVgrow(grid, Priority.ALWAYS);
+
+        root.getChildren().addAll(cards, grid);
+        loadClosingData(
+                fechaOperacionPicker.getValue(),
+                responsableField,
+                baseField,
+                egresosField,
+                observacionArea,
+                ventasCaption,
+                ventasValue,
+                recibidoValue,
+                baseValue,
+                totalValue,
+                totalCaption,
+                historyTable
+        );
+        return root;
+    }
+
+    private Node createLayawayScreen() {
+        VBox root = createScreenContainer("Separados", "Vista comercial para apartados y seguimiento visual de saldos.");
+        tuneCompactScreen(root);
+
+        HBox grid = createAdaptivePanelRow(createLayawayListCard(), createLayawayActionsCard());
+        VBox.setVgrow(grid, Priority.ALWAYS);
+        root.getChildren().add(grid);
+        return root;
+    }
+
+    private Node createMovementsScreen() {
+        VBox root = createScreenContainer("Movimientos de caja", "Consulta limpia para revisar ventas, recibidos, devoluciones y origen.");
+        tuneCompactScreen(root);
+
+        DatePicker fechaInicialPicker = new DatePicker(LocalDate.now());
+        DatePicker fechaFinalPicker = new DatePicker(LocalDate.now());
+        TableView<PosApiClient.MovimientoVentaResponse> movementsTable = createMovementsTable();
+        Label totalCajaValue = createMetricValueLabel("$ 0");
+        Label totalCajaCaption = createMetricCaptionLabel("Total de ventas");
+        Label recibidoValue = createMetricValueLabel("$ 0");
+        Label recibidoCaption = createMetricCaptionLabel("Monto recibido");
+        Label devueltoValue = createMetricValueLabel("$ 0");
+        Label devueltoCaption = createMetricCaptionLabel("Cambio entregado");
+
+        HBox grid = createAdaptivePanelRow(
+                createMovementsFilterCard(
+                        fechaInicialPicker,
+                        fechaFinalPicker,
+                        movementsTable,
+                        totalCajaValue,
+                        totalCajaCaption,
+                        recibidoValue,
+                        recibidoCaption,
+                        devueltoValue,
+                        devueltoCaption
+                ),
+                createMovementsTableCard(movementsTable),
+                createMovementsInsightsCard(
+                        totalCajaValue,
+                        totalCajaCaption,
+                        recibidoValue,
+                        recibidoCaption,
+                        devueltoValue,
+                        devueltoCaption
+                )
+        );
+        VBox.setVgrow(grid, Priority.ALWAYS);
+        root.getChildren().add(grid);
+        loadMovements(
+                fechaInicialPicker.getValue(),
+                fechaFinalPicker.getValue(),
+                movementsTable,
+                totalCajaValue,
+                totalCajaCaption,
+                recibidoValue,
+                recibidoCaption,
+                devueltoValue,
+                devueltoCaption
+        );
+        return root;
+    }
+
+    private VBox createScreenContainer(String title, String subtitle) {
+        VBox container = new VBox(22);
+        container.getStyleClass().add("screen-container");
+        container.setPadding(new Insets(28, 28, 36, 28));
+
+        HBox hero = new HBox(18);
+        hero.setAlignment(Pos.CENTER_LEFT);
+        StackPane badge = createIconBadge(initials(title), "badge-lg");
+        VBox text = new VBox(4);
+        Label heading = new Label(title);
+        heading.getStyleClass().add("screen-title");
+        text.getChildren().add(heading);
+        if (subtitle != null && !subtitle.isBlank()) {
+            Label copy = new Label(subtitle);
+            copy.getStyleClass().add("screen-subtitle");
+            text.getChildren().add(copy);
+        }
+        hero.getChildren().addAll(badge, text);
+
+        container.getChildren().add(hero);
+        return container;
+    }
+
+    private Node createSalesEntryCard(
+            TextField cantidadField,
+            TextField valorUnitarioField,
+            TableView<SaleDraftRow> table,
+            Label statusLabel
+    ) {
+        VBox card = createCard("", "");
+        card.getStyleClass().add("sales-entry-card");
+
+        HBox row = new HBox(16);
+        row.setAlignment(Pos.BOTTOM_LEFT);
+
+        VBox valor = createFieldGroup("Valor unitario", valorUnitarioField, 180);
+        VBox cantidad = createFieldGroup("Cantidad", cantidadField, 120);
+
+        HBox actions = new HBox(12,
+                createActionButton("Agregar", "primary-button"),
+                createActionButton("Quitar", "ghost-button")
+        );
+        actions.setAlignment(Pos.BOTTOM_LEFT);
+        Button addButton = (Button) actions.getChildren().get(0);
+        Button removeButton = (Button) actions.getChildren().get(1);
+        addButton.setOnAction(event -> addSaleDetail(cantidadField, valorUnitarioField, statusLabel));
+        removeButton.setOnAction(event -> removeSelectedSaleDetail(table, statusLabel));
+
+        row.getChildren().addAll(valor, cantidad, actions);
+        HBox.setHgrow(valor, Priority.ALWAYS);
+
+        card.getChildren().addAll(row, statusLabel);
+        return card;
+    }
+
+    private Node createSalesTableCard(TableView<SaleDraftRow> table) {
+        VBox card = createCard("", "");
+        card.getStyleClass().add("sales-table-card");
+        card.getChildren().add(table);
+        return card;
+    }
+
+    private Node createSummaryCard(
+            TextField montoRecibidoField,
+            Label totalLabel,
+            Label changeLabel,
+            CheckBox printReceiptCheck,
+            Button payButton
+    ) {
+        VBox card = createCard("", "");
+        card.getStyleClass().add("sales-summary-card");
+
+        VBox amountBlock = new VBox(4);
+        amountBlock.getStyleClass().add("amount-block");
+        Label overline = new Label("Total de la venta");
+        overline.getStyleClass().add("amount-overline");
+        amountBlock.getChildren().addAll(overline, totalLabel, changeLabel);
+
+        VBox recibido = createFieldGroup("Monto recibido", montoRecibidoField, 220);
+        card.getChildren().addAll(printReceiptCheck, amountBlock, recibido, payButton);
+        return card;
+    }
+
+    private TableView<SaleDraftRow> createSalesDraftTable() {
+        TableView<SaleDraftRow> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.32, 170, 280);
+        table.getColumns().addAll(
+                tableColumn("Articulo", row -> "Manual"),
+                tableColumn("Cantidad", row -> formatNumber(row.cantidad())),
+                tableColumn("Valor unitario", row -> formatCurrency(row.valorUnitario())),
+                tableColumn("Total", row -> formatCurrency(row.total()))
+        );
+        return table;
+    }
+
+    private void addSaleDetail(
+            TextField cantidadField,
+            TextField valorUnitarioField,
+            Label statusLabel
+    ) {
+        try {
+            BigDecimal cantidad = parseRequiredPositive(cantidadField.getText(), "La cantidad debe ser mayor a cero.");
+            BigDecimal valorUnitario = parseRequiredPositive(
+                    valorUnitarioField.getText(),
+                    "El valor unitario debe ser mayor a cero."
+            );
+            saleDraftRows.add(new SaleDraftRow(cantidad, valorUnitario));
+            recalculateSaleTotal();
+
+            cantidadField.setText("1");
+            valorUnitarioField.clear();
+            setSalesStatusInfo(statusLabel, "Articulo agregado a la tabla. Total actualizado en pantalla.");
+            valorUnitarioField.requestFocus();
+        } catch (IllegalArgumentException exception) {
+            setSalesStatusError(statusLabel, exception.getMessage());
+        }
+    }
+
+    private void removeSelectedSaleDetail(TableView<SaleDraftRow> table, Label statusLabel) {
+        SaleDraftRow selected = table.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            setSalesStatusError(statusLabel, "Selecciona un detalle para quitarlo de la venta.");
+            return;
+        }
+
+        saleDraftRows.remove(selected);
+        recalculateSaleTotal();
+        setSalesStatusInfo(statusLabel, "Detalle retirado de la venta.");
+    }
+
+    private void registerSale(
+            TextField montoRecibidoField,
+            Label statusLabel,
+            TextField valorUnitarioField,
+            CheckBox printReceiptCheck
+    ) {
+        if (saleDraftRows.isEmpty()) {
+            setSalesStatusError(statusLabel, "Debe existir al menos un articulo en la tabla antes de cobrar.");
+            return;
+        }
+
+        if (montoRecibidoField.getText() != null && !montoRecibidoField.getText().isBlank()) {
+            BigDecimal montoRecibidoValidado = parseCurrencyOrZero(montoRecibidoField.getText());
+            if (montoRecibidoValidado.signum() > 0 && montoRecibidoValidado.compareTo(saleTotal.get()) < 0) {
+                setSalesStatusError(statusLabel, "El valor recibido no puede ser menor al valor total de la venta.");
+                montoRecibidoField.requestFocus();
+                montoRecibidoField.selectAll();
+                return;
+            }
+        }
+
+        BigDecimal montoRecibido = parseCurrencyOrZero(montoRecibidoField.getText());
+        BigDecimal cambioEntregado = montoRecibido.subtract(saleTotal.get());
+        if (!showChangeConfirmationDialog(statusLabel.getScene().getWindow(), montoRecibido, saleTotal.get(), cambioEntregado)) {
+            setSalesStatusInfo(statusLabel, "Confirmacion de venta cancelada.");
+            valorUnitarioField.requestFocus();
+            return;
+        }
+
+        List<PosApiClient.RegistrarDetalleVentaRequest> detalles = saleDraftRows.stream()
+                .map(row -> new PosApiClient.RegistrarDetalleVentaRequest(
+                        null,
+                        row.cantidad(),
+                        row.valorUnitario()
+                ))
+                .toList();
+
+        setSalesStatusInfo(statusLabel, "Registrando venta en la API...");
+        runAsync(
+                () -> posApiClient.registrarVenta(new PosApiClient.RegistrarVentaRequest(detalles, montoRecibido, null)),
+                response -> {
+                    saleDraftRows.clear();
+                    recalculateSaleTotal();
+                    montoRecibidoField.clear();
+                    setSalesStatusInfo(statusLabel, "Venta " + response.numeroVenta() + " registrada correctamente.");
+                    valorUnitarioField.requestFocus();
+                    if (printReceiptCheck.isSelected()) {
+                        showReceiptPreviewAndPrint(statusLabel.getScene().getWindow(), response);
+                    } else {
+                        showInfo("Venta registrada", "Se registró la venta " + response.numeroVenta()
+                                + " por " + formatCurrency(response.total()) + ".");
+                    }
+                },
+                exception -> setSalesStatusError(statusLabel, exception.getMessage())
+        );
+    }
+
+    private void recalculateSaleTotal() {
+        BigDecimal total = saleDraftRows.stream()
+                .map(SaleDraftRow::total)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        saleTotal.set(total.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    private void configureSalesFocusFlow(
+            TextField valorUnitarioField,
+            TextField cantidadField,
+            Label statusLabel
+    ) {
+        valorUnitarioField.setOnAction(event -> cantidadField.requestFocus());
+        cantidadField.setOnAction(event -> addSaleDetail(cantidadField, valorUnitarioField, statusLabel));
+    }
+
+    private void updateReceivedLabel(String inputValue, BigDecimal totalVenta, Label changeLabel) {
+        if (inputValue == null || inputValue.isBlank()) {
+            changeLabel.setText("Monto recibido opcional");
+            return;
+        }
+
+        BigDecimal recibido = parseCurrencyOrZero(inputValue);
+        BigDecimal diferencia = recibido.subtract(totalVenta == null ? BigDecimal.ZERO : totalVenta);
+        if (diferencia.signum() >= 0) {
+            changeLabel.setText("Debe devolver: " + formatCurrency(diferencia));
+            return;
+        }
+
+        changeLabel.setText("Faltan: " + formatCurrency(diferencia.abs()));
+    }
+
+    private void setSalesStatusInfo(Label statusLabel, String message) {
+        statusLabel.getStyleClass().remove("status-error");
+        statusLabel.setText(message);
+    }
+
+    private void setSalesStatusError(Label statusLabel, String message) {
+        if (!statusLabel.getStyleClass().contains("status-error")) {
+            statusLabel.getStyleClass().add("status-error");
+        }
+        statusLabel.setText(message);
+    }
+
+    private boolean showChangeConfirmationDialog(
+            Window owner,
+            BigDecimal montoRecibido,
+            BigDecimal totalVenta,
+            BigDecimal cambioEntregado
+    ) {
+        AtomicBoolean confirmed = new AtomicBoolean(false);
+        Stage stage = new Stage();
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.initStyle(StageStyle.TRANSPARENT);
+
+        StackPane root = new StackPane();
+        root.getStyleClass().add("dialog-host");
+        root.setPadding(new Insets(24));
+
+        VBox card = new VBox(14);
+        card.getStyleClass().addAll("surface-card", "change-confirm-card");
+
+        Label overline = new Label("Confirmacion de caja");
+        overline.getStyleClass().add("change-confirm-overline");
+
+        Label title = new Label("Debe devolver");
+        title.getStyleClass().add("change-confirm-title");
+
+        BigDecimal cambioVisual = cambioEntregado.signum() > 0 ? cambioEntregado : BigDecimal.ZERO;
+        Label amount = new Label(formatCurrency(cambioVisual));
+        amount.getStyleClass().add("change-confirm-amount");
+
+        Label helper = new Label(buildChangeConfirmationHelper(montoRecibido, totalVenta, cambioVisual));
+        helper.getStyleClass().add("change-confirm-helper");
+
+        Label note = new Label("Verifica el valor visualmente antes de confirmar la venta.");
+        note.getStyleClass().add("change-confirm-note");
+
+        HBox actions = new HBox(12);
+        actions.setAlignment(Pos.CENTER);
+        Button cancelButton = createActionButton("Volver", "ghost-button");
+        Button confirmButton = createActionButton("Confirmar venta", "primary-button");
+        confirmButton.setDefaultButton(true);
+        cancelButton.setCancelButton(true);
+        cancelButton.setOnAction(event -> stage.close());
+        confirmButton.setOnAction(event -> {
+            confirmed.set(true);
+            stage.close();
+        });
+        actions.getChildren().addAll(cancelButton, confirmButton);
+
+        card.getChildren().addAll(overline, title, amount, helper, note, actions);
+        root.getChildren().add(card);
+
+        Scene scene = new Scene(root, 520, 360);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        scene.setFill(Color.TRANSPARENT);
+        scene.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                confirmButton.fire();
+                event.consume();
+            }
+        });
+        stage.setScene(scene);
+        stage.setOnShown(event -> Platform.runLater(confirmButton::requestFocus));
+        stage.showAndWait();
+        return confirmed.get();
+    }
+
+    private String buildChangeConfirmationHelper(
+            BigDecimal montoRecibido,
+            BigDecimal totalVenta,
+            BigDecimal cambioVisual
+    ) {
+        if (montoRecibido == null || montoRecibido.signum() == 0) {
+            return "No se registro monto recibido. La venta quedara con devolucion en $0.";
+        }
+        if (cambioVisual.signum() == 0) {
+            return "El valor recibido coincide con el total. No debes devolver dinero.";
+        }
+        return "Recibido " + formatCurrency(montoRecibido) + " sobre un total de " + formatCurrency(totalVenta) + ".";
+    }
+
+    private void showReceiptPreviewAndPrint(Window owner, PosApiClient.VentaRegistradaResponse response) {
+        Stage stage = new Stage();
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+        stage.initModality(Modality.NONE);
+        stage.initStyle(StageStyle.TRANSPARENT);
+
+        StackPane root = new StackPane();
+        root.getStyleClass().add("dialog-host");
+        root.setPadding(new Insets(20));
+
+        VBox shell = new VBox(16);
+        shell.getStyleClass().add("receipt-preview-shell");
+        shell.setAlignment(Pos.CENTER);
+
+        Label title = new Label("Previsualizacion del comprobante");
+        title.getStyleClass().add("receipt-preview-title");
+
+        Label printStatus = new Label("Enviando recibo automaticamente a la impresora...");
+        printStatus.getStyleClass().add("receipt-preview-status");
+
+        VBox receiptPaper = buildReceiptPaper(response);
+
+        Button closeButton = createActionButton("Cerrar", "ghost-button");
+        closeButton.setOnAction(event -> stage.close());
+
+        shell.getChildren().addAll(title, receiptPaper, printStatus, closeButton);
+        root.getChildren().add(shell);
+
+        Scene scene = new Scene(root, 420, 760);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        scene.setFill(Color.TRANSPARENT);
+        stage.setScene(scene);
+        stage.setOnShown(event -> Platform.runLater(() -> {
+            closeButton.requestFocus();
+            boolean printed = printReceipt(response);
+            if (printed) {
+                printStatus.getStyleClass().remove("status-error");
+                printStatus.setText("Recibo enviado a la impresora.");
+            } else {
+                if (!printStatus.getStyleClass().contains("status-error")) {
+                    printStatus.getStyleClass().add("status-error");
+                }
+                printStatus.setText("No fue posible imprimir automaticamente. La previsualizacion queda disponible.");
+            }
+        }));
+        stage.show();
+    }
+
+    private VBox buildReceiptPaper(PosApiClient.VentaRegistradaResponse response) {
+        VBox paper = new VBox(8);
+        paper.getStyleClass().add("receipt-paper");
+
+        Label business = new Label(RECEIPT_BUSINESS_NAME);
+        business.getStyleClass().add("receipt-brand");
+
+        Label owner = new Label(RECEIPT_OWNER_NAME);
+        owner.getStyleClass().add("receipt-owner");
+
+        Label address = new Label(RECEIPT_ADDRESS);
+        address.getStyleClass().add("receipt-meta");
+
+        Label nit = new Label(RECEIPT_NIT);
+        nit.getStyleClass().add("receipt-meta");
+
+        VBox header = new VBox(2, business, owner, address, nit);
+        header.setAlignment(Pos.CENTER);
+
+        VBox metaBlock = new VBox(2,
+                createReceiptMetaRow("Factura N", response.numeroVenta()),
+                createReceiptMetaRow("Cajero", RECEIPT_CASHIER),
+                createReceiptMetaRow(
+                        "Fecha",
+                        RECEIPT_DATE_FORMATTER.format(response.fechaVenta()) + "   Hora: "
+                                + formatReceiptTime(response.fechaVenta())
+                )
+        );
+
+        VBox lines = new VBox(2);
+        lines.getChildren().addAll(
+                createReceiptHeaderRow(),
+                createReceiptDivider()
+        );
+        for (PosApiClient.DetalleVentaResponse detail : response.detalles()) {
+            lines.getChildren().add(createReceiptItemRow(detail));
+        }
+        lines.getChildren().add(createReceiptDivider());
+
+        BigDecimal totalItems = response.detalles().stream()
+                .map(PosApiClient.DetalleVentaResponse::cantidad)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        HBox totals = new HBox();
+        totals.getStyleClass().add("receipt-total-row");
+        Label itemsLabel = new Label("Items: " + formatReceiptQuantity(totalItems));
+        itemsLabel.getStyleClass().add("receipt-total-label");
+        Label totalLabel = new Label("Total: " + formatReceiptAmount(response.total()));
+        totalLabel.getStyleClass().add("receipt-total-amount");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        totals.getChildren().addAll(itemsLabel, spacer, totalLabel);
+
+        VBox paymentBlock = new VBox(2,
+                createReceiptMetaRow("Recibido", formatReceiptAmount(response.montoRecibido())),
+                createReceiptMetaRow("Devuelto", formatReceiptAmount(response.cambioEntregado().max(BigDecimal.ZERO)))
+        );
+
+        Label thanks = new Label("GRACIAS POR PREFERIRNOS");
+        thanks.getStyleClass().add("receipt-thanks");
+
+        paper.getChildren().addAll(header, metaBlock, lines, totals, paymentBlock, thanks);
+        return paper;
+    }
+
+    private HBox createReceiptMetaRow(String label, String value) {
+        HBox row = new HBox(8);
+        row.getStyleClass().add("receipt-meta-row");
+        Label left = new Label(label + ":");
+        left.getStyleClass().add("receipt-meta-key");
+        Label right = new Label(value);
+        right.getStyleClass().add("receipt-meta-value");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        row.getChildren().addAll(left, spacer, right);
+        return row;
+    }
+
+    private HBox createReceiptHeaderRow() {
+        HBox row = new HBox(8);
+        row.getStyleClass().add("receipt-header-row");
+        row.getChildren().addAll(
+                createReceiptColumnLabel("Cant.", "receipt-col-qty"),
+                createReceiptColumnLabel("Descripcion", "receipt-col-desc"),
+                createReceiptColumnLabel("Valor", "receipt-col-money"),
+                createReceiptColumnLabel("Total", "receipt-col-money")
+        );
+        return row;
+    }
+
+    private Label createReceiptDivider() {
+        Label divider = new Label("**********************************************");
+        divider.getStyleClass().add("receipt-divider");
+        return divider;
+    }
+
+    private HBox createReceiptItemRow(PosApiClient.DetalleVentaResponse detail) {
+        HBox row = new HBox(8);
+        row.getStyleClass().add("receipt-item-row");
+        row.getChildren().addAll(
+                createReceiptColumnLabel(formatReceiptQuantity(detail.cantidad()), "receipt-col-qty"),
+                createReceiptColumnLabel(resolveReceiptDescription(detail), "receipt-col-desc"),
+                createReceiptColumnLabel(formatReceiptAmount(detail.valorUnitario()), "receipt-col-money"),
+                createReceiptColumnLabel(formatReceiptAmount(detail.total()), "receipt-col-money")
+        );
+        return row;
+    }
+
+    private Label createReceiptColumnLabel(String text, String styleClass) {
+        Label label = new Label(text);
+        label.getStyleClass().addAll("receipt-text", styleClass);
+        return label;
+    }
+
+    private boolean printReceipt(PosApiClient.VentaRegistradaResponse response) {
+        PrinterJob job = PrinterJob.createPrinterJob();
+        if (job == null) {
+            return false;
+        }
+
+        VBox printNode = buildReceiptPaper(response);
+        StackPane printRoot = new StackPane(printNode);
+        printRoot.setPadding(new Insets(12));
+        Scene printScene = new Scene(printRoot);
+        printScene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        printRoot.applyCss();
+        printRoot.layout();
+
+        job.getJobSettings().setJobName("Recibo " + response.numeroVenta());
+        boolean printed = job.printPage(printNode);
+        if (printed) {
+            job.endJob();
+        }
+        return printed;
+    }
+
+    private String resolveReceiptDescription(PosApiClient.DetalleVentaResponse detail) {
+        if (detail.descripcion() == null || detail.descripcion().isBlank() || "Venta manual".equalsIgnoreCase(detail.descripcion())) {
+            return "Item" + detail.orden();
+        }
+        return detail.descripcion();
+    }
+
+    private TableView<PosApiClient.CierreDiarioListadoResponse> createClosingHistoryTable() {
+        TableView<PosApiClient.CierreDiarioListadoResponse> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.24, 138, 205);
+        table.getColumns().addAll(
+                tableColumn("Fecha", row -> row.fechaOperacion().toString()),
+                tableColumn("Responsable", PosApiClient.CierreDiarioListadoResponse::responsable),
+                tableColumn("Ventas", row -> String.valueOf(row.cantidadVentas())),
+                tableColumn("Total ventas", row -> formatCurrency(row.totalVentas())),
+                tableColumn("Base", row -> formatCurrency(row.baseCaja())),
+                tableColumn("Egresos", row -> formatCurrency(row.egresos())),
+                tableColumn("Total cierre", row -> formatCurrency(row.totalFinal()))
+        );
+        return table;
+    }
+
+    private TableView<PosApiClient.MovimientoVentaResponse> createMovementsTable() {
+        TableView<PosApiClient.MovimientoVentaResponse> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.24, 140, 208);
+        table.getColumns().addAll(
+                tableColumn("Numero", PosApiClient.MovimientoVentaResponse::numeroVenta),
+                tableColumn("Origen", PosApiClient.MovimientoVentaResponse::origen),
+                tableColumn("Total", row -> formatCurrency(row.total())),
+                tableColumn("Recibido", row -> formatCurrency(row.montoRecibido())),
+                tableColumn("Devuelto", row -> formatCurrency(row.cambioEntregado())),
+                tableColumn("Fecha", row -> formatDateTime(row.fechaVenta()))
+        );
+        return table;
+    }
+
+    private void loadClosingData(
+            LocalDate fechaOperacion,
+            TextField responsableField,
+            TextField baseField,
+            TextField egresosField,
+            TextArea observacionArea,
+            Label ventasCaption,
+            Label ventasValue,
+            Label recibidoValue,
+            Label baseValue,
+            Label totalValue,
+            Label totalCaption,
+            TableView<PosApiClient.CierreDiarioListadoResponse> historyTable
+    ) {
+        LocalDate fecha = fechaOperacion == null ? LocalDate.now() : fechaOperacion;
+        runAsync(
+                () -> new ClosingPayload(
+                        posApiClient.consultarResumenCierre(fecha),
+                        posApiClient.listarCierres(fecha.minusDays(7), fecha)
+                ),
+                payload -> {
+                    PosApiClient.ResumenCierreDiarioResponse resumen = payload.resumen();
+                    ventasValue.setText(formatCurrency(resumen.totalVentas()));
+                    ventasCaption.setText(resumen.cantidadVentas() + " comprobantes");
+                    recibidoValue.setText(formatCurrency(resumen.montoRecibido()));
+                    baseValue.setText(formatCurrency(resumen.baseCaja()));
+                    totalValue.setText(formatCurrency(resumen.totalFinal()));
+                    totalCaption.setText(resumen.cierreGuardado() ? "Cierre guardado: " + resumen.estado() : "Pendiente por guardar");
+                    if (resumen.responsable() != null && !resumen.responsable().isBlank()) {
+                        responsableField.setText(resumen.responsable());
+                    }
+                    baseField.setText(formatPlainNumber(resumen.baseCaja()));
+                    egresosField.setText(formatPlainNumber(resumen.egresos()));
+                    observacionArea.setText(resumen.observacion() == null ? "" : resumen.observacion());
+                    historyTable.setItems(FXCollections.observableArrayList(payload.historial()));
+                },
+                exception -> showError("Cierre de caja", exception.getMessage())
+        );
+    }
+
+    private void saveClosing(
+            DatePicker fechaOperacionPicker,
+            TextField responsableField,
+            TextField baseField,
+            TextField egresosField,
+            TextArea observacionArea,
+            Label ventasCaption,
+            Label ventasValue,
+            Label recibidoValue,
+            Label baseValue,
+            Label totalValue,
+            Label totalCaption,
+            TableView<PosApiClient.CierreDiarioListadoResponse> historyTable
+    ) {
+        try {
+            LocalDate fecha = fechaOperacionPicker.getValue() == null ? LocalDate.now() : fechaOperacionPicker.getValue();
+            String responsable = responsableField.getText() == null ? "" : responsableField.getText().trim();
+            if (responsable.isBlank()) {
+                throw new IllegalArgumentException("El responsable del cierre es obligatorio.");
+            }
+
+            PosApiClient.RegistrarCierreRequest request = new PosApiClient.RegistrarCierreRequest(
+                    fecha,
+                    responsable,
+                    parseCurrencyOrZero(baseField.getText()),
+                    parseCurrencyOrZero(egresosField.getText()),
+                    observacionArea.getText()
+            );
+
+            runAsync(
+                    () -> posApiClient.registrarCierre(request),
+                    response -> {
+                        showInfo("Cierre registrado", "Se registró el cierre del " + response.fechaOperacion() + ".");
+                        loadClosingData(
+                                fecha,
+                                responsableField,
+                                baseField,
+                                egresosField,
+                                observacionArea,
+                                ventasCaption,
+                                ventasValue,
+                                recibidoValue,
+                                baseValue,
+                                totalValue,
+                                totalCaption,
+                                historyTable
+                        );
+                    },
+                    exception -> showError("Cierre de caja", exception.getMessage())
+            );
+        } catch (IllegalArgumentException exception) {
+            showError("Cierre de caja", exception.getMessage());
+        }
+    }
+
+    private void loadMovements(
+            LocalDate fechaInicial,
+            LocalDate fechaFinal,
+            TableView<PosApiClient.MovimientoVentaResponse> table,
+            Label totalCajaValue,
+            Label totalCajaCaption,
+            Label recibidoValue,
+            Label recibidoCaption,
+            Label devueltoValue,
+            Label devueltoCaption
+    ) {
+        LocalDate inicio = fechaInicial == null ? LocalDate.now() : fechaInicial;
+        LocalDate fin = fechaFinal == null ? inicio : fechaFinal;
+        runAsync(
+                () -> posApiClient.listarMovimientos(inicio, fin),
+                movimientos -> {
+                    table.setItems(FXCollections.observableArrayList(movimientos));
+                    BigDecimal total = movimientos.stream()
+                            .map(PosApiClient.MovimientoVentaResponse::total)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal recibido = movimientos.stream()
+                            .map(PosApiClient.MovimientoVentaResponse::montoRecibido)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal devuelto = movimientos.stream()
+                            .map(PosApiClient.MovimientoVentaResponse::cambioEntregado)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    totalCajaValue.setText(formatCurrency(total));
+                    totalCajaCaption.setText(movimientos.size() + " movimientos");
+                    recibidoValue.setText(formatCurrency(recibido));
+                    recibidoCaption.setText("Monto recibido");
+                    devueltoValue.setText(formatCurrency(devuelto));
+                    devueltoCaption.setText("Cambio entregado");
+                },
+                exception -> showError("Movimientos de caja", exception.getMessage())
+        );
+    }
+
+    private Node createClosingFormCard(
+            DatePicker fechaOperacionPicker,
+            TextField responsableField,
+            TextField baseField,
+            TextField egresosField,
+            TextArea observacionArea,
+            Label ventasCaption,
+            Label ventasValue,
+            Label recibidoValue,
+            Label baseValue,
+            Label totalValue,
+            Label totalCaption,
+            TableView<PosApiClient.CierreDiarioListadoResponse> historyTable
+    ) {
+        VBox card = createCard("Consolidar cierre", "Formulario mock para totalizar y guardar el resumen del dia.");
+        bindRegionWidthToScene(card, 0.22, 236, 290);
+        card.setMaxWidth(Region.USE_PREF_SIZE);
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Fecha de operacion", fechaOperacionPicker, 200),
+                createFieldGroup("Responsable", responsableField, 200),
+                createFieldGroup("Base", baseField, 200),
+                createFieldGroup("Egresos", egresosField, 200)
+        );
+
+        Button save = createActionButton("Guardar cierre", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> saveClosing(
+                fechaOperacionPicker,
+                responsableField,
+                baseField,
+                egresosField,
+                observacionArea,
+                ventasCaption,
+                ventasValue,
+                recibidoValue,
+                baseValue,
+                totalValue,
+                totalCaption,
+                historyTable
+        ));
+
+        fechaOperacionPicker.valueProperty().addListener((obs, oldValue, newValue) -> loadClosingData(
+                newValue,
+                responsableField,
+                baseField,
+                egresosField,
+                observacionArea,
+                ventasCaption,
+                ventasValue,
+                recibidoValue,
+                baseValue,
+                totalValue,
+                totalCaption,
+                historyTable
+        ));
+
+        card.getChildren().addAll(fields, observacionArea, save);
+        return card;
+    }
+
+    private Node createClosingHistoryCard(TableView<PosApiClient.CierreDiarioListadoResponse> table) {
+        VBox card = createCard("Historial reciente", "Mock de cierres ya guardados para consulta del equipo.");
+        HBox.setHgrow(card, Priority.ALWAYS);
+        card.getChildren().add(table);
+        return card;
+    }
+
+    private Node createLayawayListCard() {
+        VBox card = createCard("Listado de separados", "Panel central para visualizar apartados activos y su estado.");
+        card.getStyleClass().add("layaway-list-card");
+        HBox.setHgrow(card, Priority.ALWAYS);
+        ComboBox<String> status = new ComboBox<>(FXCollections.observableArrayList("Todos", "Activos", "Pagados", "Entregados"));
+        status.getSelectionModel().selectFirst();
+        FlowPane toolbar = createResponsiveRow(
+                createFieldGroup("Buscar", createField("Buscar por cliente o articulo"), 320),
+                createFieldGroup("Estado", status, 170)
+        );
+
+        TableView<MockData.LayawayRow> table = new TableView<>(FXCollections.observableArrayList(MockData.layaways()));
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.24, 138, 205);
+        table.getColumns().addAll(
+                tableColumn("Numero", MockData.LayawayRow::numero),
+                tableColumn("Cliente", MockData.LayawayRow::cliente),
+                tableColumn("Articulo", MockData.LayawayRow::articulo),
+                tableColumn("Abonado", MockData.LayawayRow::abonado),
+                tableColumn("Restante", MockData.LayawayRow::restante),
+                tableColumn("Fecha", MockData.LayawayRow::fecha)
+        );
+
+        VBox profile = new VBox(8,
+                createKeyValue("Seleccion actual", "SP-103"),
+                createKeyValue("Cliente", "Amparo Alvarez"),
+                createKeyValue("Producto", "Cortinas blackout"),
+                createKeyValue("Regla inicial", "Minimo $ 20.000"),
+                createProgressCard("Progreso de pago", 0.75, "$ 180.000 abonados de $ 240.000")
+        );
+
+        card.getChildren().addAll(toolbar, table, profile);
+        return card;
+    }
+
+    private Node createLayawayActionsCard() {
+        VBox card = createCard("Acciones mock", "Botonera elegante para maquetar los flujos del modulo.");
+        card.getStyleClass().add("layaway-actions-card");
+        bindRegionWidthToScene(card, 0.18, 188, 228);
+        card.setMaxWidth(Region.USE_PREF_SIZE);
+
+        Button newLayaway = createActionButton("Nuevo separado", "primary-button");
+        newLayaway.setMaxWidth(Double.MAX_VALUE);
+        newLayaway.setOnAction(event -> showNewLayawayWindow());
+
+        Button refresh = createActionButton("Actualizar lista", "ghost-button");
+        refresh.setMaxWidth(Double.MAX_VALUE);
+
+        Button payments = createActionButton("Visualizar abonos", "ghost-button");
+        payments.setMaxWidth(Double.MAX_VALUE);
+        payments.setOnAction(event -> showPaymentsWindow(null));
+
+        VBox stats = new VBox(8,
+                createKeyValue("Activos", "4 separados"),
+                createKeyValue("Pagados", "1 listo para entrega"),
+                createKeyValue("Saldo total", "$ 375.000"),
+                createKeyValue("Abonos hoy", "$ 45.000")
+        );
+
+        card.getChildren().addAll(newLayaway, refresh, payments, new Separator(), stats);
+        return card;
+    }
+
+    private Node createMovementsFilterCard(
+            DatePicker fechaInicialPicker,
+            DatePicker fechaFinalPicker,
+            TableView<PosApiClient.MovimientoVentaResponse> movementsTable,
+            Label totalCajaValue,
+            Label totalCajaCaption,
+            Label recibidoValue,
+            Label recibidoCaption,
+            Label devueltoValue,
+            Label devueltoCaption
+    ) {
+        VBox card = createCard("Filtros", "Bandeja mock de consulta por rango y tipo.");
+        card.getStyleClass().add("movements-filter-card");
+        bindRegionWidthToScene(card, 0.17, 182, 218);
+        card.setMaxWidth(Region.USE_PREF_SIZE);
+
+        ComboBox<String> origin = new ComboBox<>(FXCollections.observableArrayList(
+                "Todos", "Venta mostrador", "Venta manual", "Abono separado"
+        ));
+        origin.getSelectionModel().selectFirst();
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Fecha inicial", fechaInicialPicker, 184),
+                createFieldGroup("Fecha final", fechaFinalPicker, 184),
+                createFieldGroup("Origen", origin, 184)
+        );
+
+        Button search = createActionButton("Buscar movimientos", "primary-button");
+        search.setMaxWidth(Double.MAX_VALUE);
+        search.setOnAction(event -> loadMovements(
+                fechaInicialPicker.getValue(),
+                fechaFinalPicker.getValue(),
+                movementsTable,
+                totalCajaValue,
+                totalCajaCaption,
+                recibidoValue,
+                recibidoCaption,
+                devueltoValue,
+                devueltoCaption
+        ));
+
+        card.getChildren().addAll(fields, search);
+        return card;
+    }
+
+    private Node createMovementsTableCard(TableView<PosApiClient.MovimientoVentaResponse> table) {
+        VBox card = createCard("Movimientos encontrados", "Tabla mock con ingresos del dia, recibidos y cambio.");
+        card.getStyleClass().add("movements-table-card");
+        HBox.setHgrow(card, Priority.ALWAYS);
+        card.getChildren().add(table);
+        return card;
+    }
+
+    private Node createMovementsInsightsCard(
+            Label totalCajaValue,
+            Label totalCajaCaption,
+            Label recibidoValue,
+            Label recibidoCaption,
+            Label devueltoValue,
+            Label devueltoCaption
+    ) {
+        VBox card = createCard("Lectura rapida", "Mini resumen visual de la jornada.");
+        card.getStyleClass().add("movements-insights-card");
+        bindRegionWidthToScene(card, 0.15, 156, 190);
+        card.setMaxWidth(Region.USE_PREF_SIZE);
+        card.getChildren().addAll(
+                createMetricCard("Total caja", totalCajaValue, totalCajaCaption),
+                createMetricCard("Recibido", recibidoValue, recibidoCaption),
+                createMetricCard("Devuelto", devueltoValue, devueltoCaption)
+        );
+        return card;
+    }
+
+    private void showNewLayawayWindow() {
+        Stage stage = createDialogStage("Nuevo separado");
+        VBox root = createDialogRoot("Nuevo separado", "Formulario maqueta para apertura de apartado.");
+
+        TextField remaining = createField("$ 220.000");
+        remaining.setDisable(true);
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Cliente", createField("Nombre del cliente"), 280),
+                createFieldGroup("Articulo", createField("Articulo o descripcion"), 280),
+                createFieldGroup("Fecha promesa", new DatePicker(LocalDate.of(2026, 7, 12)), 220),
+                createFieldGroup("Valor total", createField("$ 240.000"), 220),
+                createFieldGroup("Abono inicial", createField("$ 20.000"), 220),
+                createFieldGroup("Restante estimado", remaining, 220)
+        );
+
+        VBox progress = createProgressCard("Regla comercial", 0.2, "Abono minimo inicial: $ 20.000 COP");
+        Button save = createActionButton("Guardar mock", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+
+        root.getChildren().addAll(fields, progress, save);
+
+        Scene scene = new Scene(root, 760, 520);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    private void showPaymentsWindow(Stage owner) {
+        Stage stage = createDialogStage("Abonos del separado");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot("Abonos", "Vista mock del historial de pagos parciales.");
+        TableView<MockData.PaymentRow> table = new TableView<>(FXCollections.observableArrayList(MockData.payments()));
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPrefHeight(340);
+        table.getColumns().addAll(
+                tableColumn("Fecha y hora", MockData.PaymentRow::fechaHora),
+                tableColumn("Valor", MockData.PaymentRow::valor),
+                tableColumn("Canal", MockData.PaymentRow::canal),
+                tableColumn("Referencia", MockData.PaymentRow::referencia)
+        );
+
+        root.getChildren().addAll(
+                createKeyValue("Separado", "SP-103"),
+                createKeyValue("Cliente", "Amparo Alvarez"),
+                table
+        );
+
+        Scene scene = new Scene(root, 720, 470);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    private Stage createDialogStage(String title) {
+        Stage stage = new Stage();
+        stage.initModality(Modality.NONE);
+        stage.setTitle(title);
+        stage.setMinWidth(460);
+        stage.setMinHeight(360);
+        return stage;
+    }
+
+    private VBox createDialogRoot(String title, String subtitle) {
+        VBox root = new VBox(18);
+        root.getStyleClass().addAll("dialog-root", "screen-container");
+        root.setPadding(new Insets(24));
+        root.getChildren().add(createScreenContainer(title, subtitle).getChildren().get(0));
+        return root;
+    }
+
+    private VBox createCard(String title, String subtitle) {
+        VBox card = new VBox(18);
+        card.getStyleClass().add("surface-card");
+        if (title != null && !title.isBlank()) {
+            Label heading = new Label(title);
+            heading.getStyleClass().add("card-title");
+            VBox header = new VBox(4, heading);
+            if (subtitle != null && !subtitle.isBlank()) {
+                Label copy = new Label(subtitle);
+                copy.getStyleClass().add("card-subtitle");
+                header.getChildren().add(copy);
+            }
+            card.getChildren().add(header);
+        }
+        return card;
+    }
+
+    private VBox createMetricCard(String label, String value, String caption) {
+        VBox card = new VBox(8);
+        card.getStyleClass().add("metric-card");
+        bindRegionWidthToScene(card, 0.17, 135, 190);
+        Label overline = new Label(label);
+        overline.getStyleClass().add("metric-label");
+        Label number = createMetricValueLabel(value);
+        Label helper = createMetricCaptionLabel(caption);
+        card.getChildren().addAll(overline, number, helper);
+        return card;
+    }
+
+    private VBox createMetricCard(String label, Label valueLabel, Label captionLabel) {
+        VBox card = new VBox(8);
+        card.getStyleClass().add("metric-card");
+        bindRegionWidthToScene(card, 0.17, 135, 190);
+        Label overline = new Label(label);
+        overline.getStyleClass().add("metric-label");
+        card.getChildren().addAll(overline, valueLabel, captionLabel);
+        return card;
+    }
+
+    private Label createMetricValueLabel(String value) {
+        Label label = new Label(value);
+        label.getStyleClass().add("metric-value");
+        return label;
+    }
+
+    private Label createMetricCaptionLabel(String value) {
+        Label label = new Label(value);
+        label.getStyleClass().add("metric-caption");
+        return label;
+    }
+
+    private VBox createProgressCard(String title, double progress, String caption) {
+        VBox box = new VBox(10);
+        box.getStyleClass().add("progress-card");
+        Label label = new Label(title);
+        label.getStyleClass().add("progress-title");
+        ProgressBar progressBar = new ProgressBar(progress);
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        progressBar.getStyleClass().add("accent-progress");
+        Label helper = new Label(caption);
+        helper.getStyleClass().add("progress-caption");
+        box.getChildren().addAll(label, progressBar, helper);
+        return box;
+    }
+
+    private HBox createKeyValue(String key, String value) {
+        Label left = new Label(key);
+        left.getStyleClass().add("meta-key");
+        Label right = new Label(value);
+        right.getStyleClass().add("meta-value");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        return new HBox(10, left, spacer, right);
+    }
+
+    private Label createFormLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("field-label");
+        return label;
+    }
+
+    private TextField createField(String value) {
+        TextField field = new TextField(value);
+        field.getStyleClass().add("soft-field");
+        return field;
+    }
+
+    private Button createActionButton(String text, String styleClass) {
+        Button button = new Button(text);
+        button.getStyleClass().add(styleClass);
+        return button;
+    }
+
+    private Label createPill(String text) {
+        Label pill = new Label(text);
+        pill.getStyleClass().add("pill");
+        return pill;
+    }
+
+    private FlowPane createResponsiveRow(Node... children) {
+        FlowPane pane = new FlowPane();
+        pane.setHgap(12);
+        pane.setVgap(12);
+        pane.setAlignment(Pos.TOP_LEFT);
+        pane.setMaxWidth(Double.MAX_VALUE);
+        pane.getStyleClass().add("responsive-row");
+        pane.getChildren().addAll(children);
+        return pane;
+    }
+
+    private HBox createAdaptivePanelRow(Node... children) {
+        HBox pane = new HBox(12);
+        pane.setAlignment(Pos.TOP_LEFT);
+        pane.setFillHeight(true);
+        pane.setMaxWidth(Double.MAX_VALUE);
+        for (Node child : children) {
+            if (child instanceof Region region) {
+                region.setMinWidth(0);
+                HBox.setHgrow(region, Priority.ALWAYS);
+            }
+            pane.getChildren().add(child);
+        }
+        return pane;
+    }
+
+    private VBox createFieldGroup(String label, Node control, double preferredWidth) {
+        VBox group = new VBox(8);
+        group.getStyleClass().add("field-group");
+        group.setPrefWidth(preferredWidth);
+        group.setMinWidth(Math.min(preferredWidth, 150));
+        if (control instanceof Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        group.getChildren().addAll(createFormLabel(label), control);
+        return group;
+    }
+
+    private StackPane createIconBadge(String text, String sizeClass) {
+        Label label = new Label(text);
+        label.getStyleClass().add("badge-text");
+        StackPane badge = new StackPane(label);
+        badge.getStyleClass().addAll("icon-badge", sizeClass);
+        return badge;
+    }
+
+    private <T> TableColumn<T, String> tableColumn(String title, java.util.function.Function<T, String> mapper) {
+        TableColumn<T, String> column = new TableColumn<>(title);
+        column.setCellValueFactory(cell -> new ReadOnlyStringWrapper(mapper.apply(cell.getValue())));
+        return column;
+    }
+
+    private <T> void runAsync(
+            java.util.concurrent.Callable<T> supplier,
+            java.util.function.Consumer<T> onSuccess,
+            java.util.function.Consumer<Throwable> onError
+    ) {
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                return supplier.call();
+            } catch (Exception exception) {
+                throw new RuntimeException(exception);
+            }
+        }).whenComplete((result, throwable) -> Platform.runLater(() -> {
+            if (throwable != null) {
+                Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
+                onError.accept(cause);
+                return;
+            }
+            onSuccess.accept(result);
+        }));
+    }
+
+    private BigDecimal parseRequiredPositive(String value, String errorMessage) {
+        BigDecimal parsed = parseCurrencyOrZero(value);
+        if (parsed.signum() <= 0) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return parsed;
+    }
+
+    private BigDecimal parseCurrencyOrZero(String value) {
+        if (value == null || value.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+
+        String normalized = value
+                .replace("$", "")
+                .replace("COP", "")
+                .replace(" ", "");
+        if (normalized.contains(",") && normalized.contains(".")) {
+            normalized = normalized.replace(".", "").replace(",", ".");
+        } else if (normalized.contains(",")) {
+            normalized = normalized.replace(",", ".");
+        }
+        return new BigDecimal(normalized).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String formatCurrency(BigDecimal value) {
+        return currencyFormat.format(value == null ? BigDecimal.ZERO : value);
+    }
+
+    private String formatPlainNumber(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP)
+                .stripTrailingZeros()
+                .toPlainString();
+    }
+
+    private String formatNumber(BigDecimal value) {
+        return value == null ? "0" : value.stripTrailingZeros().toPlainString();
+    }
+
+    private String formatDateTime(LocalDateTime value) {
+        return value == null ? "" : DATE_TIME_FORMATTER.format(value);
+    }
+
+    private String formatReceiptTime(LocalDateTime value) {
+        if (value == null) {
+            return "";
+        }
+        return RECEIPT_TIME_FORMATTER.format(value)
+                .replace("AM", "a. m.")
+                .replace("PM", "p. m.");
+    }
+
+    private String formatReceiptAmount(BigDecimal value) {
+        NumberFormat format = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-CO"));
+        format.setMinimumFractionDigits(0);
+        format.setMaximumFractionDigits(0);
+        return format.format((value == null ? BigDecimal.ZERO : value).setScale(0, RoundingMode.HALF_UP));
+    }
+
+    private String formatReceiptQuantity(BigDecimal value) {
+        if (value == null) {
+            return "0";
+        }
+        if (value.stripTrailingZeros().scale() <= 0) {
+            return value.setScale(0, RoundingMode.HALF_UP).toPlainString();
+        }
+        return value.stripTrailingZeros().toPlainString();
+    }
+
+    private void showInfo(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private void showError(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private String initials(String title) {
+        String[] parts = title.split(" ");
+        StringBuilder builder = new StringBuilder();
+        for (String part : parts) {
+            if (!part.isBlank()) {
+                builder.append(Character.toUpperCase(part.charAt(0)));
+            }
+            if (builder.length() == 2) {
+                break;
+            }
+        }
+        return builder.toString();
+    }
+
+    private void updateResponsiveState(BorderPane shell, Scene scene) {
+        boolean compact = scene.getWidth() < 1180 || scene.getHeight() < 760;
+        shell.pseudoClassStateChanged(COMPACT, compact);
+    }
+
+    private void tuneCompactScreen(VBox root) {
+        root.setSpacing(10);
+        root.setPadding(new Insets(12, 16, 12, 16));
+    }
+
+    private void bindRegionWidthToScene(Region region, double ratio, double min, double max) {
+        region.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                region.prefWidthProperty().bind(Bindings.createDoubleBinding(
+                        () -> clamp(newScene.getWidth() * ratio, min, max),
+                        newScene.widthProperty()
+                ));
+            }
+        });
+    }
+
+    private void bindTableHeightToScene(TableView<?> table, double ratio, double min, double max) {
+        table.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                table.prefHeightProperty().bind(Bindings.createDoubleBinding(
+                        () -> clamp(newScene.getHeight() * ratio, min, max),
+                        newScene.heightProperty()
+                ));
+            }
+        });
+    }
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private record SaleDraftRow(BigDecimal cantidad, BigDecimal valorUnitario) {
+
+        private BigDecimal total() {
+            return cantidad.multiply(valorUnitario).setScale(2, RoundingMode.HALF_UP);
+        }
+    }
+
+    private record ClosingPayload(
+            PosApiClient.ResumenCierreDiarioResponse resumen,
+            List<PosApiClient.CierreDiarioListadoResponse> historial
+    ) {
+    }
+}

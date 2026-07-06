@@ -2,26 +2,50 @@ services:
   postgres:
     image: postgres:17
     container_name: posdesktop-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: posdesktop
       POSTGRES_USER: pos
       POSTGRES_PASSWORD: pos123
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pos -d posdesktop"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - pos-network
 
   mongo:
     image: mongo:8
     container_name: posdesktop-mongo
+    restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: pos
       MONGO_INITDB_ROOT_PASSWORD: pos123
+      MONGO_INITDB_DATABASE: posdesktop_media
     ports:
-      - "27017:27017"
+      - "27018:27017"
     volumes:
       - mongo_data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'db.runCommand({ ping: 1 }).ok' | mongosh mongodb://pos:pos123@localhost:27017/admin --quiet"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - pos-network
 
 volumes:
   postgres_data:
   mongo_data:
+
+networks:
+  pos-network:
+    driver: bridge

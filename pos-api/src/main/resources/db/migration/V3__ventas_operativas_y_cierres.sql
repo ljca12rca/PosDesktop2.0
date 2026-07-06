@@ -1,0 +1,12 @@
+ALTER TABLE ventas
+ADD COLUMN monto_recibido NUMERIC(19, 2) NOT NULL DEFAULT 0,
+ADD COLUMN cambio_entregado NUMERIC(19, 2) NOT NULL DEFAULT 0;
+
+ALTER TABLE cierres_diarios
+ADD COLUMN responsable VARCHAR(160),
+ADD COLUMN base_caja NUMERIC(19, 2) NOT NULL DEFAULT 0,
+ADD COLUMN egresos NUMERIC(19, 2) NOT NULL DEFAULT 0,
+ADD COLUMN total_final NUMERIC(19, 2) NOT NULL DEFAULT 0;
+
+
+select * from ventas

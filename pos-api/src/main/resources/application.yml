@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: posdesktop-backend
+  datasource:
+    url: ${POS_PG_URL:jdbc:postgresql://localhost:55432/posdesktop}
+    username: ${POS_PG_USERNAME:pos}
+    password: ${POS_PG_PASSWORD:pos123}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  mongodb:
+    host: ${POS_MONGO_HOST:localhost}
+    port: ${POS_MONGO_PORT:27018}
+    database: ${POS_MONGO_DATABASE:posdesktop_media}
+    username: ${POS_MONGO_USERNAME:pos_app}
+    password: ${POS_MONGO_PASSWORD:pos123}
+    authentication-database: ${POS_MONGO_AUTH_DB:posdesktop_media}
+
+server:
+  port: ${POS_API_PORT:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+pos:
+  api:
+    application-name: POS Desktop API
+    version: v1
+    environment: local
+    desktop-mock-enabled: true

@@ -1,0 +1,609 @@
+.root {
+    -fx-font-family: "Segoe UI";
+    -fx-background-color: #f7f4ee;
+}
+
+.app-shell {
+    -fx-background-color:
+        radial-gradient(center 20% 10%, radius 65%, rgba(244, 205, 153, 0.38), transparent 60%),
+        linear-gradient(to bottom right, #fbf6ed, #f2efe8 60%, #ede7dc);
+}
+
+.sidebar {
+    -fx-background-color: linear-gradient(to bottom, #0b6d6c, #0e8f8d 55%, #0c7776);
+    -fx-alignment: top-center;
+}
+
+.brand-block {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 26;
+    -fx-padding: 18;
+}
+
+.sidebar-title {
+    -fx-text-fill: white;
+    -fx-font-size: 22px;
+    -fx-font-weight: 700;
+}
+
+.sidebar-subtitle {
+    -fx-text-fill: rgba(255, 255, 255, 0.82);
+    -fx-font-size: 13px;
+    -fx-line-spacing: 4px;
+}
+
+.nav-button {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 18;
+    -fx-text-fill: #f5fffd;
+    -fx-font-size: 15px;
+    -fx-font-weight: 700;
+    -fx-alignment: center;
+    -fx-padding: 14 22 14 22;
+    -fx-cursor: hand;
+}
+
+.nav-button:selected {
+    -fx-background-color: #f4b15f;
+    -fx-text-fill: #233341;
+}
+
+.nav-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+}
+
+.content-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.content-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.screen-container {
+    -fx-background-color: transparent;
+}
+
+.screen-title {
+    -fx-font-family: "Georgia";
+    -fx-font-size: 30px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #257f66;
+}
+
+.screen-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: #6d7369;
+}
+
+.icon-badge {
+    -fx-background-color: linear-gradient(to bottom right, #f7c36f, #f28a53);
+    -fx-background-radius: 100;
+    -fx-effect: dropshadow(gaussian, rgba(182, 101, 42, 0.28), 22, 0.2, 0, 6);
+}
+
+.badge-lg {
+    -fx-min-width: 58;
+    -fx-min-height: 58;
+    -fx-max-width: 58;
+    -fx-max-height: 58;
+}
+
+.badge-xl {
+    -fx-min-width: 72;
+    -fx-min-height: 72;
+    -fx-max-width: 72;
+    -fx-max-height: 72;
+}
+
+.badge-text {
+    -fx-text-fill: #22313f;
+    -fx-font-size: 18px;
+    -fx-font-weight: 800;
+}
+
+.surface-card {
+    -fx-background-color: rgba(255, 255, 255, 0.92);
+    -fx-background-radius: 28;
+    -fx-padding: 18;
+    -fx-effect: dropshadow(gaussian, rgba(50, 37, 16, 0.10), 24, 0.18, 0, 8);
+}
+
+.card-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #21323c;
+}
+
+.card-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: #7a8178;
+}
+
+.status-error {
+    -fx-text-fill: #c53d2f;
+    -fx-font-weight: 700;
+}
+
+.metric-card {
+    -fx-background-color: linear-gradient(to bottom right, rgba(255, 255, 255, 0.95), rgba(255, 246, 232, 0.98));
+    -fx-background-radius: 22;
+    -fx-padding: 12;
+    -fx-pref-width: 230;
+    -fx-effect: dropshadow(gaussian, rgba(50, 37, 16, 0.10), 20, 0.18, 0, 6);
+}
+
+.metric-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #6d746b;
+}
+
+.metric-value {
+    -fx-font-size: 24px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #113847;
+}
+
+.metric-caption {
+    -fx-font-size: 12px;
+    -fx-text-fill: #889083;
+}
+
+.amount-block {
+    -fx-background-color: linear-gradient(to bottom right, #1d2e38, #234a5b);
+    -fx-background-radius: 22;
+    -fx-padding: 14;
+}
+
+.amount-overline {
+    -fx-text-fill: rgba(255, 255, 255, 0.72);
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+
+.amount-main {
+    -fx-text-fill: #fff6d8;
+    -fx-font-size: 32px;
+    -fx-font-weight: 800;
+}
+
+.amount-helper {
+    -fx-text-fill: rgba(255, 255, 255, 0.82);
+    -fx-font-size: 13px;
+}
+
+.field-label {
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #37505a;
+}
+
+.soft-field,
+.combo-box,
+.date-picker,
+.soft-area {
+    -fx-background-color: #f8f5ef;
+    -fx-background-radius: 16;
+    -fx-border-color: #dfd6c6;
+    -fx-border-radius: 16;
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 13px;
+}
+
+.soft-area .content {
+    -fx-background-color: #f8f5ef;
+    -fx-background-radius: 16;
+}
+
+.soft-field:focused,
+.combo-box:focused,
+.date-picker:focused,
+.soft-area:focused {
+    -fx-border-color: #ef8e58;
+}
+
+.primary-button,
+.ghost-button {
+    -fx-font-size: 14px;
+    -fx-font-weight: 800;
+    -fx-padding: 10 16 10 16;
+    -fx-background-radius: 18;
+    -fx-cursor: hand;
+}
+
+.primary-button {
+    -fx-background-color: linear-gradient(to right, #ef8e58, #f4be64);
+    -fx-text-fill: #21323c;
+}
+
+.ghost-button {
+    -fx-background-color: #eef3f0;
+    -fx-text-fill: #1b4150;
+    -fx-border-color: #d4dddb;
+    -fx-border-radius: 18;
+}
+
+.pill {
+    -fx-background-color: rgba(20, 104, 104, 0.10);
+    -fx-background-radius: 999;
+    -fx-padding: 8 12 8 12;
+    -fx-text-fill: #145868;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+
+.meta-key {
+    -fx-text-fill: #6f756c;
+    -fx-font-size: 13px;
+}
+
+.meta-value {
+    -fx-text-fill: #1e2f3a;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+}
+
+.progress-card {
+    -fx-background-color: rgba(242, 165, 95, 0.12);
+    -fx-background-radius: 18;
+    -fx-padding: 16;
+}
+
+.progress-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #37434c;
+}
+
+.progress-caption {
+    -fx-font-size: 12px;
+    -fx-text-fill: #6d746b;
+}
+
+.accent-progress > .bar {
+    -fx-background-color: linear-gradient(to right, #ef8e58, #37ad77);
+    -fx-background-radius: 999;
+}
+
+.accent-progress > .track {
+    -fx-background-color: rgba(255, 255, 255, 0.82);
+    -fx-background-radius: 999;
+}
+
+.soft-check {
+    -fx-font-size: 13px;
+    -fx-text-fill: #314752;
+}
+
+.data-table {
+    -fx-background-color: transparent;
+    -fx-border-color: #e2d8c7;
+    -fx-border-radius: 18;
+    -fx-background-radius: 18;
+    -fx-padding: 6;
+}
+
+.data-table .column-header-background {
+    -fx-background-color: linear-gradient(to right, #173746, #255362);
+    -fx-background-radius: 14 14 0 0;
+}
+
+.data-table .column-header,
+.data-table .filler {
+    -fx-size: 34;
+    -fx-background-color: transparent;
+}
+
+.data-table .column-header .label {
+    -fx-text-fill: #f6f8f6;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+
+.data-table .table-row-cell {
+    -fx-background-color: rgba(255, 255, 255, 0.82);
+    -fx-border-color: transparent transparent rgba(219, 213, 203, 0.8) transparent;
+}
+
+.data-table .table-row-cell:filled:selected {
+    -fx-background-color: rgba(239, 142, 88, 0.18);
+}
+
+.data-table .table-cell {
+    -fx-text-fill: #23333d;
+    -fx-font-size: 12px;
+    -fx-padding: 8 8 8 8;
+}
+
+.dialog-root {
+    -fx-background-color:
+        radial-gradient(center 10% 10%, radius 65%, rgba(244, 205, 153, 0.28), transparent 60%),
+        linear-gradient(to bottom right, #faf6ef, #f0ece2);
+}
+
+.dialog-host {
+    -fx-background-color: transparent;
+}
+
+.change-confirm-card {
+    -fx-alignment: center;
+    -fx-spacing: 18;
+    -fx-padding: 24;
+}
+
+.change-confirm-overline {
+    -fx-text-fill: #6d746b;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+}
+
+.change-confirm-title {
+    -fx-text-fill: #1d2e38;
+    -fx-font-size: 26px;
+    -fx-font-weight: 800;
+}
+
+.change-confirm-amount {
+    -fx-text-fill: #ef8e58;
+    -fx-font-size: 48px;
+    -fx-font-weight: 900;
+}
+
+.change-confirm-helper {
+    -fx-text-fill: #4d5b63;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+}
+
+.change-confirm-note {
+    -fx-text-fill: #7a8178;
+    -fx-font-size: 12px;
+    -fx-wrap-text: true;
+}
+
+.receipt-preview-shell {
+    -fx-background-color: rgba(255, 255, 255, 0.75);
+    -fx-background-radius: 28;
+    -fx-padding: 18;
+    -fx-alignment: center;
+    -fx-effect: dropshadow(gaussian, rgba(32, 24, 17, 0.18), 28, 0.2, 0, 10);
+}
+
+.receipt-preview-title {
+    -fx-text-fill: #23333d;
+    -fx-font-size: 18px;
+    -fx-font-weight: 800;
+}
+
+.receipt-preview-status {
+    -fx-text-fill: #51626a;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+
+.receipt-paper {
+    -fx-background-color: white;
+    -fx-background-radius: 18;
+    -fx-padding: 26 18 24 18;
+    -fx-spacing: 8;
+    -fx-max-width: 290;
+    -fx-pref-width: 290;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.12), 16, 0.18, 0, 4);
+}
+
+.receipt-brand {
+    -fx-text-fill: #1a1a1a;
+    -fx-font-size: 24px;
+    -fx-font-weight: 900;
+}
+
+.receipt-owner {
+    -fx-text-fill: #2b2b2b;
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+}
+
+.receipt-meta,
+.receipt-meta-key,
+.receipt-meta-value,
+.receipt-text,
+.receipt-divider,
+.receipt-thanks,
+.receipt-total-label,
+.receipt-total-amount {
+    -fx-font-family: "Consolas";
+}
+
+.receipt-meta {
+    -fx-text-fill: #2a2a2a;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-alignment: center;
+}
+
+.receipt-meta-row,
+.receipt-header-row,
+.receipt-item-row,
+.receipt-total-row {
+    -fx-alignment: center-left;
+}
+
+.receipt-meta-key,
+.receipt-meta-value {
+    -fx-text-fill: #2d2d2d;
+    -fx-font-size: 12px;
+}
+
+.receipt-text {
+    -fx-text-fill: #222;
+    -fx-font-size: 12px;
+}
+
+.receipt-divider {
+    -fx-text-fill: #383838;
+    -fx-font-size: 12px;
+}
+
+.receipt-col-qty {
+    -fx-min-width: 34;
+    -fx-pref-width: 34;
+}
+
+.receipt-col-desc {
+    -fx-min-width: 96;
+    -fx-pref-width: 96;
+}
+
+.receipt-col-money {
+    -fx-min-width: 56;
+    -fx-pref-width: 56;
+    -fx-alignment: center-right;
+}
+
+.receipt-total-row {
+    -fx-padding: 6 0 0 0;
+}
+
+.receipt-total-label,
+.receipt-total-amount {
+    -fx-text-fill: #1c1c1c;
+    -fx-font-size: 15px;
+    -fx-font-weight: 900;
+}
+
+.receipt-thanks {
+    -fx-padding: 16 0 0 0;
+    -fx-text-fill: #232323;
+    -fx-font-size: 13px;
+    -fx-font-weight: 900;
+    -fx-alignment: center;
+}
+
+.sales-entry-card,
+.sales-table-card,
+.sales-summary-card,
+.layaway-list-card,
+.layaway-actions-card,
+.movements-filter-card,
+.movements-table-card,
+.movements-insights-card {
+    -fx-background-radius: 20;
+}
+
+.sales-entry-card {
+    -fx-padding: 14;
+}
+
+.sales-table-card {
+    -fx-padding: 12;
+}
+
+.sales-summary-card {
+    -fx-padding: 14;
+}
+
+.layaway-list-card {
+    -fx-padding: 14;
+}
+
+.layaway-actions-card {
+    -fx-padding: 14;
+}
+
+.movements-filter-card,
+.movements-insights-card {
+    -fx-padding: 14;
+}
+
+.movements-table-card {
+    -fx-padding: 12;
+}
+
+.app-shell:compact .sidebar {
+    -fx-padding: 18 12 18 12;
+}
+
+.app-shell:compact .brand-block {
+    -fx-padding: 14;
+}
+
+.app-shell:compact .sidebar-title {
+    -fx-font-size: 18px;
+}
+
+.app-shell:compact .sidebar-subtitle {
+    -fx-font-size: 11px;
+}
+
+.app-shell:compact .nav-button {
+    -fx-font-size: 13px;
+    -fx-padding: 11 14 11 14;
+}
+
+.app-shell:compact .screen-title {
+    -fx-font-size: 24px;
+}
+
+.app-shell:compact .surface-card {
+    -fx-padding: 14;
+}
+
+.app-shell:compact .sales-entry-card,
+.app-shell:compact .sales-table-card,
+.app-shell:compact .sales-summary-card,
+.app-shell:compact .layaway-list-card,
+.app-shell:compact .layaway-actions-card,
+.app-shell:compact .movements-filter-card,
+.app-shell:compact .movements-table-card,
+.app-shell:compact .movements-insights-card {
+    -fx-padding: 10;
+}
+
+.app-shell:compact .field-label,
+.app-shell:compact .soft-check,
+.app-shell:compact .card-subtitle,
+.app-shell:compact .metric-caption,
+.app-shell:compact .amount-helper {
+    -fx-font-size: 11px;
+}
+
+.app-shell:compact .card-title {
+    -fx-font-size: 16px;
+}
+
+.app-shell:compact .soft-field,
+.app-shell:compact .combo-box,
+.app-shell:compact .date-picker,
+.app-shell:compact .soft-area {
+    -fx-padding: 6 10 6 10;
+    -fx-font-size: 12px;
+}
+
+.app-shell:compact .primary-button,
+.app-shell:compact .ghost-button {
+    -fx-font-size: 12px;
+    -fx-padding: 8 12 8 12;
+}
+
+.app-shell:compact .metric-value {
+    -fx-font-size: 22px;
+}
+
+.app-shell:compact .amount-main {
+    -fx-font-size: 26px;
+}
+
+.app-shell:compact .data-table .column-header,
+.app-shell:compact .data-table .filler {
+    -fx-size: 30;
+}
+
+.app-shell:compact .data-table .column-header .label,
+.app-shell:compact .data-table .table-cell {
+    -fx-font-size: 11px;
+}
+
+.app-shell:compact .data-table .table-cell {
+    -fx-padding: 6 6 6 6;
+}
