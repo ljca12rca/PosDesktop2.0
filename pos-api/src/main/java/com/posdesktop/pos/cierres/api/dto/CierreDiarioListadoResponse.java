@@ -9,11 +9,12 @@ public record CierreDiarioListadoResponse(
         UUID id,
         LocalDate fechaOperacion,
         LocalDateTime fechaHoraCierre,
-        String responsable,
         int cantidadVentas,
         BigDecimal totalVentas,
+        BigDecimal montoNetoCaja,
         BigDecimal baseCaja,
-        BigDecimal egresos,
+        BigDecimal trabajadoras,
+        BigDecimal ahorro,
         BigDecimal totalFinal,
         String estado
 ) {

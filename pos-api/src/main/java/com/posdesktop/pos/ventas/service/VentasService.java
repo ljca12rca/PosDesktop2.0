@@ -1,7 +1,9 @@
 package com.posdesktop.pos.ventas.service;
 
+import com.posdesktop.pos.modelo.enumeraciones.EstadoCierreDiario;
 import com.posdesktop.pos.modelo.relacional.DetalleVenta;
 import com.posdesktop.pos.modelo.relacional.Venta;
+import com.posdesktop.pos.repositorio.relacional.CierreDiarioRepositorio;
 import com.posdesktop.pos.repositorio.relacional.VentaRepositorio;
 import com.posdesktop.pos.ventas.api.dto.DetalleVentaResponse;
 import com.posdesktop.pos.ventas.api.dto.MovimientoVentaResponse;
@@ -24,13 +26,17 @@ public class VentasService {
     private static final DateTimeFormatter NUMERO_DIA = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final VentaRepositorio ventaRepositorio;
+    private final CierreDiarioRepositorio cierreDiarioRepositorio;
 
-    public VentasService(VentaRepositorio ventaRepositorio) {
+    public VentasService(VentaRepositorio ventaRepositorio, CierreDiarioRepositorio cierreDiarioRepositorio) {
         this.ventaRepositorio = ventaRepositorio;
+        this.cierreDiarioRepositorio = cierreDiarioRepositorio;
     }
 
     @Transactional
     public VentaRegistradaResponse registrarVentaManual(RegistrarVentaManualRequest request) {
+        validarDiaAbierto(LocalDate.now());
+
         Venta venta = new Venta();
         venta.setNumeroVenta(generarNumeroVenta(LocalDate.now()));
         venta.setObservacion(request.observacion());
@@ -49,7 +55,7 @@ public class VentasService {
         venta.setMontoManualInformado(venta.getTotal());
         venta.setMontoRecibido(normalizarDinero(request.montoRecibido()));
         validarMontoRecibidoContraTotal(venta.getMontoRecibido(), venta.getTotal());
-        venta.setCambioEntregado(venta.getMontoRecibido().subtract(venta.getTotal()));
+        venta.setCambioEntregado(calcularCambioEntregado(venta.getMontoRecibido(), venta.getTotal()));
 
         Venta ventaGuardada = ventaRepositorio.save(venta);
         return mapearVenta(ventaGuardada);
@@ -90,6 +96,16 @@ public class VentasService {
         }
     }
 
+    private void validarDiaAbierto(LocalDate fechaOperacion) {
+        cierreDiarioRepositorio.findByFechaOperacion(fechaOperacion)
+                .filter(cierre -> cierre.getEstado() == EstadoCierreDiario.CERRADO)
+                .ifPresent(cierre -> {
+                    throw new IllegalArgumentException(
+                            "No es posible registrar ventas porque el cierre del dia ya fue guardado."
+                    );
+                });
+    }
+
     private void validarMontoRecibidoContraTotal(BigDecimal montoRecibido, BigDecimal totalVenta) {
         if (montoRecibido != null
                 && montoRecibido.signum() > 0
@@ -97,6 +113,14 @@ public class VentasService {
                 && montoRecibido.compareTo(totalVenta) < 0) {
             throw new IllegalArgumentException("El valor recibido no puede ser menor al valor total de la venta.");
         }
+    }
+
+    private BigDecimal calcularCambioEntregado(BigDecimal montoRecibido, BigDecimal totalVenta) {
+        BigDecimal recibido = normalizarDinero(montoRecibido);
+        if (recibido.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return recibido.subtract(normalizarDinero(totalVenta)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
     }
 
     private VentaRegistradaResponse mapearVenta(Venta venta) {

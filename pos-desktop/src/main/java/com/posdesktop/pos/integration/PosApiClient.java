@@ -181,9 +181,9 @@ public final class PosApiClient {
 
     public record RegistrarCierreRequest(
             LocalDate fechaOperacion,
-            String responsable,
             BigDecimal base,
-            BigDecimal egresos,
+            BigDecimal trabajadoras,
+            BigDecimal ahorro,
             String observacion
     ) {
     }
@@ -195,11 +195,12 @@ public final class PosApiClient {
             BigDecimal totalVentas,
             BigDecimal montoRecibido,
             BigDecimal cambioEntregado,
+            BigDecimal montoNetoCaja,
             BigDecimal baseCaja,
-            BigDecimal egresos,
+            BigDecimal trabajadoras,
+            BigDecimal ahorro,
             BigDecimal totalFinal,
             boolean cierreGuardado,
-            String responsable,
             String estado,
             String observacion
     ) {
@@ -209,11 +210,12 @@ public final class PosApiClient {
             String id,
             LocalDate fechaOperacion,
             LocalDateTime fechaHoraCierre,
-            String responsable,
             int cantidadVentas,
             BigDecimal totalVentas,
+            BigDecimal montoNetoCaja,
             BigDecimal baseCaja,
-            BigDecimal egresos,
+            BigDecimal trabajadoras,
+            BigDecimal ahorro,
             BigDecimal totalFinal,
             String estado
     ) {

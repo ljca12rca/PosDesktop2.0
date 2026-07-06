@@ -240,9 +240,9 @@ public class PosDesktopFxApplication extends Application {
         tuneCompactScreen(root);
 
         DatePicker fechaOperacionPicker = new DatePicker(LocalDate.now());
-        TextField responsableField = createField("Caja principal");
         TextField baseField = createField("0");
-        TextField egresosField = createField("0");
+        TextField trabajadorasField = createField("0");
+        TextField ahorroField = createField("0");
         TextArea observacionArea = new TextArea();
         observacionArea.setWrapText(true);
         observacionArea.setPrefRowCount(2);
@@ -251,7 +251,7 @@ public class PosDesktopFxApplication extends Application {
         Label ventasValue = createMetricValueLabel("$ 0");
         Label ventasCaption = createMetricCaptionLabel("0 comprobantes");
         Label recibidoValue = createMetricValueLabel("$ 0");
-        Label recibidoCaption = createMetricCaptionLabel("Ingresos del dia");
+        Label recibidoCaption = createMetricCaptionLabel("Recibido - devuelto");
         Label baseValue = createMetricValueLabel("$ 0");
         Label baseCaption = createMetricCaptionLabel("Configurado en cierre");
         Label totalValue = createMetricValueLabel("$ 0");
@@ -259,7 +259,7 @@ public class PosDesktopFxApplication extends Application {
 
         FlowPane cards = new FlowPane(12, 12,
                 createMetricCard("Ventas del dia", ventasValue, ventasCaption),
-                createMetricCard("Recibido", recibidoValue, recibidoCaption),
+                createMetricCard("Neto en caja", recibidoValue, recibidoCaption),
                 createMetricCard("Base sugerida", baseValue, baseCaption),
                 createMetricCard("Total proyectado", totalValue, totalCaption)
         );
@@ -269,9 +269,9 @@ public class PosDesktopFxApplication extends Application {
         HBox grid = createAdaptivePanelRow(
                 createClosingFormCard(
                         fechaOperacionPicker,
-                        responsableField,
                         baseField,
-                        egresosField,
+                        trabajadorasField,
+                        ahorroField,
                         observacionArea,
                         ventasCaption,
                         ventasValue,
@@ -288,9 +288,9 @@ public class PosDesktopFxApplication extends Application {
         root.getChildren().addAll(cards, grid);
         loadClosingData(
                 fechaOperacionPicker.getValue(),
-                responsableField,
                 baseField,
-                egresosField,
+                trabajadorasField,
+                ahorroField,
                 observacionArea,
                 ventasCaption,
                 ventasValue,
@@ -880,11 +880,12 @@ public class PosDesktopFxApplication extends Application {
         bindTableHeightToScene(table, 0.24, 138, 205);
         table.getColumns().addAll(
                 tableColumn("Fecha", row -> row.fechaOperacion().toString()),
-                tableColumn("Responsable", PosApiClient.CierreDiarioListadoResponse::responsable),
                 tableColumn("Ventas", row -> String.valueOf(row.cantidadVentas())),
                 tableColumn("Total ventas", row -> formatCurrency(row.totalVentas())),
+                tableColumn("Neto caja", row -> formatCurrency(row.montoNetoCaja())),
                 tableColumn("Base", row -> formatCurrency(row.baseCaja())),
-                tableColumn("Egresos", row -> formatCurrency(row.egresos())),
+                tableColumn("Trabajadoras", row -> formatCurrency(row.trabajadoras())),
+                tableColumn("Ahorro", row -> formatCurrency(row.ahorro())),
                 tableColumn("Total cierre", row -> formatCurrency(row.totalFinal()))
         );
         return table;
@@ -908,9 +909,9 @@ public class PosDesktopFxApplication extends Application {
 
     private void loadClosingData(
             LocalDate fechaOperacion,
-            TextField responsableField,
             TextField baseField,
-            TextField egresosField,
+            TextField trabajadorasField,
+            TextField ahorroField,
             TextArea observacionArea,
             Label ventasCaption,
             Label ventasValue,
@@ -930,15 +931,13 @@ public class PosDesktopFxApplication extends Application {
                     PosApiClient.ResumenCierreDiarioResponse resumen = payload.resumen();
                     ventasValue.setText(formatCurrency(resumen.totalVentas()));
                     ventasCaption.setText(resumen.cantidadVentas() + " comprobantes");
-                    recibidoValue.setText(formatCurrency(resumen.montoRecibido()));
+                    recibidoValue.setText(formatCurrency(resumen.montoNetoCaja()));
                     baseValue.setText(formatCurrency(resumen.baseCaja()));
                     totalValue.setText(formatCurrency(resumen.totalFinal()));
                     totalCaption.setText(resumen.cierreGuardado() ? "Cierre guardado: " + resumen.estado() : "Pendiente por guardar");
-                    if (resumen.responsable() != null && !resumen.responsable().isBlank()) {
-                        responsableField.setText(resumen.responsable());
-                    }
                     baseField.setText(formatPlainNumber(resumen.baseCaja()));
-                    egresosField.setText(formatPlainNumber(resumen.egresos()));
+                    trabajadorasField.setText(formatPlainNumber(resumen.trabajadoras()));
+                    ahorroField.setText(formatPlainNumber(resumen.ahorro()));
                     observacionArea.setText(resumen.observacion() == null ? "" : resumen.observacion());
                     historyTable.setItems(FXCollections.observableArrayList(payload.historial()));
                 },
@@ -948,9 +947,9 @@ public class PosDesktopFxApplication extends Application {
 
     private void saveClosing(
             DatePicker fechaOperacionPicker,
-            TextField responsableField,
             TextField baseField,
-            TextField egresosField,
+            TextField trabajadorasField,
+            TextField ahorroField,
             TextArea observacionArea,
             Label ventasCaption,
             Label ventasValue,
@@ -962,16 +961,11 @@ public class PosDesktopFxApplication extends Application {
     ) {
         try {
             LocalDate fecha = fechaOperacionPicker.getValue() == null ? LocalDate.now() : fechaOperacionPicker.getValue();
-            String responsable = responsableField.getText() == null ? "" : responsableField.getText().trim();
-            if (responsable.isBlank()) {
-                throw new IllegalArgumentException("El responsable del cierre es obligatorio.");
-            }
-
             PosApiClient.RegistrarCierreRequest request = new PosApiClient.RegistrarCierreRequest(
                     fecha,
-                    responsable,
                     parseCurrencyOrZero(baseField.getText()),
-                    parseCurrencyOrZero(egresosField.getText()),
+                    parseCurrencyOrZero(trabajadorasField.getText()),
+                    parseCurrencyOrZero(ahorroField.getText()),
                     observacionArea.getText()
             );
 
@@ -981,9 +975,9 @@ public class PosDesktopFxApplication extends Application {
                         showInfo("Cierre registrado", "Se registró el cierre del " + response.fechaOperacion() + ".");
                         loadClosingData(
                                 fecha,
-                                responsableField,
                                 baseField,
-                                egresosField,
+                                trabajadorasField,
+                                ahorroField,
                                 observacionArea,
                                 ventasCaption,
                                 ventasValue,
@@ -1040,9 +1034,9 @@ public class PosDesktopFxApplication extends Application {
 
     private Node createClosingFormCard(
             DatePicker fechaOperacionPicker,
-            TextField responsableField,
             TextField baseField,
-            TextField egresosField,
+            TextField trabajadorasField,
+            TextField ahorroField,
             TextArea observacionArea,
             Label ventasCaption,
             Label ventasValue,
@@ -1058,18 +1052,18 @@ public class PosDesktopFxApplication extends Application {
 
         FlowPane fields = createResponsiveRow(
                 createFieldGroup("Fecha de operacion", fechaOperacionPicker, 200),
-                createFieldGroup("Responsable", responsableField, 200),
                 createFieldGroup("Base", baseField, 200),
-                createFieldGroup("Egresos", egresosField, 200)
+                createFieldGroup("Trabajadoras", trabajadorasField, 200),
+                createFieldGroup("Ahorro", ahorroField, 200)
         );
 
         Button save = createActionButton("Guardar cierre", "primary-button");
         save.setMaxWidth(Double.MAX_VALUE);
         save.setOnAction(event -> saveClosing(
                 fechaOperacionPicker,
-                responsableField,
                 baseField,
-                egresosField,
+                trabajadorasField,
+                ahorroField,
                 observacionArea,
                 ventasCaption,
                 ventasValue,
@@ -1082,9 +1076,9 @@ public class PosDesktopFxApplication extends Application {
 
         fechaOperacionPicker.valueProperty().addListener((obs, oldValue, newValue) -> loadClosingData(
                 newValue,
-                responsableField,
                 baseField,
-                egresosField,
+                trabajadorasField,
+                ahorroField,
                 observacionArea,
                 ventasCaption,
                 ventasValue,

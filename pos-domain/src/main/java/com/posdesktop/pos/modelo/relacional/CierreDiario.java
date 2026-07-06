@@ -53,14 +53,26 @@ public class CierreDiario extends EntidadAuditable {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal totalCalculado = BigDecimal.ZERO;
 
-    @Column(length = 160)
-    private String responsable;
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal montoRecibidoCalculado = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal cambioEntregadoCalculado = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal montoNetoCajaCalculado = BigDecimal.ZERO;
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal baseCaja = BigDecimal.ZERO;
 
+    @Column(name = "egresos", nullable = false, precision = 19, scale = 2)
+    private BigDecimal egresosLegacy = BigDecimal.ZERO;
+
     @Column(nullable = false, precision = 19, scale = 2)
-    private BigDecimal egresos = BigDecimal.ZERO;
+    private BigDecimal trabajadoras = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal ahorro = BigDecimal.ZERO;
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal totalFinal = BigDecimal.ZERO;
@@ -119,12 +131,16 @@ public class CierreDiario extends EntidadAuditable {
         return totalCalculado;
     }
 
-    public String getResponsable() {
-        return responsable;
+    public BigDecimal getMontoRecibidoCalculado() {
+        return montoRecibidoCalculado;
     }
 
-    public void setResponsable(String responsable) {
-        this.responsable = responsable;
+    public BigDecimal getCambioEntregadoCalculado() {
+        return cambioEntregadoCalculado;
+    }
+
+    public BigDecimal getMontoNetoCajaCalculado() {
+        return montoNetoCajaCalculado;
     }
 
     public BigDecimal getBaseCaja() {
@@ -136,12 +152,21 @@ public class CierreDiario extends EntidadAuditable {
         recalcularTotales();
     }
 
-    public BigDecimal getEgresos() {
-        return egresos;
+    public BigDecimal getTrabajadoras() {
+        return trabajadoras;
     }
 
-    public void setEgresos(BigDecimal egresos) {
-        this.egresos = valorSeguro(egresos);
+    public void setTrabajadoras(BigDecimal trabajadoras) {
+        this.trabajadoras = valorSeguro(trabajadoras);
+        recalcularTotales();
+    }
+
+    public BigDecimal getAhorro() {
+        return ahorro;
+    }
+
+    public void setAhorro(BigDecimal ahorro) {
+        this.ahorro = valorSeguro(ahorro);
         recalcularTotales();
     }
 
@@ -170,6 +195,22 @@ public class CierreDiario extends EntidadAuditable {
         recalcularTotales();
     }
 
+    public void reemplazarVentas(List<Venta> nuevasVentas) {
+        for (Venta ventaActual : new ArrayList<>(ventas)) {
+            ventaActual.setCierreDiario(null);
+        }
+        ventas.clear();
+        if (nuevasVentas != null) {
+            for (Venta nuevaVenta : nuevasVentas) {
+                if (nuevaVenta != null) {
+                    nuevaVenta.setCierreDiario(this);
+                    ventas.add(nuevaVenta);
+                }
+            }
+        }
+        recalcularTotales();
+    }
+
     public void recalcularTotales() {
         List<Venta> ventasValidas = ventas.stream()
                 .filter(venta -> venta.getEstado() != EstadoVenta.ANULADA)
@@ -188,7 +229,18 @@ public class CierreDiario extends EntidadAuditable {
         totalCalculado = ventasValidas.stream()
                 .map(Venta::getTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        totalFinal = totalCalculado.add(baseCaja).subtract(egresos);
+        montoRecibidoCalculado = ventasValidas.stream()
+                .map(Venta::getMontoRecibido)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        cambioEntregadoCalculado = ventasValidas.stream()
+                .map(Venta::getCambioEntregado)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        montoNetoCajaCalculado = montoRecibidoCalculado.subtract(cambioEntregadoCalculado);
+        egresosLegacy = trabajadoras.add(ahorro);
+        totalFinal = montoNetoCajaCalculado
+                .subtract(trabajadoras)
+                .subtract(ahorro)
+                .subtract(baseCaja);
     }
 
     private BigDecimal valorSeguro(BigDecimal valor) {

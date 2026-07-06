@@ -1,12 +1,12 @@
-package com.posdesktop.pos.cierres.api.dto;
+package com.posdesktop.pos.cierres.service;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
-public record ResumenCierreDiarioResponse(
-        LocalDate fechaOperacion,
+public record CierreDiarioCalculo(
         int cantidadVentas,
         BigDecimal subtotalVentas,
+        BigDecimal descuentoVentas,
+        BigDecimal impuestoVentas,
         BigDecimal totalVentas,
         BigDecimal montoRecibido,
         BigDecimal cambioEntregado,
@@ -14,9 +14,6 @@ public record ResumenCierreDiarioResponse(
         BigDecimal baseCaja,
         BigDecimal trabajadoras,
         BigDecimal ahorro,
-        BigDecimal totalFinal,
-        boolean cierreGuardado,
-        String estado,
-        String observacion
+        BigDecimal totalFinal
 ) {
 }

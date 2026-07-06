@@ -42,7 +42,7 @@ public class CierresController {
 
     @GetMapping("/resumen")
     public ApiResponse<ResumenCierreDiarioResponse> resumen(
-            @RequestParam(required = false) LocalDate fecha,
+            @RequestParam(name = "fecha", required = false) LocalDate fecha,
             HttpServletRequest request
     ) {
         return ApiResponse.success(
@@ -54,8 +54,8 @@ public class CierresController {
 
     @GetMapping
     public ApiResponse<List<CierreDiarioListadoResponse>> listar(
-            @RequestParam(required = false) LocalDate fechaInicial,
-            @RequestParam(required = false) LocalDate fechaFinal,
+            @RequestParam(name = "fechaInicial", required = false) LocalDate fechaInicial,
+            @RequestParam(name = "fechaFinal", required = false) LocalDate fechaFinal,
             HttpServletRequest request
     ) {
         return ApiResponse.success(

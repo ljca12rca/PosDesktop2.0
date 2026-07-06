@@ -42,8 +42,8 @@ public class VentasController {
 
     @GetMapping("/movimientos")
     public ApiResponse<List<MovimientoVentaResponse>> movimientos(
-            @RequestParam(required = false) LocalDate fechaInicial,
-            @RequestParam(required = false) LocalDate fechaFinal,
+            @RequestParam(name = "fechaInicial", required = false) LocalDate fechaInicial,
+            @RequestParam(name = "fechaFinal", required = false) LocalDate fechaFinal,
             HttpServletRequest request
     ) {
         return ApiResponse.success(
