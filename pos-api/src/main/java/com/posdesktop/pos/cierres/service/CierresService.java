@@ -24,27 +24,31 @@ public class CierresService {
     private final CierreDiarioCalculoService cierreDiarioCalculoService;
     private final CierreDiarioValidationService cierreDiarioValidationService;
     private final CierreDiarioMapper cierreDiarioMapper;
+    private final CierreDiarioAutoSyncService cierreDiarioAutoSyncService;
 
     public CierresService(
             CierreDiarioRepositorio cierreDiarioRepositorio,
             VentasService ventasService,
             CierreDiarioCalculoService cierreDiarioCalculoService,
             CierreDiarioValidationService cierreDiarioValidationService,
-            CierreDiarioMapper cierreDiarioMapper
+            CierreDiarioMapper cierreDiarioMapper,
+            CierreDiarioAutoSyncService cierreDiarioAutoSyncService
     ) {
         this.cierreDiarioRepositorio = cierreDiarioRepositorio;
         this.ventasService = ventasService;
         this.cierreDiarioCalculoService = cierreDiarioCalculoService;
         this.cierreDiarioValidationService = cierreDiarioValidationService;
         this.cierreDiarioMapper = cierreDiarioMapper;
+        this.cierreDiarioAutoSyncService = cierreDiarioAutoSyncService;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ResumenCierreDiarioResponse consultarResumen(LocalDate fechaOperacion) {
         LocalDate fecha = fechaOperacion == null ? LocalDate.now() : fechaOperacion;
         cierreDiarioValidationService.validarConsulta(fecha);
 
-        CierreDiario cierre = cierreDiarioRepositorio.findByFechaOperacion(fecha).orElse(null);
+        CierreDiario cierre = refrescarCierreDeHoySiAplica(fecha)
+                .orElseGet(() -> cierreDiarioRepositorio.findByFechaOperacion(fecha).orElse(null));
         if (cierre != null) {
             return cierreDiarioMapper.toResumenPersistido(cierre);
         }
@@ -79,16 +83,26 @@ public class CierresService {
         return cierreDiarioMapper.toResumenPersistido(cierreGuardado);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<CierreDiarioListadoResponse> listarCierres(LocalDate fechaInicial, LocalDate fechaFinal) {
         LocalDate inicio = fechaInicial == null ? LocalDate.now().minusDays(7) : fechaInicial;
         LocalDate fin = fechaFinal == null ? LocalDate.now() : fechaFinal;
         cierreDiarioValidationService.validarRango(inicio, fin);
+        if (!LocalDate.now().isBefore(inicio) && !LocalDate.now().isAfter(fin)) {
+            refrescarCierreDeHoySiAplica(LocalDate.now());
+        }
 
         return cierreDiarioRepositorio.findByFechaOperacionBetweenOrderByFechaOperacionDesc(inicio, fin)
                 .stream()
                 .map(cierreDiarioMapper::toListado)
                 .toList();
+    }
+
+    private java.util.Optional<CierreDiario> refrescarCierreDeHoySiAplica(LocalDate fechaOperacion) {
+        if (!LocalDate.now().equals(fechaOperacion)) {
+            return java.util.Optional.empty();
+        }
+        return cierreDiarioAutoSyncService.sincronizarYObtenerCierreDelDia(fechaOperacion);
     }
 
     private BigDecimal normalizar(BigDecimal valor) {

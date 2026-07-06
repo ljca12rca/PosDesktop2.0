@@ -30,7 +30,7 @@ public class CierreDiarioCalculoService {
         BigDecimal baseNormalizada = normalizar(baseCaja);
         BigDecimal trabajadorasNormalizado = normalizar(trabajadoras);
         BigDecimal ahorroNormalizado = normalizar(ahorro);
-        BigDecimal totalFinal = montoNetoCaja
+        BigDecimal totalFinal = totalVentas
                 .subtract(trabajadorasNormalizado)
                 .subtract(ahorroNormalizado)
                 .subtract(baseNormalizada)

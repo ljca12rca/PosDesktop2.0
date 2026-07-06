@@ -1,5 +1,7 @@
 package com.posdesktop.pos.ventas.service;
 
+import com.posdesktop.pos.cierres.service.CierreDiarioAutoSyncService;
+import com.posdesktop.pos.modelo.relacional.CierreDiario;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoCierreDiario;
 import com.posdesktop.pos.modelo.relacional.DetalleVenta;
 import com.posdesktop.pos.modelo.relacional.Venta;
@@ -27,18 +29,25 @@ public class VentasService {
 
     private final VentaRepositorio ventaRepositorio;
     private final CierreDiarioRepositorio cierreDiarioRepositorio;
+    private final CierreDiarioAutoSyncService cierreDiarioAutoSyncService;
 
-    public VentasService(VentaRepositorio ventaRepositorio, CierreDiarioRepositorio cierreDiarioRepositorio) {
+    public VentasService(
+            VentaRepositorio ventaRepositorio,
+            CierreDiarioRepositorio cierreDiarioRepositorio,
+            CierreDiarioAutoSyncService cierreDiarioAutoSyncService
+    ) {
         this.ventaRepositorio = ventaRepositorio;
         this.cierreDiarioRepositorio = cierreDiarioRepositorio;
+        this.cierreDiarioAutoSyncService = cierreDiarioAutoSyncService;
     }
 
     @Transactional
     public VentaRegistradaResponse registrarVentaManual(RegistrarVentaManualRequest request) {
-        validarDiaAbierto(LocalDate.now());
+        LocalDate fechaOperacion = LocalDate.now();
+        CierreDiario cierreDelDia = validarPermisoVentaMismoDia(fechaOperacion);
 
         Venta venta = new Venta();
-        venta.setNumeroVenta(generarNumeroVenta(LocalDate.now()));
+        venta.setNumeroVenta(generarNumeroVenta(fechaOperacion));
         venta.setObservacion(request.observacion());
 
         int orden = 1;
@@ -56,8 +65,15 @@ public class VentasService {
         venta.setMontoRecibido(normalizarDinero(request.montoRecibido()));
         validarMontoRecibidoContraTotal(venta.getMontoRecibido(), venta.getTotal());
         venta.setCambioEntregado(calcularCambioEntregado(venta.getMontoRecibido(), venta.getTotal()));
+        if (debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia)) {
+            venta.setEstado(com.posdesktop.pos.modelo.enumeraciones.EstadoVenta.CERRADA);
+            venta.setCierreDiario(cierreDelDia);
+        }
 
-        Venta ventaGuardada = ventaRepositorio.save(venta);
+        Venta ventaGuardada = ventaRepositorio.saveAndFlush(venta);
+        if (debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia)) {
+            cierreDiarioAutoSyncService.sincronizarSiCierreDelDiaYaExiste(fechaOperacion);
+        }
         return mapearVenta(ventaGuardada);
     }
 
@@ -96,14 +112,27 @@ public class VentasService {
         }
     }
 
-    private void validarDiaAbierto(LocalDate fechaOperacion) {
-        cierreDiarioRepositorio.findByFechaOperacion(fechaOperacion)
-                .filter(cierre -> cierre.getEstado() == EstadoCierreDiario.CERRADO)
-                .ifPresent(cierre -> {
-                    throw new IllegalArgumentException(
-                            "No es posible registrar ventas porque el cierre del dia ya fue guardado."
-                    );
-                });
+    private CierreDiario validarPermisoVentaMismoDia(LocalDate fechaOperacion) {
+        CierreDiario cierre = cierreDiarioRepositorio.findByFechaOperacion(fechaOperacion).orElse(null);
+        if (cierre == null || cierre.getEstado() != EstadoCierreDiario.CERRADO) {
+            return cierre;
+        }
+
+        LocalDate hoy = LocalDate.now();
+        if (!fechaOperacion.equals(hoy) || !cierre.getFechaOperacion().equals(hoy)) {
+            throw new IllegalArgumentException(
+                    "No es posible registrar ventas porque el cierre guardado no corresponde al dia actual."
+            );
+        }
+        return cierre;
+    }
+
+    private boolean debeSincronizarCierreGuardado(LocalDate fechaOperacion, CierreDiario cierreDelDia) {
+        LocalDate hoy = LocalDate.now();
+        return cierreDelDia != null
+                && cierreDelDia.getEstado() == EstadoCierreDiario.CERRADO
+                && fechaOperacion.equals(hoy)
+                && cierreDelDia.getFechaOperacion().equals(hoy);
     }
 
     private void validarMontoRecibidoContraTotal(BigDecimal montoRecibido, BigDecimal totalVenta) {

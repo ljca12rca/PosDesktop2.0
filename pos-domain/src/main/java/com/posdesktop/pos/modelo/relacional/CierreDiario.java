@@ -237,7 +237,7 @@ public class CierreDiario extends EntidadAuditable {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         montoNetoCajaCalculado = montoRecibidoCalculado.subtract(cambioEntregadoCalculado);
         egresosLegacy = trabajadoras.add(ahorro);
-        totalFinal = montoNetoCajaCalculado
+        totalFinal = totalCalculado
                 .subtract(trabajadoras)
                 .subtract(ahorro)
                 .subtract(baseCaja);
