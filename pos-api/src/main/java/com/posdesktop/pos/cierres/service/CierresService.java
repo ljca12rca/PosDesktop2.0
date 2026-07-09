@@ -50,6 +50,7 @@ public class CierresService {
         CierreDiario cierre = refrescarCierreDeHoySiAplica(fecha)
                 .orElseGet(() -> cierreDiarioRepositorio.findByFechaOperacion(fecha).orElse(null));
         if (cierre != null) {
+            cierre.recalcularTotales();
             return cierreDiarioMapper.toResumenPersistido(cierre);
         }
 
@@ -94,6 +95,7 @@ public class CierresService {
 
         return cierreDiarioRepositorio.findByFechaOperacionBetweenOrderByFechaOperacionDesc(inicio, fin)
                 .stream()
+                .peek(CierreDiario::recalcularTotales)
                 .map(cierreDiarioMapper::toListado)
                 .toList();
     }

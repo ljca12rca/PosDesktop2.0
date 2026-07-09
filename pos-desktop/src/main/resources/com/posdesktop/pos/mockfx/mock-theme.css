@@ -121,6 +121,44 @@
     -fx-text-fill: #7a8178;
 }
 
+.startup-overlay {
+    -fx-background-color: rgba(21, 35, 41, 0.42);
+    -fx-padding: 28;
+}
+
+.startup-card {
+    -fx-background-color:
+        linear-gradient(to bottom right, rgba(255, 250, 242, 0.98), rgba(249, 242, 230, 0.96)),
+        radial-gradient(center 10% 10%, radius 75%, rgba(244, 190, 120, 0.20), transparent 58%);
+    -fx-background-radius: 36;
+    -fx-padding: 14 18 12 18;
+    -fx-spacing: 4;
+    -fx-effect: dropshadow(gaussian, rgba(21, 35, 41, 0.26), 38, 0.18, 0, 16);
+}
+
+.startup-status {
+    -fx-font-size: 17px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #243843;
+    -fx-alignment: center;
+}
+
+.startup-progress {
+    -fx-pref-height: 10;
+    -fx-max-width: 180;
+}
+
+.startup-progress > .track {
+    -fx-background-color: rgba(255, 255, 255, 0.88);
+    -fx-background-radius: 999;
+    -fx-padding: 2;
+}
+
+.startup-progress > .bar {
+    -fx-background-color: linear-gradient(to right, #ef8e58, #0f8a7d, #f4be64);
+    -fx-background-radius: 999;
+}
+
 .status-error {
     -fx-text-fill: #c53d2f;
     -fx-font-weight: 700;
@@ -483,12 +521,112 @@
 .sales-entry-card,
 .sales-table-card,
 .sales-summary-card,
+.closing-history-card,
 .layaway-list-card,
 .layaway-actions-card,
 .movements-filter-card,
 .movements-table-card,
 .movements-insights-card {
     -fx-background-radius: 20;
+}
+
+.closing-history-actions {
+    -fx-alignment: center-left;
+}
+
+.history-filter-feedback {
+    -fx-text-fill: #51646b;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+
+.closing-totalizer-overlay {
+    -fx-background-color: transparent;
+    -fx-alignment: center;
+}
+
+.closing-totalizer-card {
+    -fx-background-color:
+        linear-gradient(to bottom right, rgba(255, 252, 247, 0.98), rgba(243, 238, 229, 0.98)),
+        radial-gradient(center 20% 8%, radius 75%, rgba(244, 190, 100, 0.18), transparent 60%);
+    -fx-background-radius: 30;
+    -fx-padding: 18;
+    -fx-effect: dropshadow(gaussian, rgba(36, 27, 18, 0.14), 22, 0.16, 0, 8);
+    -fx-border-color: rgba(255, 255, 255, 0.58);
+    -fx-border-radius: 30;
+    -fx-border-width: 1;
+}
+
+.closing-totalizer-title {
+    -fx-text-fill: #1d2e38;
+    -fx-font-family: "Georgia";
+    -fx-font-size: 26px;
+    -fx-font-weight: 800;
+}
+
+.closing-totalizer-subtitle {
+    -fx-text-fill: #5f6e74;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-line-spacing: 2px;
+}
+
+.closing-totalizer-metric {
+    -fx-pref-width: 188;
+    -fx-min-width: 188;
+    -fx-padding: 12 11 10 11;
+}
+
+.closing-totalizer-metric .metric-value {
+    -fx-font-size: 20px;
+}
+
+.closing-totalizer-metric .metric-caption {
+    -fx-font-size: 11px;
+}
+
+.closing-totalizer-detail-card {
+    -fx-background-color: rgba(255, 255, 255, 0.72);
+    -fx-background-radius: 20;
+    -fx-border-color: rgba(232, 220, 205, 0.95);
+    -fx-border-radius: 20;
+    -fx-border-width: 1;
+    -fx-padding: 14;
+}
+
+.closing-totalizer-detail-columns {
+    -fx-alignment: top-left;
+}
+
+.closing-totalizer-detail-column {
+    -fx-spacing: 8;
+}
+
+.closing-totalizer-note {
+    -fx-text-fill: #6c766e;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-line-spacing: 2px;
+}
+
+.movements-insight-metric .metric-value,
+.movements-insight-value {
+    -fx-font-size: 14px;
+}
+
+.movements-insight-metric .metric-caption,
+.movements-insight-caption {
+    -fx-font-size: 10px;
+}
+
+.app-shell:compact .movements-insight-metric .metric-value,
+.app-shell:compact .movements-insight-value {
+    -fx-font-size: 14px;
+}
+
+.app-shell:compact .movements-insight-metric .metric-caption,
+.app-shell:compact .movements-insight-caption {
+    -fx-font-size: 10px;
 }
 
 .sales-entry-card {

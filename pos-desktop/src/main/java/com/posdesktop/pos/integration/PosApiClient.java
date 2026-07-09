@@ -5,26 +5,33 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.Duration;
 import java.util.List;
 
 public final class PosApiClient {
 
+    private static final Duration API_CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration API_REQUEST_TIMEOUT = Duration.ofSeconds(4);
     private final String baseUrl;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     public PosApiClient(String baseUrl) {
         this.baseUrl = quitarSlashFinal(baseUrl);
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(API_CONNECT_TIMEOUT)
+                .build();
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
@@ -34,6 +41,11 @@ public final class PosApiClient {
 
     public VentaRegistradaResponse registrarVenta(RegistrarVentaRequest request) {
         return post("/ventas", request, new TypeReference<ApiResponseEnvelope<VentaRegistradaResponse>>() {
+        }).data();
+    }
+
+    public SystemStatusResponse consultarEstadoSistema() {
+        return get("/system/ping", new TypeReference<ApiResponseEnvelope<SystemStatusResponse>>() {
         }).data();
     }
 
@@ -62,9 +74,14 @@ public final class PosApiClient {
         }).data();
     }
 
+    public String baseUrl() {
+        return baseUrl;
+    }
+
     private <T> ApiResponseEnvelope<T> get(String path, TypeReference<ApiResponseEnvelope<T>> typeReference) {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + path))
+                .timeout(API_REQUEST_TIMEOUT)
                 .GET()
                 .header("Accept", "application/json")
                 .build();
@@ -79,6 +96,7 @@ public final class PosApiClient {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + path))
+                    .timeout(API_REQUEST_TIMEOUT)
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
@@ -99,11 +117,19 @@ public final class PosApiClient {
                 return objectMapper.readValue(response.body(), typeReference);
             }
 
-            ApiErrorResponse error = objectMapper.readValue(response.body(), ApiErrorResponse.class);
-            String details = error.details() == null || error.details().isEmpty()
-                    ? error.message()
-                    : String.join(" | ", error.details());
-            throw new PosApiException(details);
+            try {
+                ApiErrorResponse error = objectMapper.readValue(response.body(), ApiErrorResponse.class);
+                String details = error.details() == null || error.details().isEmpty()
+                        ? error.message()
+                        : String.join(" | ", error.details());
+                throw new PosApiException(details);
+            } catch (IOException ignored) {
+                throw new PosApiException("La API respondio con estado " + response.statusCode() + ".");
+            }
+        } catch (ConnectException exception) {
+            throw new PosApiException("No fue posible conectar con la API en " + baseUrl + ".", exception);
+        } catch (HttpTimeoutException exception) {
+            throw new PosApiException("La API no respondio a tiempo. Verifica si el servicio esta encendido.", exception);
         } catch (IOException exception) {
             throw new PosApiException("No fue posible leer la respuesta de la API.", exception);
         } catch (InterruptedException exception) {
@@ -229,6 +255,24 @@ public final class PosApiClient {
             BigDecimal montoRecibido,
             BigDecimal cambioEntregado,
             LocalDateTime fechaVenta
+    ) {
+    }
+
+    public record SystemStatusResponse(
+            String application,
+            String version,
+            String environment,
+            boolean desktopMockEnabled,
+            List<ModuleStatusResponse> modules
+    ) {
+    }
+
+    public record ModuleStatusResponse(
+            String code,
+            String name,
+            String basePath,
+            String stage,
+            String summary
     ) {
     }
 

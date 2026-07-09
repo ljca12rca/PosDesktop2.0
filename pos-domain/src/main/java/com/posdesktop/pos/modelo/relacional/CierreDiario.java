@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -230,20 +231,44 @@ public class CierreDiario extends EntidadAuditable {
                 .map(Venta::getTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         montoRecibidoCalculado = ventasValidas.stream()
-                .map(Venta::getMontoRecibido)
+                .map(this::montoRecibidoEfectivo)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         cambioEntregadoCalculado = ventasValidas.stream()
-                .map(Venta::getCambioEntregado)
+                .map(this::cambioEntregadoEfectivo)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        montoNetoCajaCalculado = montoRecibidoCalculado.subtract(cambioEntregadoCalculado);
-        egresosLegacy = trabajadoras.add(ahorro);
-        totalFinal = totalCalculado
+        montoNetoCajaCalculado = montoRecibidoCalculado
+                .subtract(baseCaja)
                 .subtract(trabajadoras)
                 .subtract(ahorro)
-                .subtract(baseCaja);
+                .setScale(2, RoundingMode.HALF_UP);
+        egresosLegacy = trabajadoras.add(ahorro);
+        totalFinal = montoRecibidoCalculado
+                .subtract(cambioEntregadoCalculado)
+                .subtract(trabajadoras)
+                .subtract(ahorro)
+                .subtract(baseCaja)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal valorSeguro(BigDecimal valor) {
         return valor == null ? BigDecimal.ZERO : valor;
+    }
+
+    private BigDecimal montoRecibidoEfectivo(Venta venta) {
+        if (venta == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal recibido = valorSeguro(venta.getMontoRecibido());
+        if (recibido.signum() > 0) {
+            return recibido;
+        }
+        return valorSeguro(venta.getTotal());
+    }
+
+    private BigDecimal cambioEntregadoEfectivo(Venta venta) {
+        if (venta == null) {
+            return BigDecimal.ZERO;
+        }
+        return valorSeguro(venta.getCambioEntregado()).max(BigDecimal.ZERO);
     }
 }

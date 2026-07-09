@@ -62,7 +62,8 @@ public class VentasService {
         }
 
         venta.setMontoManualInformado(venta.getTotal());
-        venta.setMontoRecibido(normalizarDinero(request.montoRecibido()));
+        BigDecimal montoRecibido = resolverMontoRecibido(request.montoRecibido(), venta.getTotal());
+        venta.setMontoRecibido(montoRecibido);
         validarMontoRecibidoContraTotal(venta.getMontoRecibido(), venta.getTotal());
         venta.setCambioEntregado(calcularCambioEntregado(venta.getMontoRecibido(), venta.getTotal()));
         if (debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia)) {
@@ -150,6 +151,14 @@ public class VentasService {
             return BigDecimal.ZERO;
         }
         return recibido.subtract(normalizarDinero(totalVenta)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolverMontoRecibido(BigDecimal montoRecibido, BigDecimal totalVenta) {
+        BigDecimal recibidoNormalizado = normalizarDinero(montoRecibido);
+        if (recibidoNormalizado.signum() > 0) {
+            return recibidoNormalizado;
+        }
+        return normalizarDinero(totalVenta);
     }
 
     private VentaRegistradaResponse mapearVenta(Venta venta) {

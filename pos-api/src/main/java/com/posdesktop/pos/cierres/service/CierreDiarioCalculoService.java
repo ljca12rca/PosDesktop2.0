@@ -24,13 +24,18 @@ public class CierreDiarioCalculoService {
         BigDecimal descuentoVentas = sumar(ventasValidas.stream().map(Venta::getDescuentoTotal).toList());
         BigDecimal impuestoVentas = sumar(ventasValidas.stream().map(Venta::getImpuestoTotal).toList());
         BigDecimal totalVentas = sumar(ventasValidas.stream().map(Venta::getTotal).toList());
-        BigDecimal montoRecibido = sumar(ventasValidas.stream().map(Venta::getMontoRecibido).toList());
-        BigDecimal cambioEntregado = sumar(ventasValidas.stream().map(Venta::getCambioEntregado).toList());
-        BigDecimal montoNetoCaja = montoRecibido.subtract(cambioEntregado).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal montoRecibido = sumar(ventasValidas.stream().map(this::montoRecibidoEfectivo).toList());
+        BigDecimal cambioEntregado = sumar(ventasValidas.stream().map(this::cambioEntregadoEfectivo).toList());
         BigDecimal baseNormalizada = normalizar(baseCaja);
         BigDecimal trabajadorasNormalizado = normalizar(trabajadoras);
         BigDecimal ahorroNormalizado = normalizar(ahorro);
-        BigDecimal totalFinal = totalVentas
+        BigDecimal montoNetoCaja = montoRecibido
+                .subtract(baseNormalizada)
+                .subtract(trabajadorasNormalizado)
+                .subtract(ahorroNormalizado)
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalFinal = montoRecibido
+                .subtract(cambioEntregado)
                 .subtract(trabajadorasNormalizado)
                 .subtract(ahorroNormalizado)
                 .subtract(baseNormalizada)
@@ -57,6 +62,18 @@ public class CierreDiarioCalculoService {
                 .map(this::normalizar)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal montoRecibidoEfectivo(Venta venta) {
+        BigDecimal recibido = normalizar(venta == null ? null : venta.getMontoRecibido());
+        if (recibido.signum() > 0) {
+            return recibido;
+        }
+        return normalizar(venta == null ? null : venta.getTotal());
+    }
+
+    private BigDecimal cambioEntregadoEfectivo(Venta venta) {
+        return normalizar(venta == null ? null : venta.getCambioEntregado()).max(BigDecimal.ZERO);
     }
 
     private BigDecimal normalizar(BigDecimal valor) {

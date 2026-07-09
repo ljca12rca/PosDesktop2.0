@@ -8,6 +8,7 @@ import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,13 +17,19 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import javafx.animation.FadeTransition;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.application.Application;
 import javafx.beans.binding.Bindings;
-import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ReadOnlyStringWrapper;
-import javafx.collections.ObservableList;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -49,6 +56,7 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Alert;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -62,11 +70,16 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
+import javafx.util.Duration;
 
 public class PosDesktopFxApplication extends Application {
 
     private static final String APP_TITLE = "POS Desktop";
+    private static final String FILTER_ALL = "Todos";
+    private static final Duration API_RETRY_DELAY = Duration.seconds(3);
+    private static final Duration API_OVERLAY_FADE_DURATION = Duration.millis(320);
     private static final PseudoClass COMPACT = PseudoClass.getPseudoClass("compact");
+    private static final DateTimeFormatter SHORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
     private static final DateTimeFormatter RECEIPT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter RECEIPT_TIME_FORMATTER = DateTimeFormatter.ofPattern("hh:mm a");
@@ -81,6 +94,13 @@ public class PosDesktopFxApplication extends Application {
     private final ObservableList<SaleDraftRow> saleDraftRows = FXCollections.observableArrayList();
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO"));
     private final SimpleObjectProperty<BigDecimal> saleTotal = new SimpleObjectProperty<>(BigDecimal.ZERO);
+    private final BooleanProperty apiAvailable = new SimpleBooleanProperty(false);
+    private final BooleanProperty apiProbeInProgress = new SimpleBooleanProperty(false);
+    private final PauseTransition apiRetryPause = new PauseTransition(API_RETRY_DELAY);
+    private StackPane apiStartupOverlay;
+    private Label apiStartupStatusLabel;
+    private ProgressBar apiStartupProgressBar;
+    private int apiProbeAttempt;
 
     @Override
     public void start(Stage stage) {
@@ -91,6 +111,7 @@ public class PosDesktopFxApplication extends Application {
 
         BorderPane shell = new BorderPane();
         shell.getStyleClass().add("app-shell");
+        shell.disableProperty().bind(apiAvailable.not());
         VBox sidebar = (VBox) createSidebar();
         shell.setLeft(sidebar);
         shell.setCenter(contentHost);
@@ -101,7 +122,10 @@ public class PosDesktopFxApplication extends Application {
         double initialWidth = Math.min(1360, visualBounds.getWidth() * 0.96);
         double initialHeight = Math.min(860, visualBounds.getHeight() * 0.94);
 
-        Scene scene = new Scene(shell, initialWidth, initialHeight);
+        apiStartupOverlay = createApiStartupOverlay();
+        StackPane root = new StackPane(shell, apiStartupOverlay);
+
+        Scene scene = new Scene(root, initialWidth, initialHeight);
         scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
         bindRegionWidthToScene(sidebar, 0.17, 172, 210);
         updateResponsiveState(shell, scene);
@@ -114,6 +138,101 @@ public class PosDesktopFxApplication extends Application {
         stage.setScene(scene);
         stage.centerOnScreen();
         stage.show();
+
+        apiRetryPause.setOnFinished(event -> beginApiAvailabilityCheck(false));
+        beginApiAvailabilityCheck(true);
+    }
+
+    @Override
+    public void stop() {
+        apiRetryPause.stop();
+    }
+
+    private StackPane createApiStartupOverlay() {
+        apiStartupStatusLabel = new Label("Cargando...");
+        apiStartupStatusLabel.getStyleClass().add("startup-status");
+        apiStartupStatusLabel.setWrapText(true);
+
+        apiStartupProgressBar = new ProgressBar(ProgressBar.INDETERMINATE_PROGRESS);
+        apiStartupProgressBar.getStyleClass().addAll("accent-progress", "startup-progress");
+        apiStartupProgressBar.setPrefWidth(180);
+        apiStartupProgressBar.setMaxWidth(180);
+
+        VBox card = new VBox(16, apiStartupStatusLabel, apiStartupProgressBar);
+        card.getStyleClass().addAll("surface-card", "startup-card");
+        card.setPrefWidth(232);
+        card.setMinWidth(232);
+        card.setMaxWidth(232);
+        card.setPrefHeight(104);
+        card.setMinHeight(104);
+        card.setMaxHeight(104);
+        card.setAlignment(Pos.CENTER);
+
+        StackPane overlay = new StackPane(card);
+        overlay.getStyleClass().add("startup-overlay");
+        overlay.setPickOnBounds(true);
+        return overlay;
+    }
+
+    private void beginApiAvailabilityCheck(boolean manualTrigger) {
+        if (apiAvailable.get() || apiProbeInProgress.get()) {
+            return;
+        }
+
+        apiRetryPause.stop();
+        apiProbeInProgress.set(true);
+        apiProbeAttempt++;
+        updateApiStartupStatus(
+                "Cargando...",
+                false
+        );
+        apiStartupProgressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+
+        runAsync(
+                posApiClient::consultarEstadoSistema,
+                this::handleApiAvailabilitySuccess,
+                this::handleApiAvailabilityFailure
+        );
+    }
+
+    private void handleApiAvailabilitySuccess(PosApiClient.SystemStatusResponse systemStatus) {
+        apiProbeInProgress.set(false);
+        apiAvailable.set(true);
+        apiRetryPause.stop();
+        updateApiStartupStatus("Cargando...", false);
+        apiStartupProgressBar.setProgress(1);
+        fadeOutApiStartupOverlay();
+    }
+
+    private void handleApiAvailabilityFailure(Throwable throwable) {
+        apiProbeInProgress.set(false);
+        apiAvailable.set(false);
+        updateApiStartupStatus("Cargando...", false);
+        apiStartupProgressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+        apiRetryPause.playFromStart();
+    }
+
+    private void updateApiStartupStatus(String message, boolean error) {
+        if (error) {
+            if (!apiStartupStatusLabel.getStyleClass().contains("status-error")) {
+                apiStartupStatusLabel.getStyleClass().add("status-error");
+            }
+        } else {
+            apiStartupStatusLabel.getStyleClass().remove("status-error");
+        }
+        apiStartupStatusLabel.setText(message);
+    }
+
+    private void fadeOutApiStartupOverlay() {
+        FadeTransition transition = new FadeTransition(API_OVERLAY_FADE_DURATION, apiStartupOverlay);
+        transition.setFromValue(1);
+        transition.setToValue(0);
+        transition.setOnFinished(event -> {
+            apiStartupOverlay.setVisible(false);
+            apiStartupOverlay.setManaged(false);
+            apiStartupOverlay.setOpacity(1);
+        });
+        transition.play();
     }
 
     private Node createSidebar() {
@@ -239,10 +358,18 @@ public class PosDesktopFxApplication extends Application {
         VBox root = createScreenContainer("Cierre de caja", "Resumen diario elegante para validar ventas, base y consolidado.");
         tuneCompactScreen(root);
 
-        DatePicker fechaOperacionPicker = new DatePicker(LocalDate.now());
+        LocalDate today = LocalDate.now();
+        DatePicker fechaOperacionPicker = new DatePicker(today);
+        DatePicker fechaInicialHistorialPicker = new DatePicker(today.minusDays(7));
+        DatePicker fechaFinalHistorialPicker = new DatePicker(today);
+        ComboBox<String> estadoHistorialCombo = new ComboBox<>(FXCollections.observableArrayList(FILTER_ALL));
+        estadoHistorialCombo.getSelectionModel().selectFirst();
         TextField baseField = createField("0");
         TextField trabajadorasField = createField("0");
         TextField ahorroField = createField("0");
+        configureSelectAllOnFocus(baseField);
+        configureSelectAllOnFocus(trabajadorasField);
+        configureSelectAllOnFocus(ahorroField);
         TextArea observacionArea = new TextArea();
         observacionArea.setWrapText(true);
         observacionArea.setPrefRowCount(2);
@@ -250,8 +377,6 @@ public class PosDesktopFxApplication extends Application {
 
         Label ventasValue = createMetricValueLabel("$ 0");
         Label ventasCaption = createMetricCaptionLabel("0 comprobantes");
-        Label recibidoValue = createMetricValueLabel("$ 0");
-        Label recibidoCaption = createMetricCaptionLabel("Recibido - devuelto");
         Label baseValue = createMetricValueLabel("$ 0");
         Label baseCaption = createMetricCaptionLabel("Configurado en cierre");
         Label totalValue = createMetricValueLabel("$ 0");
@@ -259,12 +384,45 @@ public class PosDesktopFxApplication extends Application {
 
         FlowPane cards = new FlowPane(12, 12,
                 createMetricCard("Ventas del dia", ventasValue, ventasCaption),
-                createMetricCard("Neto en caja", recibidoValue, recibidoCaption),
                 createMetricCard("Base sugerida", baseValue, baseCaption),
                 createMetricCard("Total proyectado", totalValue, totalCaption)
         );
 
+        ObservableList<PosApiClient.CierreDiarioListadoResponse> historySource = FXCollections.observableArrayList();
+        FilteredList<PosApiClient.CierreDiarioListadoResponse> filteredHistory = new FilteredList<>(historySource);
         TableView<PosApiClient.CierreDiarioListadoResponse> historyTable = createClosingHistoryTable();
+        historyTable.setItems(filteredHistory);
+        Label historyFeedbackLabel = new Label("Cargando cierres del rango seleccionado...");
+        historyFeedbackLabel.getStyleClass().add("history-filter-feedback");
+        historyFeedbackLabel.setWrapText(true);
+        Runnable refreshHistory = () -> loadClosingHistory(
+                fechaInicialHistorialPicker.getValue(),
+                fechaFinalHistorialPicker.getValue(),
+                estadoHistorialCombo,
+                historySource,
+                filteredHistory,
+                historyFeedbackLabel
+        );
+
+        estadoHistorialCombo.valueProperty().addListener((obs, oldValue, newValue) -> {
+            applyClosingHistoryFilter(filteredHistory, newValue);
+            updateClosingHistoryFeedback(
+                    historyFeedbackLabel,
+                    fechaInicialHistorialPicker.getValue(),
+                    fechaFinalHistorialPicker.getValue(),
+                    estadoHistorialCombo.getValue(),
+                    filteredHistory
+            );
+        });
+        filteredHistory.addListener((ListChangeListener<? super PosApiClient.CierreDiarioListadoResponse>) change ->
+                updateClosingHistoryFeedback(
+                        historyFeedbackLabel,
+                        fechaInicialHistorialPicker.getValue(),
+                        fechaFinalHistorialPicker.getValue(),
+                        estadoHistorialCombo.getValue(),
+                        filteredHistory
+                )
+        );
 
         HBox grid = createAdaptivePanelRow(
                 createClosingFormCard(
@@ -275,18 +433,24 @@ public class PosDesktopFxApplication extends Application {
                         observacionArea,
                         ventasCaption,
                         ventasValue,
-                        recibidoValue,
                         baseValue,
                         totalValue,
                         totalCaption,
-                        historyTable
+                        refreshHistory
                 ),
-                createClosingHistoryCard(historyTable)
+                createClosingHistoryCard(
+                        historyTable,
+                        fechaInicialHistorialPicker,
+                        fechaFinalHistorialPicker,
+                        estadoHistorialCombo,
+                        historyFeedbackLabel,
+                        refreshHistory
+                )
         );
         VBox.setVgrow(grid, Priority.ALWAYS);
 
         root.getChildren().addAll(cards, grid);
-        loadClosingData(
+        loadClosingSummary(
                 fechaOperacionPicker.getValue(),
                 baseField,
                 trabajadorasField,
@@ -294,12 +458,12 @@ public class PosDesktopFxApplication extends Application {
                 observacionArea,
                 ventasCaption,
                 ventasValue,
-                recibidoValue,
                 baseValue,
                 totalValue,
-                totalCaption,
-                historyTable
+                totalCaption
         );
+        refreshHistory.run();
+        Platform.runLater(baseField::requestFocus);
         return root;
     }
 
@@ -882,7 +1046,6 @@ public class PosDesktopFxApplication extends Application {
                 tableColumn("Fecha", row -> row.fechaOperacion().toString()),
                 tableColumn("Ventas", row -> String.valueOf(row.cantidadVentas())),
                 tableColumn("Total ventas", row -> formatCurrency(row.totalVentas())),
-                tableColumn("Neto caja", row -> formatCurrency(row.montoNetoCaja())),
                 tableColumn("Base", row -> formatCurrency(row.baseCaja())),
                 tableColumn("Trabajadoras", row -> formatCurrency(row.trabajadoras())),
                 tableColumn("Ahorro", row -> formatCurrency(row.ahorro())),
@@ -907,7 +1070,7 @@ public class PosDesktopFxApplication extends Application {
         return table;
     }
 
-    private void loadClosingData(
+    private void loadClosingSummary(
             LocalDate fechaOperacion,
             TextField baseField,
             TextField trabajadorasField,
@@ -915,23 +1078,16 @@ public class PosDesktopFxApplication extends Application {
             TextArea observacionArea,
             Label ventasCaption,
             Label ventasValue,
-            Label recibidoValue,
             Label baseValue,
             Label totalValue,
-            Label totalCaption,
-            TableView<PosApiClient.CierreDiarioListadoResponse> historyTable
+            Label totalCaption
     ) {
         LocalDate fecha = fechaOperacion == null ? LocalDate.now() : fechaOperacion;
         runAsync(
-                () -> new ClosingPayload(
-                        posApiClient.consultarResumenCierre(fecha),
-                        posApiClient.listarCierres(fecha.minusDays(7), fecha)
-                ),
-                payload -> {
-                    PosApiClient.ResumenCierreDiarioResponse resumen = payload.resumen();
+                () -> posApiClient.consultarResumenCierre(fecha),
+                resumen -> {
                     ventasValue.setText(formatCurrency(resumen.totalVentas()));
                     ventasCaption.setText(resumen.cantidadVentas() + " comprobantes");
-                    recibidoValue.setText(formatCurrency(resumen.montoNetoCaja()));
                     baseValue.setText(formatCurrency(resumen.baseCaja()));
                     totalValue.setText(formatCurrency(resumen.totalFinal()));
                     totalCaption.setText(resumen.cierreGuardado() ? "Cierre guardado: " + resumen.estado() : "Pendiente por guardar");
@@ -939,9 +1095,57 @@ public class PosDesktopFxApplication extends Application {
                     trabajadorasField.setText(formatPlainNumber(resumen.trabajadoras()));
                     ahorroField.setText(formatPlainNumber(resumen.ahorro()));
                     observacionArea.setText(resumen.observacion() == null ? "" : resumen.observacion());
-                    historyTable.setItems(FXCollections.observableArrayList(payload.historial()));
                 },
                 exception -> showError("Cierre de caja", exception.getMessage())
+        );
+    }
+
+    private void loadClosingHistory(
+            LocalDate fechaInicial,
+            LocalDate fechaFinal,
+            ComboBox<String> statusFilter,
+            ObservableList<PosApiClient.CierreDiarioListadoResponse> historySource,
+            FilteredList<PosApiClient.CierreDiarioListadoResponse> filteredHistory,
+            Label historyFeedbackLabel
+    ) {
+        LocalDate inicio = fechaInicial == null ? LocalDate.now().minusDays(7) : fechaInicial;
+        LocalDate fin = fechaFinal == null ? LocalDate.now() : fechaFinal;
+        if (fin.isBefore(inicio)) {
+            showError("Historial de cierres", "La fecha final no puede ser menor a la fecha inicial.");
+            return;
+        }
+
+        historyFeedbackLabel.setText("Consultando cierres entre " + formatDateRange(inicio, fin) + "...");
+        runAsync(
+                () -> posApiClient.listarCierres(inicio, fin).stream()
+                        .sorted(Comparator
+                                .comparing(PosApiClient.CierreDiarioListadoResponse::fechaOperacion, Comparator.nullsLast(Comparator.naturalOrder()))
+                                .thenComparing(PosApiClient.CierreDiarioListadoResponse::fechaHoraCierre, Comparator.nullsLast(Comparator.naturalOrder()))
+                                .reversed())
+                        .toList(),
+                cierres -> {
+                    updateClosingStatusOptions(statusFilter, cierres);
+                    historySource.setAll(cierres);
+                    applyClosingHistoryFilter(filteredHistory, statusFilter.getValue());
+                    updateClosingHistoryFeedback(
+                            historyFeedbackLabel,
+                            inicio,
+                            fin,
+                            statusFilter.getValue(),
+                            filteredHistory
+                    );
+                },
+                exception -> {
+                    historySource.clear();
+                    updateClosingHistoryFeedback(
+                            historyFeedbackLabel,
+                            inicio,
+                            fin,
+                            statusFilter.getValue(),
+                            filteredHistory
+                    );
+                    showError("Historial de cierres", exception.getMessage());
+                }
         );
     }
 
@@ -953,11 +1157,10 @@ public class PosDesktopFxApplication extends Application {
             TextArea observacionArea,
             Label ventasCaption,
             Label ventasValue,
-            Label recibidoValue,
             Label baseValue,
             Label totalValue,
             Label totalCaption,
-            TableView<PosApiClient.CierreDiarioListadoResponse> historyTable
+            Runnable refreshHistoryAction
     ) {
         try {
             LocalDate fecha = fechaOperacionPicker.getValue() == null ? LocalDate.now() : fechaOperacionPicker.getValue();
@@ -973,7 +1176,7 @@ public class PosDesktopFxApplication extends Application {
                     () -> posApiClient.registrarCierre(request),
                     response -> {
                         showInfo("Cierre registrado", "Se registró el cierre del " + response.fechaOperacion() + ".");
-                        loadClosingData(
+                        loadClosingSummary(
                                 fecha,
                                 baseField,
                                 trabajadorasField,
@@ -981,12 +1184,11 @@ public class PosDesktopFxApplication extends Application {
                                 observacionArea,
                                 ventasCaption,
                                 ventasValue,
-                                recibidoValue,
                                 baseValue,
                                 totalValue,
-                                totalCaption,
-                                historyTable
+                                totalCaption
                         );
+                        refreshHistoryAction.run();
                     },
                     exception -> showError("Cierre de caja", exception.getMessage())
             );
@@ -1040,11 +1242,10 @@ public class PosDesktopFxApplication extends Application {
             TextArea observacionArea,
             Label ventasCaption,
             Label ventasValue,
-            Label recibidoValue,
             Label baseValue,
             Label totalValue,
             Label totalCaption,
-            TableView<PosApiClient.CierreDiarioListadoResponse> historyTable
+            Runnable refreshHistoryAction
     ) {
         VBox card = createCard("Consolidar cierre", "Formulario mock para totalizar y guardar el resumen del dia.");
         bindRegionWidthToScene(card, 0.22, 236, 290);
@@ -1067,14 +1268,14 @@ public class PosDesktopFxApplication extends Application {
                 observacionArea,
                 ventasCaption,
                 ventasValue,
-                recibidoValue,
                 baseValue,
                 totalValue,
                 totalCaption,
-                historyTable
+                refreshHistoryAction
         ));
+        configureClosingFocusFlow(baseField, trabajadorasField, ahorroField, save);
 
-        fechaOperacionPicker.valueProperty().addListener((obs, oldValue, newValue) -> loadClosingData(
+        fechaOperacionPicker.valueProperty().addListener((obs, oldValue, newValue) -> loadClosingSummary(
                 newValue,
                 baseField,
                 trabajadorasField,
@@ -1082,22 +1283,300 @@ public class PosDesktopFxApplication extends Application {
                 observacionArea,
                 ventasCaption,
                 ventasValue,
-                recibidoValue,
                 baseValue,
                 totalValue,
-                totalCaption,
-                historyTable
+                totalCaption
         ));
 
         card.getChildren().addAll(fields, observacionArea, save);
         return card;
     }
 
-    private Node createClosingHistoryCard(TableView<PosApiClient.CierreDiarioListadoResponse> table) {
-        VBox card = createCard("Historial reciente", "Mock de cierres ya guardados para consulta del equipo.");
+    private Node createClosingHistoryCard(
+            TableView<PosApiClient.CierreDiarioListadoResponse> table,
+            DatePicker fechaInicialPicker,
+            DatePicker fechaFinalPicker,
+            ComboBox<String> estadoHistorialCombo,
+            Label historyFeedbackLabel,
+            Runnable refreshHistoryAction
+    ) {
+        VBox card = createCard("Historial de cierres", "Filtra por rango y estado antes de totalizar el consolidado.");
+        card.getStyleClass().add("closing-history-card");
         HBox.setHgrow(card, Priority.ALWAYS);
-        card.getChildren().add(table);
+        FlowPane filters = createResponsiveRow(
+                createFieldGroup("Fecha inicial", fechaInicialPicker, 184),
+                createFieldGroup("Fecha final", fechaFinalPicker, 184),
+                createFieldGroup("Estado", estadoHistorialCombo, 184)
+        );
+
+        Button search = createActionButton("Buscar cierres", "ghost-button");
+        search.setOnAction(event -> refreshHistoryAction.run());
+
+        Button totalize = createActionButton("Totalizar", "primary-button");
+        totalize.setOnAction(event -> showClosingTotalsWindow(
+                totalize.getScene() == null ? null : totalize.getScene().getWindow(),
+                fechaInicialPicker.getValue(),
+                fechaFinalPicker.getValue(),
+                estadoHistorialCombo.getValue(),
+                new ArrayList<>(table.getItems())
+        ));
+
+        Region spacer = new Region();
+        HBox.setHgrow(historyFeedbackLabel, Priority.ALWAYS);
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actions = new HBox(12, historyFeedbackLabel, spacer, search, totalize);
+        actions.getStyleClass().add("closing-history-actions");
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        card.getChildren().addAll(filters, actions, table);
         return card;
+    }
+
+    private void updateClosingStatusOptions(
+            ComboBox<String> statusFilter,
+            List<PosApiClient.CierreDiarioListadoResponse> cierres
+    ) {
+        String selectedStatus = statusFilter.getValue();
+        List<String> options = new ArrayList<>();
+        options.add(FILTER_ALL);
+        cierres.stream()
+                .map(PosApiClient.CierreDiarioListadoResponse::estado)
+                .filter(estado -> estado != null && !estado.isBlank())
+                .distinct()
+                .sorted()
+                .forEach(options::add);
+        statusFilter.setItems(FXCollections.observableArrayList(options));
+        if (selectedStatus != null && options.contains(selectedStatus)) {
+            statusFilter.getSelectionModel().select(selectedStatus);
+            return;
+        }
+        statusFilter.getSelectionModel().selectFirst();
+    }
+
+    private void applyClosingHistoryFilter(
+            FilteredList<PosApiClient.CierreDiarioListadoResponse> filteredHistory,
+            String selectedStatus
+    ) {
+        String status = selectedStatus == null || selectedStatus.isBlank() ? FILTER_ALL : selectedStatus;
+        filteredHistory.setPredicate(row -> FILTER_ALL.equalsIgnoreCase(status)
+                || status.equalsIgnoreCase(row.estado()));
+    }
+
+    private void updateClosingHistoryFeedback(
+            Label historyFeedbackLabel,
+            LocalDate fechaInicial,
+            LocalDate fechaFinal,
+            String selectedStatus,
+            List<PosApiClient.CierreDiarioListadoResponse> filteredHistory
+    ) {
+        String status = selectedStatus == null || selectedStatus.isBlank() ? FILTER_ALL : selectedStatus;
+        BigDecimal totalFinal = filteredHistory.stream()
+                .map(PosApiClient.CierreDiarioListadoResponse::totalFinal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        historyFeedbackLabel.setText(
+                filteredHistory.size() + " cierre(s) en " + formatDateRange(fechaInicial, fechaFinal)
+                        + " | Estado: " + status
+                        + " | Total final: " + formatCurrency(totalFinal)
+        );
+    }
+
+    private void showClosingTotalsWindow(
+            Window owner,
+            LocalDate fechaInicial,
+            LocalDate fechaFinal,
+            String status,
+            List<PosApiClient.CierreDiarioListadoResponse> cierres
+    ) {
+        ClosingTotals totals = calculateClosingTotals(cierres);
+        Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
+        double dialogWidth = Math.min(940, visualBounds.getWidth() * 0.88);
+        double contentWidth = Math.min(900, dialogWidth - 12);
+
+        Stage stage = new Stage();
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.initStyle(StageStyle.TRANSPARENT);
+
+        Label overline = new Label("Totalizacion inteligente");
+        overline.getStyleClass().add("change-confirm-overline");
+
+        Label title = new Label("Consolidado de cierres");
+        title.getStyleClass().add("closing-totalizer-title");
+
+        Label subtitle = new Label(
+                "Rango " + formatDateRange(fechaInicial, fechaFinal) + " | Estado " + normalizeStatusLabel(status)
+        );
+        subtitle.getStyleClass().add("closing-totalizer-subtitle");
+        subtitle.setWrapText(true);
+
+        FlowPane metrics = new FlowPane(10, 10,
+                createTotalizerMetricCard("Cierres", String.valueOf(totals.cantidadCierres()), "Registros visibles"),
+                createTotalizerMetricCard("Ventas", formatCurrency(totals.totalVentas()), totals.cantidadVentas() + " comprobantes"),
+                createTotalizerMetricCard("Total final", formatCurrency(totals.totalFinal()), "Con base, ahorro y trabajadoras")
+        );
+        metrics.setPrefWrapLength(Math.max(320, contentWidth - 24));
+
+        VBox detailCard = createCard("Desglose del rango", "Lectura lista para validar el cierre consolidado.");
+        detailCard.getStyleClass().add("closing-totalizer-detail-card");
+        detailCard.setMaxWidth(Double.MAX_VALUE);
+        detailCard.getChildren().add(createClosingTotalsDetailLayout(totals, status));
+
+        Label note = new Label(
+                totals.cantidadCierres() == 0
+                        ? "No hay cierres para totalizar con los filtros actuales. Ajusta el rango o el estado y vuelve a consultar."
+                        : "Los valores corresponden exactamente a los cierres visibles en el historial filtrado."
+        );
+        note.getStyleClass().add("closing-totalizer-note");
+        note.setWrapText(true);
+
+        Button closeButton = createActionButton("Cerrar", "ghost-button");
+        closeButton.setOnAction(event -> stage.close());
+
+        VBox heading = new VBox(6, overline, title, subtitle);
+        HBox header = new HBox(16, heading);
+        header.setAlignment(Pos.TOP_LEFT);
+
+        HBox footer = new HBox(closeButton);
+        footer.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox content = new VBox(14, header, metrics, detailCard, note, footer);
+        content.getStyleClass().addAll("surface-card", "closing-totalizer-card");
+        content.setMaxWidth(contentWidth);
+        content.setPrefWidth(contentWidth);
+        content.setMinWidth(contentWidth);
+        content.setFillWidth(true);
+
+        StackPane root = new StackPane(content);
+        root.getStyleClass().add("closing-totalizer-overlay");
+        root.setAlignment(Pos.CENTER);
+        root.setPadding(new Insets(6));
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        scene.setFill(Color.TRANSPARENT);
+        stage.setScene(scene);
+        stage.sizeToScene();
+        stage.centerOnScreen();
+        stage.setOnShown(event -> Platform.runLater(closeButton::requestFocus));
+        stage.showAndWait();
+    }
+
+    private VBox createTotalizerMetricCard(String label, String value, String caption) {
+        VBox card = new VBox(8);
+        card.getStyleClass().addAll("metric-card", "closing-totalizer-metric");
+        card.setPrefWidth(188);
+        Label overline = new Label(label);
+        overline.getStyleClass().add("metric-label");
+        Label number = createMetricValueLabel(value);
+        Label helper = createMetricCaptionLabel(caption);
+        card.getChildren().addAll(overline, number, helper);
+        return card;
+    }
+
+    private HBox createClosingTotalsDetailLayout(ClosingTotals totals, String status) {
+        VBox leftColumn = new VBox(8,
+                createClosingTotalsDetailRow("Base acumulada", formatCurrency(totals.totalBaseCaja())),
+                createClosingTotalsDetailRow("Trabajadoras", formatCurrency(totals.totalTrabajadoras())),
+                createClosingTotalsDetailRow("Ahorro", formatCurrency(totals.totalAhorro()))
+        );
+        leftColumn.getStyleClass().add("closing-totalizer-detail-column");
+
+        VBox rightColumn = new VBox(8,
+                createClosingTotalsDetailRow("Promedio", formatCurrency(totals.promedioPorCierre())),
+                createClosingTotalsDetailRow("Mayor cierre", buildTopClosingValue(totals)),
+                createClosingTotalsDetailRow("Estado", normalizeStatusLabel(status))
+        );
+        rightColumn.getStyleClass().add("closing-totalizer-detail-column");
+
+        HBox columns = new HBox(16, leftColumn, rightColumn);
+        columns.getStyleClass().add("closing-totalizer-detail-columns");
+        HBox.setHgrow(leftColumn, Priority.ALWAYS);
+        HBox.setHgrow(rightColumn, Priority.ALWAYS);
+        return columns;
+    }
+
+    private HBox createClosingTotalsDetailRow(String key, String value) {
+        Label left = new Label(key);
+        left.getStyleClass().add("meta-key");
+        Label right = new Label(value);
+        right.getStyleClass().add("meta-value");
+        right.setWrapText(true);
+        right.setMaxWidth(220);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox row = new HBox(10, left, spacer, right);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private ClosingTotals calculateClosingTotals(List<PosApiClient.CierreDiarioListadoResponse> cierres) {
+        List<PosApiClient.CierreDiarioListadoResponse> safeRows = cierres == null ? List.of() : cierres;
+        BigDecimal totalVentas = safeRows.stream()
+                .map(PosApiClient.CierreDiarioListadoResponse::totalVentas)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalNetoCaja = safeRows.stream()
+                .map(PosApiClient.CierreDiarioListadoResponse::montoNetoCaja)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalBaseCaja = safeRows.stream()
+                .map(PosApiClient.CierreDiarioListadoResponse::baseCaja)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalTrabajadoras = safeRows.stream()
+                .map(PosApiClient.CierreDiarioListadoResponse::trabajadoras)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalAhorro = safeRows.stream()
+                .map(PosApiClient.CierreDiarioListadoResponse::ahorro)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalFinal = safeRows.stream()
+                .map(PosApiClient.CierreDiarioListadoResponse::totalFinal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        int cantidadVentas = safeRows.stream()
+                .map(PosApiClient.CierreDiarioListadoResponse::cantidadVentas)
+                .reduce(0, Integer::sum);
+        PosApiClient.CierreDiarioListadoResponse mayorCierre = safeRows.stream()
+                .max(Comparator.comparing(PosApiClient.CierreDiarioListadoResponse::totalFinal, Comparator.nullsLast(Comparator.naturalOrder())))
+                .orElse(null);
+        BigDecimal promedioPorCierre = safeRows.isEmpty()
+                ? BigDecimal.ZERO
+                : totalFinal.divide(BigDecimal.valueOf(safeRows.size()), 2, RoundingMode.HALF_UP);
+        return new ClosingTotals(
+                safeRows.size(),
+                cantidadVentas,
+                totalVentas,
+                totalNetoCaja,
+                totalBaseCaja,
+                totalTrabajadoras,
+                totalAhorro,
+                totalFinal,
+                promedioPorCierre,
+                mayorCierre
+        );
+    }
+
+    private String buildTopClosingValue(ClosingTotals totals) {
+        if (totals.mayorCierre() == null) {
+            return "Sin registros";
+        }
+        return formatCurrency(totals.mayorCierre().totalFinal()) + " - "
+                + formatShortDate(totals.mayorCierre().fechaOperacion());
+    }
+
+    private String normalizeStatusLabel(String status) {
+        return status == null || status.isBlank() ? FILTER_ALL : status;
+    }
+
+    private String formatDateRange(LocalDate start, LocalDate end) {
+        LocalDate safeStart = start == null ? LocalDate.now() : start;
+        LocalDate safeEnd = end == null ? safeStart : end;
+        if (safeStart.equals(safeEnd)) {
+            return formatShortDate(safeStart);
+        }
+        return formatShortDate(safeStart) + " al " + formatShortDate(safeEnd);
+    }
+
+    private String formatShortDate(LocalDate value) {
+        return value == null ? "-" : SHORT_DATE_FORMATTER.format(value);
     }
 
     private Node createLayawayListCard() {
@@ -1227,12 +1706,24 @@ public class PosDesktopFxApplication extends Application {
     ) {
         VBox card = createCard("Lectura rapida", "Mini resumen visual de la jornada.");
         card.getStyleClass().add("movements-insights-card");
-        bindRegionWidthToScene(card, 0.15, 156, 190);
+        bindRegionWidthToScene(card, 0.17, 176, 224);
         card.setMaxWidth(Region.USE_PREF_SIZE);
+        totalCajaValue.getStyleClass().add("movements-insight-value");
+        totalCajaCaption.getStyleClass().add("movements-insight-caption");
+        recibidoValue.getStyleClass().add("movements-insight-value");
+        recibidoCaption.getStyleClass().add("movements-insight-caption");
+        devueltoValue.getStyleClass().add("movements-insight-value");
+        devueltoCaption.getStyleClass().add("movements-insight-caption");
+        VBox totalCajaCard = createMetricCard("Total caja", totalCajaValue, totalCajaCaption);
+        totalCajaCard.getStyleClass().add("movements-insight-metric");
+        VBox recibidoCard = createMetricCard("Recibido", recibidoValue, recibidoCaption);
+        recibidoCard.getStyleClass().add("movements-insight-metric");
+        VBox devueltoCard = createMetricCard("Devuelto", devueltoValue, devueltoCaption);
+        devueltoCard.getStyleClass().add("movements-insight-metric");
         card.getChildren().addAll(
-                createMetricCard("Total caja", totalCajaValue, totalCajaCaption),
-                createMetricCard("Recibido", recibidoValue, recibidoCaption),
-                createMetricCard("Devuelto", devueltoValue, devueltoCaption)
+                totalCajaCard,
+                recibidoCard,
+                devueltoCard
         );
         return card;
     }
@@ -1397,6 +1888,32 @@ public class PosDesktopFxApplication extends Application {
         TextField field = new TextField(value);
         field.getStyleClass().add("soft-field");
         return field;
+    }
+
+    private void configureClosingFocusFlow(
+            TextField baseField,
+            TextField trabajadorasField,
+            TextField ahorroField,
+            Button saveButton
+    ) {
+        baseField.setOnAction(event -> trabajadorasField.requestFocus());
+        trabajadorasField.setOnAction(event -> ahorroField.requestFocus());
+        ahorroField.setOnAction(event -> saveButton.requestFocus());
+    }
+
+    private void configureSelectAllOnFocus(TextField field) {
+        field.focusedProperty().addListener((obs, oldValue, focused) -> {
+            if (focused) {
+                Platform.runLater(field::selectAll);
+            }
+        });
+        field.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            if (!field.isFocused()) {
+                field.requestFocus();
+                event.consume();
+            }
+        });
+        field.addEventFilter(MouseEvent.MOUSE_CLICKED, event -> field.selectAll());
     }
 
     private Button createActionButton(String text, String styleClass) {
@@ -1626,9 +2143,17 @@ public class PosDesktopFxApplication extends Application {
         }
     }
 
-    private record ClosingPayload(
-            PosApiClient.ResumenCierreDiarioResponse resumen,
-            List<PosApiClient.CierreDiarioListadoResponse> historial
+    private record ClosingTotals(
+            int cantidadCierres,
+            int cantidadVentas,
+            BigDecimal totalVentas,
+            BigDecimal totalNetoCaja,
+            BigDecimal totalBaseCaja,
+            BigDecimal totalTrabajadoras,
+            BigDecimal totalAhorro,
+            BigDecimal totalFinal,
+            BigDecimal promedioPorCierre,
+            PosApiClient.CierreDiarioListadoResponse mayorCierre
     ) {
     }
 }
