@@ -1,7 +1,6 @@
 package com.posdesktop.pos;
 
 import com.posdesktop.pos.integration.PosApiClient;
-import com.posdesktop.pos.mockfx.MockData;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
@@ -16,6 +15,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
@@ -471,9 +472,179 @@ public class PosDesktopFxApplication extends Application {
         VBox root = createScreenContainer("Separados", "Vista comercial para apartados y seguimiento visual de saldos.");
         tuneCompactScreen(root);
 
-        HBox grid = createAdaptivePanelRow(createLayawayListCard(), createLayawayActionsCard());
+        ObservableList<PosApiClient.SeparadoListadoResponse> layawaySource = FXCollections.observableArrayList();
+        FilteredList<PosApiClient.SeparadoListadoResponse> filteredLayaways = new FilteredList<>(layawaySource);
+        TableView<PosApiClient.SeparadoListadoResponse> table = createLayawayTable();
+        table.setItems(filteredLayaways);
+
+        TextField searchField = createField("");
+        searchField.setPromptText("Buscar por cliente o numero");
+        TextField articleFilterField = createField("");
+        articleFilterField.setPromptText("Filtrar por articulo");
+        ComboBox<String> statusFilter = new ComboBox<>(FXCollections.observableArrayList(
+                FILTER_ALL, "Activo", "Pagado", "Entregado", "Cancelado"
+        ));
+        statusFilter.getSelectionModel().select("Activo");
+
+        Label selectedNumberValue = createMetaValueLabel("-");
+        Label selectedClientValue = createMetaValueLabel("-");
+        Label selectedItemsValue = createMetaValueLabel("-");
+        Label selectedStatusValue = createMetaValueLabel("-");
+        Label minimumValue = createMetaValueLabel("-");
+        ProgressBar paymentProgressBar = new ProgressBar(0);
+        paymentProgressBar.setMaxWidth(Double.MAX_VALUE);
+        paymentProgressBar.getStyleClass().add("accent-progress");
+        Label paymentProgressCaption = new Label("Sin separado seleccionado");
+        paymentProgressCaption.getStyleClass().add("progress-caption");
+
+        Label activeValue = createMetaValueLabel("0 separados");
+        Label paidValue = createMetaValueLabel("0 listos para entrega");
+        Label totalBalanceValue = createMetaValueLabel(formatCurrency(BigDecimal.ZERO));
+        Label paymentsTodayValue = createMetaValueLabel(formatCurrency(BigDecimal.ZERO));
+
+        AtomicReference<String> selectedLayawayId = new AtomicReference<>();
+        AtomicReference<PosApiClient.SeparadoDetalleResponse> selectedLayawayDetail = new AtomicReference<>();
+
+        searchField.textProperty().addListener((obs, oldValue, newValue) -> applyLayawayFilters(
+                filteredLayaways,
+                newValue
+        ));
+
+        table.getSelectionModel().selectedItemProperty().addListener((obs, previous, selected) -> {
+            if (selected == null) {
+                selectedLayawayId.set(null);
+                selectedLayawayDetail.set(null);
+                updateLayawayProfile(
+                        null,
+                        selectedNumberValue,
+                        selectedClientValue,
+                        selectedItemsValue,
+                        selectedStatusValue,
+                        minimumValue,
+                        paymentProgressBar,
+                        paymentProgressCaption
+                );
+                return;
+            }
+
+            selectedLayawayId.set(selected.id());
+            selectedNumberValue.setText(selected.numeroSeparado());
+            selectedClientValue.setText(selected.cliente());
+            selectedItemsValue.setText(selected.descripcionArticulos());
+            selectedStatusValue.setText(formatLayawayStatus(selected.estado()));
+            minimumValue.setText("Consultando...");
+            paymentProgressBar.setProgress(calculateLayawayProgress(selected.valorTotal(), selected.totalAbonado()));
+            paymentProgressCaption.setText(formatCurrency(selected.totalAbonado()) + " abonados de "
+                    + formatCurrency(selected.valorTotal()));
+            loadLayawayDetail(
+                    selected.id(),
+                    selectedLayawayId,
+                    selectedLayawayDetail,
+                    selectedNumberValue,
+                    selectedClientValue,
+                    selectedItemsValue,
+                    selectedStatusValue,
+                    minimumValue,
+                    paymentProgressBar,
+                    paymentProgressCaption
+            );
+        });
+        Runnable refreshLayaways = () -> loadLayaways(
+                layawaySource,
+                filteredLayaways,
+                table,
+                searchField,
+                articleFilterField,
+                statusFilter,
+                selectedLayawayId,
+                selectedLayawayDetail,
+                activeValue,
+                paidValue,
+                totalBalanceValue,
+                paymentsTodayValue,
+                selectedNumberValue,
+                selectedClientValue,
+                selectedItemsValue,
+                selectedStatusValue,
+                minimumValue,
+                paymentProgressBar,
+                paymentProgressCaption
+        );
+        articleFilterField.textProperty().addListener((obs, oldValue, newValue) -> refreshLayaways.run());
+        statusFilter.valueProperty().addListener((obs, oldValue, newValue) -> refreshLayaways.run());
+        table.setOnMouseClicked(event -> {
+            if (event.getClickCount() < 2) {
+                return;
+            }
+            PosApiClient.SeparadoListadoResponse selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                return;
+            }
+            openLayawayPaymentWindow(
+                    contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
+                    selected.id(),
+                    selectedLayawayDetail,
+                    refreshLayaways
+            );
+        });
+
+        HBox grid = createAdaptivePanelRow(
+                createLayawayListCard(
+                        searchField,
+                        articleFilterField,
+                        statusFilter,
+                        table,
+                        selectedNumberValue,
+                        selectedClientValue,
+                        selectedItemsValue,
+                        selectedStatusValue,
+                        minimumValue,
+                        paymentProgressBar,
+                        paymentProgressCaption
+                ),
+                createLayawayActionsCard(
+                        () -> showNewLayawayWindow(
+                                contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
+                                refreshLayaways,
+                                createdId -> {
+                                    selectedLayawayId.set(createdId);
+                                    refreshLayaways.run();
+                                }
+                        ),
+                        () -> {
+                            PosApiClient.SeparadoListadoResponse selected = table.getSelectionModel().getSelectedItem();
+                            if (selected == null) {
+                                showError("Separados", "Selecciona un separado para registrar un abono.");
+                                return;
+                            }
+                            openLayawayPaymentWindow(
+                                    contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
+                                    selected.id(),
+                                    selectedLayawayDetail,
+                                    refreshLayaways
+                            );
+                        },
+                        refreshLayaways,
+                        () -> {
+                            PosApiClient.SeparadoDetalleResponse detail = selectedLayawayDetail.get();
+                            if (detail == null) {
+                                showError("Separados", "Selecciona un separado para visualizar sus abonos.");
+                                return;
+                            }
+                            showPaymentsWindow(
+                                    contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
+                                    detail
+                            );
+                        },
+                        activeValue,
+                        paidValue,
+                        totalBalanceValue,
+                        paymentsTodayValue
+                )
+        );
         VBox.setVgrow(grid, Priority.ALWAYS);
         root.getChildren().add(grid);
+        refreshLayaways.run();
         return root;
     }
 
@@ -1579,68 +1750,353 @@ public class PosDesktopFxApplication extends Application {
         return value == null ? "-" : SHORT_DATE_FORMATTER.format(value);
     }
 
-    private Node createLayawayListCard() {
-        VBox card = createCard("Listado de separados", "Panel central para visualizar apartados activos y su estado.");
+    private Node createLayawayListCard(
+            TextField searchField,
+            TextField articleFilterField,
+            ComboBox<String> status,
+            TableView<PosApiClient.SeparadoListadoResponse> table,
+            Label selectedNumberValue,
+            Label selectedClientValue,
+            Label selectedItemsValue,
+            Label selectedStatusValue,
+            Label minimumValue,
+            ProgressBar paymentProgressBar,
+            Label paymentProgressCaption
+    ) {
+        VBox card = createCard("Listado de separados", "Panel central para visualizar apartados activos y sus saldos.");
         card.getStyleClass().add("layaway-list-card");
         HBox.setHgrow(card, Priority.ALWAYS);
-        ComboBox<String> status = new ComboBox<>(FXCollections.observableArrayList("Todos", "Activos", "Pagados", "Entregados"));
-        status.getSelectionModel().selectFirst();
         FlowPane toolbar = createResponsiveRow(
-                createFieldGroup("Buscar", createField("Buscar por cliente o articulo"), 320),
+                createFieldGroup("Buscar", searchField, 240),
+                createFieldGroup("Articulo", articleFilterField, 240),
                 createFieldGroup("Estado", status, 170)
         );
 
-        TableView<MockData.LayawayRow> table = new TableView<>(FXCollections.observableArrayList(MockData.layaways()));
-        table.getStyleClass().add("data-table");
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        bindTableHeightToScene(table, 0.24, 138, 205);
-        table.getColumns().addAll(
-                tableColumn("Numero", MockData.LayawayRow::numero),
-                tableColumn("Cliente", MockData.LayawayRow::cliente),
-                tableColumn("Articulo", MockData.LayawayRow::articulo),
-                tableColumn("Abonado", MockData.LayawayRow::abonado),
-                tableColumn("Restante", MockData.LayawayRow::restante),
-                tableColumn("Fecha", MockData.LayawayRow::fecha)
-        );
-
         VBox profile = new VBox(8,
-                createKeyValue("Seleccion actual", "SP-103"),
-                createKeyValue("Cliente", "Amparo Alvarez"),
-                createKeyValue("Producto", "Cortinas blackout"),
-                createKeyValue("Regla inicial", "Minimo $ 20.000"),
-                createProgressCard("Progreso de pago", 0.75, "$ 180.000 abonados de $ 240.000")
+                createKeyValue("Seleccion actual", selectedNumberValue),
+                createKeyValue("Cliente", selectedClientValue),
+                createKeyValue("Articulos", selectedItemsValue),
+                createKeyValue("Estado", selectedStatusValue),
+                createKeyValue("Regla inicial", minimumValue),
+                createProgressCard("Progreso de pago", paymentProgressBar, paymentProgressCaption)
         );
 
         card.getChildren().addAll(toolbar, table, profile);
         return card;
     }
 
-    private Node createLayawayActionsCard() {
-        VBox card = createCard("Acciones mock", "Botonera elegante para maquetar los flujos del modulo.");
+    private Node createLayawayActionsCard(
+            Runnable onNewLayaway,
+            Runnable onPayment,
+            Runnable onRefresh,
+            Runnable onShowPayments,
+            Label activeValue,
+            Label paidValue,
+            Label totalBalanceValue,
+            Label paymentsTodayValue
+    ) {
+        VBox card = createCard("Acciones", "Flujos del modulo conectados con separados y abonos reales.");
         card.getStyleClass().add("layaway-actions-card");
         bindRegionWidthToScene(card, 0.18, 188, 228);
         card.setMaxWidth(Region.USE_PREF_SIZE);
 
         Button newLayaway = createActionButton("Nuevo separado", "primary-button");
         newLayaway.setMaxWidth(Double.MAX_VALUE);
-        newLayaway.setOnAction(event -> showNewLayawayWindow());
+        newLayaway.setOnAction(event -> onNewLayaway.run());
+
+        Button payment = createActionButton("Realizar abono", "ghost-button");
+        payment.setMaxWidth(Double.MAX_VALUE);
+        payment.setOnAction(event -> onPayment.run());
 
         Button refresh = createActionButton("Actualizar lista", "ghost-button");
         refresh.setMaxWidth(Double.MAX_VALUE);
+        refresh.setOnAction(event -> onRefresh.run());
 
         Button payments = createActionButton("Visualizar abonos", "ghost-button");
         payments.setMaxWidth(Double.MAX_VALUE);
-        payments.setOnAction(event -> showPaymentsWindow(null));
+        payments.setOnAction(event -> onShowPayments.run());
 
         VBox stats = new VBox(8,
-                createKeyValue("Activos", "4 separados"),
-                createKeyValue("Pagados", "1 listo para entrega"),
-                createKeyValue("Saldo total", "$ 375.000"),
-                createKeyValue("Abonos hoy", "$ 45.000")
+                createKeyValue("Activos", activeValue),
+                createKeyValue("Pagados", paidValue),
+                createKeyValue("Saldo total", totalBalanceValue),
+                createKeyValue("Abonos hoy", paymentsTodayValue)
         );
 
-        card.getChildren().addAll(newLayaway, refresh, payments, new Separator(), stats);
+        card.getChildren().addAll(newLayaway, payment, refresh, payments, new Separator(), stats);
         return card;
+    }
+
+    private TableView<PosApiClient.SeparadoListadoResponse> createLayawayTable() {
+        TableView<PosApiClient.SeparadoListadoResponse> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.24, 138, 205);
+        table.getColumns().addAll(
+                tableColumn("Numero", PosApiClient.SeparadoListadoResponse::numeroSeparado),
+                tableColumn("Cliente", PosApiClient.SeparadoListadoResponse::cliente),
+                tableColumn("Articulos", PosApiClient.SeparadoListadoResponse::descripcionArticulos),
+                tableColumn("Estado", separado -> formatLayawayStatus(separado.estado())),
+                tableColumn("Abonado", separado -> formatCurrency(separado.totalAbonado())),
+                tableColumn("Restante", separado -> formatCurrency(separado.saldoPendiente())),
+                tableColumn("Fecha", separado -> formatShortDate(separado.fechaSeparacion()))
+        );
+        return table;
+    }
+
+    private void loadLayaways(
+            ObservableList<PosApiClient.SeparadoListadoResponse> source,
+            FilteredList<PosApiClient.SeparadoListadoResponse> filteredLayaways,
+            TableView<PosApiClient.SeparadoListadoResponse> table,
+            TextField searchField,
+            TextField articleFilterField,
+            ComboBox<String> statusFilter,
+            AtomicReference<String> selectedLayawayId,
+            AtomicReference<PosApiClient.SeparadoDetalleResponse> selectedLayawayDetail,
+            Label activeValue,
+            Label paidValue,
+            Label totalBalanceValue,
+            Label paymentsTodayValue,
+            Label selectedNumberValue,
+            Label selectedClientValue,
+            Label selectedItemsValue,
+            Label selectedStatusValue,
+            Label minimumValue,
+            ProgressBar paymentProgressBar,
+            Label paymentProgressCaption
+    ) {
+        runAsync(
+                () -> posApiClient.listarSeparados(
+                        resolveLayawayStatusFilter(statusFilter.getValue()),
+                        articleFilterField.getText()
+                ),
+                separados -> {
+                    source.setAll(separados);
+                    applyLayawayFilters(filteredLayaways, searchField.getText());
+                    updateLayawayStats(separados, activeValue, paidValue, totalBalanceValue);
+                    loadPaymentsTodayMetric(paymentsTodayValue);
+                    if (separados.isEmpty()) {
+                        selectedLayawayId.set(null);
+                        selectedLayawayDetail.set(null);
+                        table.getSelectionModel().clearSelection();
+                        updateLayawayProfile(
+                                null,
+                                selectedNumberValue,
+                                selectedClientValue,
+                                selectedItemsValue,
+                                selectedStatusValue,
+                                minimumValue,
+                                paymentProgressBar,
+                                paymentProgressCaption
+                        );
+                        return;
+                    }
+
+                    String selectedId = selectedLayawayId.get();
+                    if (selectedId != null && selectLayawayRow(table, selectedId)) {
+                        return;
+                    }
+                    table.getSelectionModel().selectFirst();
+                },
+                exception -> showError("Separados", exception.getMessage())
+        );
+    }
+
+    private void loadLayawayDetail(
+            String layawayId,
+            AtomicReference<String> selectedLayawayId,
+            AtomicReference<PosApiClient.SeparadoDetalleResponse> selectedLayawayDetail,
+            Label selectedNumberValue,
+            Label selectedClientValue,
+            Label selectedItemsValue,
+            Label selectedStatusValue,
+            Label minimumValue,
+            ProgressBar paymentProgressBar,
+            Label paymentProgressCaption
+    ) {
+        if (layawayId == null || layawayId.isBlank()) {
+            selectedLayawayDetail.set(null);
+            updateLayawayProfile(
+                    null,
+                    selectedNumberValue,
+                    selectedClientValue,
+                    selectedItemsValue,
+                    selectedStatusValue,
+                    minimumValue,
+                    paymentProgressBar,
+                    paymentProgressCaption
+            );
+            return;
+        }
+
+        runAsync(
+                () -> posApiClient.consultarSeparado(layawayId),
+                detail -> {
+                    if (!layawayId.equals(selectedLayawayId.get())) {
+                        return;
+                    }
+                    selectedLayawayDetail.set(detail);
+                    updateLayawayProfile(
+                            detail,
+                            selectedNumberValue,
+                            selectedClientValue,
+                            selectedItemsValue,
+                            selectedStatusValue,
+                            minimumValue,
+                            paymentProgressBar,
+                            paymentProgressCaption
+                    );
+                },
+                exception -> {
+                    if (layawayId.equals(selectedLayawayId.get())) {
+                        selectedLayawayDetail.set(null);
+                    }
+                    showError("Separados", exception.getMessage());
+                }
+        );
+    }
+
+    private void applyLayawayFilters(
+            FilteredList<PosApiClient.SeparadoListadoResponse> filteredLayaways,
+            String searchText
+    ) {
+        String normalizedSearch = searchText == null ? "" : searchText.trim().toLowerCase(Locale.ROOT);
+        filteredLayaways.setPredicate(separado -> {
+            if (separado == null) {
+                return false;
+            }
+            if (normalizedSearch.isBlank()) {
+                return true;
+            }
+            return containsIgnoreCase(separado.numeroSeparado(), normalizedSearch)
+                    || containsIgnoreCase(separado.cliente(), normalizedSearch);
+        });
+    }
+
+    private String resolveLayawayStatusFilter(String statusFilter) {
+        String normalizedStatus = normalizeStatusLabel(statusFilter);
+        if (FILTER_ALL.equals(normalizedStatus)) {
+            return null;
+        }
+        return switch (normalizedStatus.toLowerCase(Locale.ROOT)) {
+            case "activo" -> "ACTIVO";
+            case "pagado" -> "PAGADO";
+            case "entregado" -> "ENTREGADO";
+            case "cancelado" -> "CANCELADO";
+            default -> null;
+        };
+    }
+
+    private void updateLayawayStats(
+            List<PosApiClient.SeparadoListadoResponse> separated,
+            Label activeValue,
+            Label paidValue,
+            Label totalBalanceValue
+    ) {
+        long activeCount = separated.stream()
+                .filter(item -> "ACTIVO".equalsIgnoreCase(item.estado()))
+                .count();
+        long paidCount = separated.stream()
+                .filter(item -> "PAGADO".equalsIgnoreCase(item.estado()))
+                .count();
+        BigDecimal totalBalance = separated.stream()
+                .map(PosApiClient.SeparadoListadoResponse::saldoPendiente)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        activeValue.setText(activeCount + " separados");
+        paidValue.setText(paidCount + " listos para entrega");
+        totalBalanceValue.setText(formatCurrency(totalBalance));
+    }
+
+    private void loadPaymentsTodayMetric(Label paymentsTodayValue) {
+        runAsync(
+                () -> posApiClient.listarMovimientos(LocalDate.now(), LocalDate.now()),
+                movements -> {
+                    BigDecimal paymentsToday = movements.stream()
+                            .filter(movement -> "SEPARADO".equalsIgnoreCase(movement.origen()))
+                            .map(PosApiClient.MovimientoVentaResponse::total)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    paymentsTodayValue.setText(formatCurrency(paymentsToday));
+                },
+                exception -> paymentsTodayValue.setText(formatCurrency(BigDecimal.ZERO))
+        );
+    }
+
+    private void updateLayawayProfile(
+            PosApiClient.SeparadoDetalleResponse detail,
+            Label selectedNumberValue,
+            Label selectedClientValue,
+            Label selectedItemsValue,
+            Label selectedStatusValue,
+            Label minimumValue,
+            ProgressBar paymentProgressBar,
+            Label paymentProgressCaption
+    ) {
+        if (detail == null) {
+            selectedNumberValue.setText("-");
+            selectedClientValue.setText("-");
+            selectedItemsValue.setText("-");
+            selectedStatusValue.setText("-");
+            minimumValue.setText("-");
+            paymentProgressBar.setProgress(0);
+            paymentProgressCaption.setText("Sin separado seleccionado");
+            return;
+        }
+
+        selectedNumberValue.setText(detail.numeroSeparado());
+        selectedClientValue.setText(detail.cliente());
+        selectedItemsValue.setText(detail.descripcionArticulos());
+        selectedStatusValue.setText(formatLayawayStatus(detail.estado()));
+        minimumValue.setText(formatCurrency(detail.montoMinimoInicial()));
+        paymentProgressBar.setProgress(calculateLayawayProgress(detail.valorTotal(), detail.totalAbonado()));
+        paymentProgressCaption.setText(formatCurrency(detail.totalAbonado()) + " abonados de "
+                + formatCurrency(detail.valorTotal()) + " | Restante "
+                + formatCurrency(detail.saldoPendiente()));
+    }
+
+    private boolean selectLayawayRow(TableView<PosApiClient.SeparadoListadoResponse> table, String layawayId) {
+        if (layawayId == null || layawayId.isBlank()) {
+            return false;
+        }
+        for (PosApiClient.SeparadoListadoResponse row : table.getItems()) {
+            if (layawayId.equals(row.id())) {
+                table.getSelectionModel().select(row);
+                table.scrollTo(row);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean containsIgnoreCase(String source, String token) {
+        return source != null && token != null && source.toLowerCase(Locale.ROOT).contains(token);
+    }
+
+    private String formatLayawayStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "-";
+        }
+        return switch (status.toUpperCase(Locale.ROOT)) {
+            case "ACTIVO" -> "Activo";
+            case "PAGADO" -> "Pagado";
+            case "ENTREGADO" -> "Entregado";
+            case "CANCELADO" -> "Cancelado";
+            default -> status;
+        };
+    }
+
+    private double calculateLayawayProgress(BigDecimal total, BigDecimal paid) {
+        BigDecimal safeTotal = total == null ? BigDecimal.ZERO : total;
+        BigDecimal safePaid = paid == null ? BigDecimal.ZERO : paid;
+        if (safeTotal.signum() <= 0) {
+            return 0;
+        }
+        BigDecimal ratio = safePaid.divide(safeTotal, 4, RoundingMode.HALF_UP);
+        double progress = ratio.doubleValue();
+        if (progress < 0) {
+            return 0;
+        }
+        return Math.min(progress, 1);
     }
 
     private Node createMovementsFilterCard(
@@ -1728,59 +2184,316 @@ public class PosDesktopFxApplication extends Application {
         return card;
     }
 
-    private void showNewLayawayWindow() {
+    private void showNewLayawayWindow(Window owner, Runnable refreshAction, Consumer<String> onCreated) {
         Stage stage = createDialogStage("Nuevo separado");
-        VBox root = createDialogRoot("Nuevo separado", "Formulario maqueta para apertura de apartado.");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
 
-        TextField remaining = createField("$ 220.000");
+        VBox root = createDialogRoot("Nuevo separado", "Apertura real con numeracion, saldo y abono inicial automaticos.");
+
+        TextField clienteField = createField("");
+        clienteField.setPromptText("Nombre del cliente");
+        TextField telefonoField = createField("");
+        telefonoField.setPromptText("Telefono");
+        TextArea articulosArea = createArea("", 3);
+        articulosArea.setPromptText("Describe uno o varios articulos del separado");
+        TextField totalField = createField("0");
+        TextField abonoInicialField = createField("20000");
+        TextField remaining = createField("0");
         remaining.setDisable(true);
+        TextArea observacionArea = createArea("", 2);
+        observacionArea.setPromptText("Observacion opcional");
+        configureSelectAllOnFocus(totalField);
+        configureSelectAllOnFocus(abonoInicialField);
+
+        Runnable updateProjectedRemaining = () -> {
+            BigDecimal total = parseCurrencyOrZero(totalField.getText());
+            BigDecimal initialPayment = parseCurrencyOrZero(abonoInicialField.getText());
+            BigDecimal projectedBalance = total.subtract(initialPayment).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            remaining.setText(formatCurrency(projectedBalance));
+        };
+        totalField.textProperty().addListener((obs, oldValue, newValue) -> updateProjectedRemaining.run());
+        abonoInicialField.textProperty().addListener((obs, oldValue, newValue) -> updateProjectedRemaining.run());
+        updateProjectedRemaining.run();
 
         FlowPane fields = createResponsiveRow(
-                createFieldGroup("Cliente", createField("Nombre del cliente"), 280),
-                createFieldGroup("Articulo", createField("Articulo o descripcion"), 280),
-                createFieldGroup("Fecha promesa", new DatePicker(LocalDate.of(2026, 7, 12)), 220),
-                createFieldGroup("Valor total", createField("$ 240.000"), 220),
-                createFieldGroup("Abono inicial", createField("$ 20.000"), 220),
+                createFieldGroup("Cliente", clienteField, 280),
+                createFieldGroup("Telefono", telefonoField, 220),
+                createFieldGroup("Articulos", articulosArea, 380),
+                createFieldGroup("Valor total", totalField, 220),
+                createFieldGroup("Abono inicial", abonoInicialField, 220),
                 createFieldGroup("Restante estimado", remaining, 220)
         );
 
-        VBox progress = createProgressCard("Regla comercial", 0.2, "Abono minimo inicial: $ 20.000 COP");
-        Button save = createActionButton("Guardar mock", "primary-button");
+        VBox progress = createProgressCard(
+                "Regla comercial",
+                0.2,
+                "Abono minimo inicial: $ 20.000 COP. El numero y la fecha del separado se asignan automaticamente."
+        );
+        Button save = createActionButton("Guardar separado", "primary-button");
         save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            try {
+                BigDecimal total = parseRequiredPositive(totalField.getText(), "El valor total debe ser mayor a cero.");
+                BigDecimal initialPayment = parseRequiredPositive(
+                        abonoInicialField.getText(),
+                        "El abono inicial debe ser mayor a cero."
+                );
+                if (initialPayment.compareTo(new BigDecimal("20000.00")) < 0) {
+                    throw new IllegalArgumentException("El abono inicial minimo es de 20.000 COP.");
+                }
+                if (initialPayment.compareTo(total) > 0) {
+                    throw new IllegalArgumentException("El abono inicial no puede superar el valor total del separado.");
+                }
 
-        root.getChildren().addAll(fields, progress, save);
+                PosApiClient.RegistrarSeparadoRequest request = new PosApiClient.RegistrarSeparadoRequest(
+                        clienteField.getText(),
+                        telefonoField.getText(),
+                        articulosArea.getText(),
+                        total,
+                        initialPayment,
+                        observacionArea.getText()
+                );
+                save.setDisable(true);
+                runAsync(
+                        () -> posApiClient.registrarSeparado(request),
+                        response -> {
+                            stage.close();
+                            if (onCreated != null) {
+                                onCreated.accept(response.id());
+                            } else if (refreshAction != null) {
+                                refreshAction.run();
+                            }
+                            showInfo(
+                                    "Separado registrado",
+                                    "Se registró el separado " + response.numeroSeparado()
+                                            + " con saldo pendiente " + formatCurrency(response.saldoPendiente()) + "."
+                            );
+                        },
+                        exception -> {
+                            save.setDisable(false);
+                            showError("Nuevo separado", exception.getMessage());
+                        }
+                );
+            } catch (IllegalArgumentException exception) {
+                showError("Nuevo separado", exception.getMessage());
+            }
+        });
 
-        Scene scene = new Scene(root, 760, 520);
+        root.getChildren().addAll(fields, createFieldGroup("Observacion", observacionArea, 520), progress, save);
+
+        Scene scene = new Scene(root, 860, 620);
         scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
         stage.setScene(scene);
         stage.show();
     }
 
-    private void showPaymentsWindow(Stage owner) {
+    private void openLayawayPaymentWindow(
+            Window owner,
+            String layawayId,
+            AtomicReference<PosApiClient.SeparadoDetalleResponse> selectedLayawayDetail,
+            Runnable afterUpdate
+    ) {
+        PosApiClient.SeparadoDetalleResponse cachedDetail = selectedLayawayDetail.get();
+        if (cachedDetail != null && layawayId.equals(cachedDetail.id())) {
+            showLayawayPaymentWindow(owner, cachedDetail, selectedLayawayDetail, afterUpdate);
+            return;
+        }
+
+        runAsync(
+                () -> posApiClient.consultarSeparado(layawayId),
+                detail -> {
+                    selectedLayawayDetail.set(detail);
+                    showLayawayPaymentWindow(owner, detail, selectedLayawayDetail, afterUpdate);
+                },
+                exception -> showError("Abonos", exception.getMessage())
+        );
+    }
+
+    private void showLayawayPaymentWindow(
+            Window owner,
+            PosApiClient.SeparadoDetalleResponse initialDetail,
+            AtomicReference<PosApiClient.SeparadoDetalleResponse> selectedLayawayDetail,
+            Runnable afterUpdate
+    ) {
+        if (initialDetail == null) {
+            showError("Abonos", "Selecciona un separado para registrar un abono.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Realizar abono");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Realizar abono",
+                "Ventana operativa para abonar sobre el separado seleccionado."
+        );
+
+        TextField separatedField = createField(initialDetail.numeroSeparado());
+        separatedField.setDisable(true);
+        TextField clientField = createField(initialDetail.cliente());
+        clientField.setDisable(true);
+        TextArea itemsArea = createArea(initialDetail.descripcionArticulos(), 3);
+        itemsArea.setDisable(true);
+        TextField totalField = createField(formatCurrency(initialDetail.valorTotal()));
+        totalField.setDisable(true);
+        TextField currentBalanceField = createField(formatCurrency(initialDetail.saldoPendiente()));
+        currentBalanceField.setDisable(true);
+        TextField amountField = createField("");
+        amountField.setPromptText("Valor a abonar");
+        configureSelectAllOnFocus(amountField);
+        TextField projectedBalanceField = createField(formatCurrency(initialDetail.saldoPendiente()));
+        projectedBalanceField.setDisable(true);
+        TextArea observationArea = createArea("", 2);
+        observationArea.setPromptText("Observacion opcional del abono");
+        Button save = createActionButton("Guardar abono", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+
+        AtomicReference<PosApiClient.SeparadoDetalleResponse> currentDetail = new AtomicReference<>(initialDetail);
+        Runnable updateProjectedBalance = () -> {
+            PosApiClient.SeparadoDetalleResponse detail = currentDetail.get();
+            if (detail == null) {
+                projectedBalanceField.setText(formatCurrency(BigDecimal.ZERO));
+                return;
+            }
+            BigDecimal payment = parseCurrencyOrZero(amountField.getText());
+            BigDecimal projectedBalance = detail.saldoPendiente().subtract(payment).max(BigDecimal.ZERO)
+                    .setScale(2, RoundingMode.HALF_UP);
+            projectedBalanceField.setText(formatCurrency(projectedBalance));
+        };
+        amountField.textProperty().addListener((obs, oldValue, newValue) -> updateProjectedBalance.run());
+
+        Consumer<PosApiClient.SeparadoDetalleResponse> renderDetail = detail -> {
+            currentDetail.set(detail);
+            separatedField.setText(detail.numeroSeparado());
+            clientField.setText(detail.cliente());
+            itemsArea.setText(detail.descripcionArticulos());
+            totalField.setText(formatCurrency(detail.valorTotal()));
+            currentBalanceField.setText(formatCurrency(detail.saldoPendiente()));
+            boolean canRegisterPayment = detail.saldoPendiente() != null
+                    && detail.saldoPendiente().signum() > 0
+                    && "ACTIVO".equalsIgnoreCase(detail.estado());
+            amountField.setDisable(!canRegisterPayment);
+            observationArea.setDisable(!canRegisterPayment);
+            save.setDisable(!canRegisterPayment);
+            if (!canRegisterPayment) {
+                amountField.clear();
+                projectedBalanceField.setText(formatCurrency(detail.saldoPendiente()));
+            }
+            updateProjectedBalance.run();
+        };
+        renderDetail.accept(initialDetail);
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Separado", separatedField, 220),
+                createFieldGroup("Cliente", clientField, 280),
+                createFieldGroup("Articulos", itemsArea, 380),
+                createFieldGroup("Valor total", totalField, 220),
+                createFieldGroup("Saldo actual", currentBalanceField, 220),
+                createFieldGroup("Valor a abonar", amountField, 220),
+                createFieldGroup("Restante estimado", projectedBalanceField, 220)
+        );
+
+        VBox progress = createProgressCard(
+                "Estado del separado",
+                calculateLayawayProgress(initialDetail.valorTotal(), initialDetail.totalAbonado()),
+                formatCurrency(initialDetail.totalAbonado()) + " abonados de "
+                        + formatCurrency(initialDetail.valorTotal())
+        );
+
+        save.setOnAction(event -> {
+            PosApiClient.SeparadoDetalleResponse detail = currentDetail.get();
+            if (detail == null) {
+                showError("Abonos", "No fue posible resolver el separado seleccionado.");
+                return;
+            }
+            try {
+                BigDecimal payment = parseRequiredPositive(amountField.getText(), "El valor del abono debe ser mayor a cero.");
+                if (payment.compareTo(detail.saldoPendiente()) > 0) {
+                    throw new IllegalArgumentException("El abono no puede superar el saldo pendiente del separado.");
+                }
+                save.setDisable(true);
+                runAsync(
+                        () -> posApiClient.registrarAbonoSeparado(
+                                detail.id(),
+                                new PosApiClient.RegistrarAbonoSeparadoRequest(payment, observationArea.getText())
+                        ),
+                        updatedDetail -> {
+                            selectedLayawayDetail.set(updatedDetail);
+                            if (afterUpdate != null) {
+                                afterUpdate.run();
+                            }
+                            stage.close();
+                            showInfo(
+                                    "Abono registrado",
+                                    "Se registró el abono del separado " + updatedDetail.numeroSeparado()
+                                            + ". Restante: " + formatCurrency(updatedDetail.saldoPendiente()) + "."
+                            );
+                        },
+                        exception -> {
+                            renderDetail.accept(detail);
+                            showError("Abonos", exception.getMessage());
+                        }
+                );
+            } catch (IllegalArgumentException exception) {
+                showError("Abonos", exception.getMessage());
+            }
+        });
+
+        root.getChildren().addAll(fields, createFieldGroup("Observacion", observationArea, 520), progress, save);
+
+        Scene scene = new Scene(root, 860, 620);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    private void showPaymentsWindow(
+            Window owner,
+            PosApiClient.SeparadoDetalleResponse initialDetail
+    ) {
+        if (initialDetail == null) {
+            showError("Separados", "Selecciona un separado para visualizar sus abonos.");
+            return;
+        }
+
         Stage stage = createDialogStage("Abonos del separado");
         if (owner != null) {
             stage.initOwner(owner);
         }
 
-        VBox root = createDialogRoot("Abonos", "Vista mock del historial de pagos parciales.");
-        TableView<MockData.PaymentRow> table = new TableView<>(FXCollections.observableArrayList(MockData.payments()));
+        VBox root = createDialogRoot("Abonos", "Historial real de pagos parciales asociados al separado.");
+        TableView<PosApiClient.AbonoSeparadoResponse> table = new TableView<>();
         table.getStyleClass().add("data-table");
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setPrefHeight(340);
         table.getColumns().addAll(
-                tableColumn("Fecha y hora", MockData.PaymentRow::fechaHora),
-                tableColumn("Valor", MockData.PaymentRow::valor),
-                tableColumn("Canal", MockData.PaymentRow::canal),
-                tableColumn("Referencia", MockData.PaymentRow::referencia)
+                tableColumn("Fecha y hora", payment -> formatDateTime(payment.fechaAbono())),
+                tableColumn("Valor", payment -> formatCurrency(payment.montoAbono())),
+                tableColumn("Tipo", payment -> payment.abonoInicial() ? "Inicial" : "Abono"),
+                tableColumn("Venta", payment -> payment.numeroVenta() == null ? "-" : payment.numeroVenta())
         );
 
+        Label separatedValue = createMetaValueLabel(initialDetail.numeroSeparado());
+        Label clientValue = createMetaValueLabel(initialDetail.cliente());
+        Label totalValue = createMetaValueLabel(formatCurrency(initialDetail.valorTotal()));
+        Label pendingValue = createMetaValueLabel(formatCurrency(initialDetail.saldoPendiente()));
+        Label statusValue = createMetaValueLabel(formatLayawayStatus(initialDetail.estado()));
+        table.setItems(FXCollections.observableArrayList(initialDetail.abonos()));
+
         root.getChildren().addAll(
-                createKeyValue("Separado", "SP-103"),
-                createKeyValue("Cliente", "Amparo Alvarez"),
+                createKeyValue("Separado", separatedValue),
+                createKeyValue("Cliente", clientValue),
+                createKeyValue("Valor total", totalValue),
+                createKeyValue("Saldo actual", pendingValue),
+                createKeyValue("Estado", statusValue),
                 table
         );
 
-        Scene scene = new Scene(root, 720, 470);
+        Scene scene = new Scene(root, 820, 520);
         scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
         stage.setScene(scene);
         stage.show();
@@ -1868,6 +2581,22 @@ public class PosDesktopFxApplication extends Application {
         return box;
     }
 
+    private VBox createProgressCard(String title, ProgressBar progressBar, Label captionLabel) {
+        VBox box = new VBox(10);
+        box.getStyleClass().add("progress-card");
+        Label label = new Label(title);
+        label.getStyleClass().add("progress-title");
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        if (!progressBar.getStyleClass().contains("accent-progress")) {
+            progressBar.getStyleClass().add("accent-progress");
+        }
+        if (!captionLabel.getStyleClass().contains("progress-caption")) {
+            captionLabel.getStyleClass().add("progress-caption");
+        }
+        box.getChildren().addAll(label, progressBar, captionLabel);
+        return box;
+    }
+
     private HBox createKeyValue(String key, String value) {
         Label left = new Label(key);
         left.getStyleClass().add("meta-key");
@@ -1876,6 +2605,23 @@ public class PosDesktopFxApplication extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         return new HBox(10, left, spacer, right);
+    }
+
+    private HBox createKeyValue(String key, Label valueLabel) {
+        Label left = new Label(key);
+        left.getStyleClass().add("meta-key");
+        if (!valueLabel.getStyleClass().contains("meta-value")) {
+            valueLabel.getStyleClass().add("meta-value");
+        }
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        return new HBox(10, left, spacer, valueLabel);
+    }
+
+    private Label createMetaValueLabel(String value) {
+        Label label = new Label(value);
+        label.getStyleClass().add("meta-value");
+        return label;
     }
 
     private Label createFormLabel(String text) {
@@ -1888,6 +2634,14 @@ public class PosDesktopFxApplication extends Application {
         TextField field = new TextField(value);
         field.getStyleClass().add("soft-field");
         return field;
+    }
+
+    private TextArea createArea(String value, int preferredRows) {
+        TextArea area = new TextArea(value);
+        area.setWrapText(true);
+        area.setPrefRowCount(preferredRows);
+        area.getStyleClass().add("soft-area");
+        return area;
     }
 
     private void configureClosingFocusFlow(
@@ -1993,12 +2747,19 @@ public class PosDesktopFxApplication extends Application {
             }
         }).whenComplete((result, throwable) -> Platform.runLater(() -> {
             if (throwable != null) {
-                Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
-                onError.accept(cause);
+                onError.accept(unwrapCause(throwable));
                 return;
             }
             onSuccess.accept(result);
         }));
+    }
+
+    private Throwable unwrapCause(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     private BigDecimal parseRequiredPositive(String value, String errorMessage) {

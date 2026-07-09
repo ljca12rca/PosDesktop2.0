@@ -8,8 +8,9 @@ import java.math.BigDecimal;
 public record RegistrarSeparadoRequest(
         @NotBlank(message = "El cliente es obligatorio.")
         String cliente,
-        @NotBlank(message = "La descripcion del articulo es obligatoria.")
-        String articulo,
+        String telefonoCliente,
+        @NotBlank(message = "La descripcion de los articulos es obligatoria.")
+        String descripcionArticulos,
         @NotNull(message = "El valor total es obligatorio.")
         @DecimalMin(value = "0.01", message = "El valor total debe ser mayor a cero.")
         BigDecimal valorTotal,

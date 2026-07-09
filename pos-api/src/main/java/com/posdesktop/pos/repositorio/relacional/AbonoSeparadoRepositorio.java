@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AbonoSeparadoRepositorio extends JpaRepository<AbonoSeparado, UUID> {
 
-    List<AbonoSeparado> findBySeparadoId(UUID separadoId);
+    List<AbonoSeparado> findBySeparadoIdOrderByNumeroAbonoAsc(UUID separadoId);
 }

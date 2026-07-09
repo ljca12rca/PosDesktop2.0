@@ -44,6 +44,39 @@ public final class PosApiClient {
         }).data();
     }
 
+    public List<SeparadoListadoResponse> listarSeparados(String estado, String articulo) {
+        StringBuilder path = new StringBuilder("/separados");
+        boolean hasQuery = false;
+        if (estado != null && !estado.isBlank()) {
+            path.append(hasQuery ? "&" : "?").append("estado=").append(encode(estado));
+            hasQuery = true;
+        }
+        if (articulo != null && !articulo.isBlank()) {
+            path.append(hasQuery ? "&" : "?").append("articulo=").append(encode(articulo.trim()));
+        }
+        return get(path.toString(), new TypeReference<ApiResponseEnvelope<List<SeparadoListadoResponse>>>() {
+        }).data();
+    }
+
+    public SeparadoDetalleResponse consultarSeparado(String separadoId) {
+        return get("/separados/" + encode(separadoId), new TypeReference<ApiResponseEnvelope<SeparadoDetalleResponse>>() {
+        }).data();
+    }
+
+    public SeparadoDetalleResponse registrarSeparado(RegistrarSeparadoRequest request) {
+        return post("/separados", request, new TypeReference<ApiResponseEnvelope<SeparadoDetalleResponse>>() {
+        }).data();
+    }
+
+    public SeparadoDetalleResponse registrarAbonoSeparado(String separadoId, RegistrarAbonoSeparadoRequest request) {
+        return post(
+                "/separados/" + encode(separadoId) + "/abonos",
+                request,
+                new TypeReference<ApiResponseEnvelope<SeparadoDetalleResponse>>() {
+                }
+        ).data();
+    }
+
     public SystemStatusResponse consultarEstadoSistema() {
         return get("/system/ping", new TypeReference<ApiResponseEnvelope<SystemStatusResponse>>() {
         }).data();
@@ -202,6 +235,64 @@ public final class PosApiClient {
             BigDecimal cambioEntregado,
             int cantidadDetalles,
             List<DetalleVentaResponse> detalles
+    ) {
+    }
+
+    public record RegistrarSeparadoRequest(
+            String cliente,
+            String telefonoCliente,
+            String descripcionArticulos,
+            BigDecimal valorTotal,
+            BigDecimal abonoInicial,
+            String observacion
+    ) {
+    }
+
+    public record RegistrarAbonoSeparadoRequest(
+            BigDecimal valorAbono,
+            String observacion
+    ) {
+    }
+
+    public record AbonoSeparadoResponse(
+            String id,
+            Integer numeroAbono,
+            LocalDateTime fechaAbono,
+            BigDecimal montoAbono,
+            boolean abonoInicial,
+            String numeroVenta,
+            String observacion
+    ) {
+    }
+
+    public record SeparadoListadoResponse(
+            String id,
+            String numeroSeparado,
+            String cliente,
+            String descripcionArticulos,
+            String estado,
+            BigDecimal valorTotal,
+            BigDecimal totalAbonado,
+            BigDecimal saldoPendiente,
+            LocalDate fechaSeparacion
+    ) {
+    }
+
+    public record SeparadoDetalleResponse(
+            String id,
+            String numeroSeparado,
+            String cliente,
+            String telefonoCliente,
+            String descripcionArticulos,
+            String estado,
+            BigDecimal valorTotal,
+            BigDecimal montoMinimoInicial,
+            BigDecimal totalAbonado,
+            BigDecimal saldoPendiente,
+            LocalDate fechaSeparacion,
+            LocalDate fechaEntrega,
+            String observacion,
+            List<AbonoSeparadoResponse> abonos
     ) {
     }
 

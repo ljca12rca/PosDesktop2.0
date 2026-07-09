@@ -3,6 +3,7 @@ package com.posdesktop.pos.ventas.service;
 import com.posdesktop.pos.cierres.service.CierreDiarioAutoSyncService;
 import com.posdesktop.pos.modelo.relacional.CierreDiario;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoCierreDiario;
+import com.posdesktop.pos.modelo.enumeraciones.OrigenVenta;
 import com.posdesktop.pos.modelo.relacional.DetalleVenta;
 import com.posdesktop.pos.modelo.relacional.Venta;
 import com.posdesktop.pos.repositorio.relacional.CierreDiarioRepositorio;
@@ -61,21 +62,26 @@ public class VentasService {
             venta.agregarDetalle(detalle);
         }
 
-        venta.setMontoManualInformado(venta.getTotal());
-        BigDecimal montoRecibido = resolverMontoRecibido(request.montoRecibido(), venta.getTotal());
-        venta.setMontoRecibido(montoRecibido);
-        validarMontoRecibidoContraTotal(venta.getMontoRecibido(), venta.getTotal());
-        venta.setCambioEntregado(calcularCambioEntregado(venta.getMontoRecibido(), venta.getTotal()));
-        if (debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia)) {
-            venta.setEstado(com.posdesktop.pos.modelo.enumeraciones.EstadoVenta.CERRADA);
-            venta.setCierreDiario(cierreDelDia);
-        }
+        return mapearVenta(guardarVenta(venta, fechaOperacion, cierreDelDia, request.montoRecibido()));
+    }
 
-        Venta ventaGuardada = ventaRepositorio.saveAndFlush(venta);
-        if (debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia)) {
-            cierreDiarioAutoSyncService.sincronizarSiCierreDelDiaYaExiste(fechaOperacion);
-        }
-        return mapearVenta(ventaGuardada);
+    @Transactional
+    public Venta registrarVentaSeparado(String descripcion, BigDecimal valorAbono, String observacion) {
+        LocalDate fechaOperacion = LocalDate.now();
+        CierreDiario cierreDelDia = validarPermisoVentaMismoDia(fechaOperacion);
+
+        Venta venta = new Venta();
+        venta.setNumeroVenta(generarNumeroVenta(fechaOperacion));
+        venta.setOrigen(OrigenVenta.SEPARADO);
+        venta.setObservacion(observacion);
+        venta.agregarDetalle(DetalleVenta.crearDetalleManual(
+                1,
+                descripcion,
+                BigDecimal.ONE,
+                normalizarDinero(valorAbono)
+        ));
+
+        return guardarVenta(venta, fechaOperacion, cierreDelDia, valorAbono);
     }
 
     @Transactional(readOnly = true)
@@ -209,5 +215,28 @@ public class VentasService {
 
     private BigDecimal normalizarCantidad(BigDecimal valor) {
         return valor == null ? BigDecimal.ZERO : valor.setScale(3, RoundingMode.HALF_UP);
+    }
+
+    private Venta guardarVenta(
+            Venta venta,
+            LocalDate fechaOperacion,
+            CierreDiario cierreDelDia,
+            BigDecimal montoRecibidoInformado
+    ) {
+        venta.setMontoManualInformado(venta.getTotal());
+        BigDecimal montoRecibido = resolverMontoRecibido(montoRecibidoInformado, venta.getTotal());
+        venta.setMontoRecibido(montoRecibido);
+        validarMontoRecibidoContraTotal(venta.getMontoRecibido(), venta.getTotal());
+        venta.setCambioEntregado(calcularCambioEntregado(venta.getMontoRecibido(), venta.getTotal()));
+        if (debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia)) {
+            venta.setEstado(com.posdesktop.pos.modelo.enumeraciones.EstadoVenta.CERRADA);
+            venta.setCierreDiario(cierreDelDia);
+        }
+
+        Venta ventaGuardada = ventaRepositorio.saveAndFlush(venta);
+        if (debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia)) {
+            cierreDiarioAutoSyncService.sincronizarSiCierreDelDiaYaExiste(fechaOperacion);
+        }
+        return ventaGuardada;
     }
 }
