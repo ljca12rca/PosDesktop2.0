@@ -1,6 +1,7 @@
 package com.posdesktop.pos;
 
 import com.posdesktop.pos.integration.PosApiClient;
+import com.posdesktop.pos.mockfx.MockData;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
@@ -33,6 +34,7 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.print.PrinterJob;
@@ -48,6 +50,7 @@ import javafx.scene.control.SelectionMode;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.control.Separator;
+import javafx.scene.control.SplitPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -109,6 +112,7 @@ public class PosDesktopFxApplication extends Application {
         screenFactories.put("Cierre", this::createClosingScreen);
         screenFactories.put("Separados", this::createLayawayScreen);
         screenFactories.put("Movimientos", this::createMovementsScreen);
+        screenFactories.put("Facturas", this::createInvoicesScreen);
 
         BorderPane shell = new BorderPane();
         shell.getStyleClass().add("app-shell");
@@ -645,6 +649,229 @@ public class PosDesktopFxApplication extends Application {
         VBox.setVgrow(grid, Priority.ALWAYS);
         root.getChildren().add(grid);
         refreshLayaways.run();
+        return root;
+    }
+
+    private Node createInvoicesScreen() {
+        VBox root = createScreenContainer(
+                "Facturas",
+                "Mock centrado en proveedores. La cartera y la gestion documental viven en ventanas flotantes."
+        );
+        tuneCompactScreen(root);
+        root.getStyleClass().add("invoice-main-screen");
+        root.setSpacing(10);
+        bindRegionHeightToScene(root, 58, 520);
+
+        ObservableList<MockData.ProviderMockRow> providerSource = FXCollections.observableArrayList(MockData.providers());
+        FilteredList<MockData.ProviderMockRow> filteredProviders = new FilteredList<>(providerSource);
+        TableView<MockData.ProviderMockRow> providerTable = createSupplierProvidersMockTable();
+        providerTable.setItems(filteredProviders);
+
+        TextField providerSearchField = createField("");
+        providerSearchField.setPromptText("Buscar proveedor");
+        providerSearchField.textProperty().addListener((obs, oldValue, newValue) -> {
+            String normalized = newValue == null ? "" : newValue.trim().toLowerCase(Locale.ROOT);
+            filteredProviders.setPredicate(provider -> {
+                if (provider == null) {
+                    return false;
+                }
+                if (normalized.isBlank()) {
+                    return true;
+                }
+                return containsIgnoreCase(provider.nombre(), normalized)
+                        || containsIgnoreCase(provider.contacto(), normalized)
+                        || containsIgnoreCase(provider.categoria(), normalized);
+            });
+            if (!filteredProviders.isEmpty() && providerTable.getSelectionModel().getSelectedItem() == null) {
+                providerTable.getSelectionModel().selectFirst();
+            }
+        });
+
+        Label providersValue = createMetricValueLabel("0");
+        Label providersCaption = createMetricCaptionLabel("Base mock");
+        Label invoicesValue = createMetricValueLabel("0");
+        Label invoicesCaption = createMetricCaptionLabel("Pendientes y abonadas");
+        Label balanceValue = createMetricValueLabel("$ 0");
+        Label balanceCaption = createMetricCaptionLabel("Saldo total con proveedores");
+        Label supportsValue = createMetricValueLabel("0");
+        Label supportsCaption = createMetricCaptionLabel("PDF y JPG cargados");
+
+        Label selectedProviderValue = createMetaValueLabel("Selecciona un proveedor");
+        Label providerCategoryValue = createMetaValueLabel("-");
+        Label providerContactValue = createMetaValueLabel("-");
+        Label providerPhoneValue = createMetaValueLabel("-");
+        Label providerStatusValue = createMetaValueLabel("-");
+        Label providerDebtValue = createMetaValueLabel("$ 0");
+        Label providerInvoicesValue = createMetaValueLabel("0 facturas");
+        Label providerSupportsValue = createMetaValueLabel("0 soportes");
+        ProgressBar providerExposureBar = new ProgressBar(0);
+        providerExposureBar.setMaxWidth(Double.MAX_VALUE);
+        providerExposureBar.getStyleClass().add("accent-progress");
+        Label providerExposureCaption = new Label("Selecciona un proveedor para explorar su cartera");
+        providerExposureCaption.getStyleClass().add("progress-caption");
+
+        updateInvoicesMockMetrics(
+                providerSource,
+                providersValue,
+                providersCaption,
+                invoicesValue,
+                invoicesCaption,
+                balanceValue,
+                balanceCaption,
+                supportsValue,
+                supportsCaption
+        );
+
+        providerTable.getSelectionModel().selectedItemProperty().addListener((obs, previous, provider) -> {
+            if (provider == null) {
+                selectedProviderValue.setText("Selecciona un proveedor");
+                providerCategoryValue.setText("-");
+                providerContactValue.setText("-");
+                providerPhoneValue.setText("-");
+                providerStatusValue.setText("-");
+                providerDebtValue.setText("$ 0");
+                providerInvoicesValue.setText("0 facturas");
+                providerSupportsValue.setText("0 soportes");
+                providerExposureBar.setProgress(0);
+                providerExposureCaption.setText("Selecciona un proveedor para explorar su cartera");
+                return;
+            }
+
+            List<MockData.SupplierInvoiceMockRow> invoices = MockData.invoicesByProvider(provider.id());
+            BigDecimal totalDebt = invoices.stream()
+                    .map(invoice -> parseCurrencyOrZero(invoice.saldo()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            int supportsCount = invoices.stream()
+                    .mapToInt(invoice -> MockData.supportsByInvoice(invoice.id()).size())
+                    .sum();
+            BigDecimal paid = invoices.stream()
+                    .map(invoice -> parseCurrencyOrZero(invoice.abonado()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal total = invoices.stream()
+                    .map(invoice -> parseCurrencyOrZero(invoice.valorTotal()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            selectedProviderValue.setText(provider.nombre());
+            providerCategoryValue.setText(provider.categoria());
+            providerContactValue.setText(provider.contacto());
+            providerPhoneValue.setText(provider.telefono());
+            providerStatusValue.setText(provider.estado() + " | " + provider.facturasActivas() + " facturas");
+            providerDebtValue.setText(formatCurrency(totalDebt));
+            providerInvoicesValue.setText(invoices.size() + " facturas mock");
+            providerSupportsValue.setText(supportsCount + " soportes cargados");
+            providerExposureBar.setProgress(calculateLayawayProgress(total, paid));
+            providerExposureCaption.setText(
+                    formatCurrency(paid) + " abonados de " + formatCurrency(total) + " en cartera mock"
+            );
+        });
+
+        if (!filteredProviders.isEmpty()) {
+            providerTable.getSelectionModel().selectFirst();
+        }
+
+        providerTable.setOnMouseClicked(event -> {
+            if (event.getClickCount() < 2) {
+                return;
+            }
+            MockData.ProviderMockRow provider = providerTable.getSelectionModel().getSelectedItem();
+            if (provider == null) {
+                return;
+            }
+            showMockProviderInvoicesWindow(
+                    contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
+                    provider
+            );
+        });
+
+        Button newProviderButton = createActionButton("Nuevo proveedor", "primary-button");
+        newProviderButton.setMaxWidth(Double.MAX_VALUE);
+        newProviderButton.setOnAction(event -> showMockProviderWindow(
+                contentHost.getScene() == null ? null : contentHost.getScene().getWindow()
+        ));
+
+        Button viewInvoicesButton = createActionButton("Ver facturas", "ghost-button");
+        viewInvoicesButton.setMaxWidth(Double.MAX_VALUE);
+        viewInvoicesButton.setOnAction(event -> showMockProviderInvoicesWindow(
+                contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
+                providerTable.getSelectionModel().getSelectedItem()
+        ));
+
+        Button refreshButton = createActionButton("Actualizar mock", "ghost-button");
+        refreshButton.setMaxWidth(Double.MAX_VALUE);
+        refreshButton.setOnAction(event -> {
+            providerSource.setAll(MockData.providers());
+            updateInvoicesMockMetrics(
+                    providerSource,
+                    providersValue,
+                    providersCaption,
+                    invoicesValue,
+                    invoicesCaption,
+                    balanceValue,
+                    balanceCaption,
+                    supportsValue,
+                    supportsCaption
+            );
+            if (!filteredProviders.isEmpty()) {
+                providerTable.getSelectionModel().selectFirst();
+            }
+        });
+
+        selectedProviderValue.getStyleClass().add("invoice-provider-name");
+        providerStatusValue.getStyleClass().add("invoice-provider-status");
+        providerExposureCaption.getStyleClass().add("invoice-provider-caption");
+
+        VBox providerIdentity = new VBox(2, createFormLabel("Proveedor seleccionado"), selectedProviderValue);
+        providerIdentity.getStyleClass().add("invoice-provider-identity");
+
+        FlowPane providerFacts = new FlowPane();
+        providerFacts.setHgap(10);
+        providerFacts.setVgap(8);
+        providerFacts.getStyleClass().add("invoice-provider-flow");
+        providerFacts.getChildren().addAll(
+                createCompactInfoBlock("Categoria", providerCategoryValue),
+                createCompactInfoBlock("Contacto", providerContactValue),
+                createCompactInfoBlock("Telefono", providerPhoneValue),
+                createCompactInfoBlock("Estado", providerStatusValue),
+                createCompactInfoBlock("Deuda", providerDebtValue),
+                createCompactInfoBlock("Facturas", providerInvoicesValue),
+                createCompactInfoBlock("Soportes", providerSupportsValue)
+        );
+
+        VBox providerExposureBox = new VBox(4, createFormLabel("Cobertura del proveedor"), providerExposureBar, providerExposureCaption);
+        providerExposureBox.getStyleClass().add("invoice-inline-progress");
+
+        VBox providerSummary = new VBox(8, providerIdentity, providerFacts, providerExposureBox);
+        providerSummary.getStyleClass().add("invoice-provider-summary");
+        HBox.setHgrow(providerSummary, Priority.ALWAYS);
+
+        newProviderButton.setMaxWidth(Double.MAX_VALUE);
+        viewInvoicesButton.setMaxWidth(Double.MAX_VALUE);
+        refreshButton.setMaxWidth(Double.MAX_VALUE);
+        VBox actionsColumn = new VBox(8, newProviderButton, viewInvoicesButton, refreshButton);
+        actionsColumn.getStyleClass().add("invoice-action-column");
+        bindRegionWidthToScene(actionsColumn, 0.2, 210, 248);
+        actionsColumn.setMaxWidth(Region.USE_PREF_SIZE);
+
+        HBox topBand = new HBox(12, providerSummary, actionsColumn);
+        topBand.getStyleClass().addAll("surface-card", "invoice-top-band");
+        topBand.setAlignment(Pos.TOP_LEFT);
+        topBand.setMaxHeight(Region.USE_PREF_SIZE);
+
+        VBox providersCard = createCard(
+                "Bandeja de proveedores",
+                "Selecciona un proveedor para revisar su ficha y abrir su tablero de facturas."
+        );
+        providersCard.getStyleClass().add("invoice-compact-card");
+        HBox.setHgrow(providersCard, Priority.ALWAYS);
+        providersCard.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(providerTable, Priority.ALWAYS);
+        HBox tableToolbar = new HBox(12, createFieldGroup("Buscar proveedor", providerSearchField, 280));
+        tableToolbar.getStyleClass().add("invoice-table-toolbar");
+        tableToolbar.setAlignment(Pos.BOTTOM_LEFT);
+        providersCard.getChildren().addAll(tableToolbar, providerTable);
+
+        VBox.setVgrow(providersCard, Priority.ALWAYS);
+        root.getChildren().addAll(topBand, providersCard);
         return root;
     }
 
@@ -1844,6 +2071,134 @@ public class PosDesktopFxApplication extends Application {
         return table;
     }
 
+    private TableView<MockData.ProviderMockRow> createSupplierProvidersMockTable() {
+        TableView<MockData.ProviderMockRow> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.34, 260, 460);
+        table.getColumns().addAll(
+                tableColumn("Proveedor", MockData.ProviderMockRow::nombre),
+                tableColumn("Saldo", MockData.ProviderMockRow::saldoPendiente),
+                tableColumn("Estado", MockData.ProviderMockRow::estado)
+        );
+        return table;
+    }
+
+    private TableView<MockData.SupplierInvoiceMockRow> createSupplierInvoicesMockTable() {
+        TableView<MockData.SupplierInvoiceMockRow> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.23, 150, 230);
+        table.getColumns().addAll(
+                tableColumn("Numero", MockData.SupplierInvoiceMockRow::numero),
+                tableColumn("Concepto", MockData.SupplierInvoiceMockRow::concepto),
+                tableColumn("Registro", MockData.SupplierInvoiceMockRow::fechaRegistro),
+                tableColumn("Vence", MockData.SupplierInvoiceMockRow::vencimiento),
+                tableColumn("Valor", MockData.SupplierInvoiceMockRow::valorTotal),
+                tableColumn("Abonado", MockData.SupplierInvoiceMockRow::abonado),
+                tableColumn("Saldo", MockData.SupplierInvoiceMockRow::saldo),
+                tableColumn("Estado", MockData.SupplierInvoiceMockRow::estado)
+        );
+        return table;
+    }
+
+    private TableView<MockData.SupplierPaymentMockRow> createSupplierPaymentsMockTable() {
+        TableView<MockData.SupplierPaymentMockRow> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.18, 120, 185);
+        table.getColumns().addAll(
+                tableColumn("Fecha", MockData.SupplierPaymentMockRow::fecha),
+                tableColumn("Valor", MockData.SupplierPaymentMockRow::valor),
+                tableColumn("Medio", MockData.SupplierPaymentMockRow::medio),
+                tableColumn("Soporte", MockData.SupplierPaymentMockRow::soporte)
+        );
+        return table;
+    }
+
+    private TableView<MockData.SupplierSupportMockRow> createSupplierSupportsMockTable() {
+        TableView<MockData.SupplierSupportMockRow> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.18, 120, 185);
+        table.getColumns().addAll(
+                tableColumn("Tipo", MockData.SupplierSupportMockRow::tipo),
+                tableColumn("Archivo", MockData.SupplierSupportMockRow::archivo),
+                tableColumn("Formato", MockData.SupplierSupportMockRow::formato),
+                tableColumn("Estado", MockData.SupplierSupportMockRow::estado)
+        );
+        return table;
+    }
+
+    private void updateInvoicesMockMetrics(
+            List<MockData.ProviderMockRow> providers,
+            Label providersValue,
+            Label providersCaption,
+            Label invoicesValue,
+            Label invoicesCaption,
+            Label balanceValue,
+            Label balanceCaption,
+            Label supportsValue,
+            Label supportsCaption
+    ) {
+        List<MockData.SupplierInvoiceMockRow> invoices = MockData.supplierInvoices();
+        long openInvoices = invoices.stream()
+                .filter(invoice -> parseCurrencyOrZero(invoice.saldo()).signum() > 0)
+                .count();
+        BigDecimal supplierBalance = invoices.stream()
+                .map(invoice -> parseCurrencyOrZero(invoice.saldo()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        providersValue.setText(String.valueOf(providers.size()));
+        providersCaption.setText("Grupo de proveedores mock");
+        invoicesValue.setText(String.valueOf(openInvoices));
+        invoicesCaption.setText(invoices.size() + " facturas visibles");
+        balanceValue.setText(formatCurrency(supplierBalance));
+        balanceCaption.setText("Saldo agregado de proveedores");
+        supportsValue.setText(String.valueOf(MockData.supplierSupports().size()));
+        supportsCaption.setText("Soportes PDF/JPG listos");
+    }
+
+    private void updateSelectedInvoiceMockState(
+            MockData.SupplierInvoiceMockRow invoice,
+            Label selectedInvoiceValue,
+            Label invoiceConceptValue,
+            Label invoiceDueDateValue,
+            Label invoiceBalanceValue,
+            Label invoiceSupportValue,
+            Label paymentSummaryValue,
+            Label supportSummaryValue,
+            ProgressBar invoiceProgressBar,
+            Label invoiceProgressCaption
+    ) {
+        if (invoice == null) {
+            selectedInvoiceValue.setText("Selecciona una factura");
+            invoiceConceptValue.setText("-");
+            invoiceDueDateValue.setText("-");
+            invoiceBalanceValue.setText("$ 0");
+            invoiceSupportValue.setText("-");
+            paymentSummaryValue.setText("0 abonos");
+            supportSummaryValue.setText("0 soportes");
+            invoiceProgressBar.setProgress(0);
+            invoiceProgressCaption.setText("Sin factura seleccionada");
+            return;
+        }
+
+        List<MockData.SupplierPaymentMockRow> payments = MockData.paymentsByInvoice(invoice.id());
+        List<MockData.SupplierSupportMockRow> supports = MockData.supportsByInvoice(invoice.id());
+        BigDecimal total = parseCurrencyOrZero(invoice.valorTotal());
+        BigDecimal paid = parseCurrencyOrZero(invoice.abonado());
+        selectedInvoiceValue.setText(invoice.numero());
+        invoiceConceptValue.setText(invoice.concepto());
+        invoiceDueDateValue.setText(invoice.vencimiento() + " | " + invoice.estado());
+        invoiceBalanceValue.setText(invoice.saldo());
+        invoiceSupportValue.setText(supports.isEmpty() ? "Pendiente" : supports.get(0).archivo());
+        paymentSummaryValue.setText(payments.size() + " abonos mock");
+        supportSummaryValue.setText(supports.size() + " soportes PDF/JPG");
+        invoiceProgressBar.setProgress(calculateLayawayProgress(total, paid));
+        invoiceProgressCaption.setText(invoice.abonado() + " abonados de " + invoice.valorTotal());
+    }
+
     private void loadLayaways(
             ObservableList<PosApiClient.SeparadoListadoResponse> source,
             FilteredList<PosApiClient.SeparadoListadoResponse> filteredLayaways,
@@ -2184,6 +2539,776 @@ public class PosDesktopFxApplication extends Application {
         return card;
     }
 
+    private void showMockProviderInvoicesWindow(Window owner, MockData.ProviderMockRow provider) {
+        if (provider == null) {
+            showError("Facturas", "Selecciona un proveedor para visualizar sus facturas.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Facturas | " + provider.nombre());
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        ObservableList<MockData.SupplierInvoiceMockRow> invoiceSource = FXCollections.observableArrayList(
+                MockData.invoicesByProvider(provider.id())
+        );
+        ObservableList<MockData.SupplierPaymentMockRow> paymentSource = FXCollections.observableArrayList();
+
+        TableView<MockData.SupplierInvoiceMockRow> invoiceTable = createSupplierInvoicesMockTable();
+        invoiceTable.setItems(invoiceSource);
+        invoiceTable.prefHeightProperty().unbind();
+        invoiceTable.setMaxHeight(Double.MAX_VALUE);
+        TableView<MockData.SupplierPaymentMockRow> paymentTable = createSupplierPaymentsMockTable();
+        paymentTable.setItems(paymentSource);
+        paymentTable.prefHeightProperty().unbind();
+        paymentTable.setMaxHeight(Double.MAX_VALUE);
+
+        Label debtValue = createMetricValueLabel("$ 0");
+        Label invoiceCountValue = createMetricValueLabel(String.valueOf(invoiceSource.size()));
+        int supportCount = invoiceSource.stream()
+                .mapToInt(invoice -> MockData.supportsByInvoice(invoice.id()).size())
+                .sum();
+        Label supportCountValue = createMetricValueLabel(String.valueOf(supportCount));
+
+        BigDecimal totalDebt = invoiceSource.stream()
+                .map(invoice -> parseCurrencyOrZero(invoice.saldo()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        debtValue.setText(formatCurrency(totalDebt));
+
+        Label selectedInvoiceValue = createMetaValueLabel("Selecciona una factura");
+        Label invoiceConceptValue = createMetaValueLabel("-");
+        Label invoiceDueDateValue = createMetaValueLabel("-");
+        Label invoiceBalanceValue = createMetaValueLabel("$ 0");
+        Label paymentSummaryValue = createMetaValueLabel("0 abonos");
+        ProgressBar invoiceProgressBar = new ProgressBar(0);
+        invoiceProgressBar.setMaxWidth(Double.MAX_VALUE);
+        invoiceProgressBar.getStyleClass().add("accent-progress");
+        Label invoiceProgressCaption = new Label("Selecciona una factura para revisar su avance");
+        invoiceProgressCaption.getStyleClass().add("progress-caption");
+
+        Button newInvoiceButton = createActionButton("Nueva factura", "primary-button");
+        newInvoiceButton.setPrefWidth(170);
+        newInvoiceButton.setOnAction(event -> showMockInvoiceWindow(stage, provider));
+
+        Button registerPaymentButton = createActionButton("Registrar abono", "ghost-button");
+        registerPaymentButton.setPrefWidth(170);
+        registerPaymentButton.disableProperty().bind(
+                Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty())
+        );
+        registerPaymentButton.setOnAction(event -> showMockInvoicePaymentWindow(
+                stage,
+                provider,
+                invoiceTable.getSelectionModel().getSelectedItem()
+        ));
+
+        Button refreshButton = createActionButton("Actualizar mock", "ghost-button");
+        refreshButton.setPrefWidth(170);
+        refreshButton.setOnAction(event -> {
+            invoiceSource.setAll(MockData.invoicesByProvider(provider.id()));
+            MockData.SupplierInvoiceMockRow selectedInvoice = invoiceTable.getSelectionModel().getSelectedItem();
+            if (selectedInvoice != null) {
+                for (MockData.SupplierInvoiceMockRow row : invoiceSource) {
+                    if (row.id().equals(selectedInvoice.id())) {
+                        invoiceTable.getSelectionModel().select(row);
+                        return;
+                    }
+                }
+            }
+            if (!invoiceSource.isEmpty()) {
+                invoiceTable.getSelectionModel().selectFirst();
+            } else {
+                paymentSource.clear();
+                selectedInvoiceValue.setText("Selecciona una factura");
+                invoiceConceptValue.setText("-");
+                invoiceDueDateValue.setText("-");
+                invoiceBalanceValue.setText("$ 0");
+                paymentSummaryValue.setText("0 abonos");
+                invoiceProgressBar.setProgress(0);
+                invoiceProgressCaption.setText("Sin factura seleccionada");
+            }
+        });
+
+        invoiceTable.getSelectionModel().selectedItemProperty().addListener((obs, previous, invoice) -> {
+            paymentSource.setAll(invoice == null ? List.of() : MockData.paymentsByInvoice(invoice.id()));
+            if (invoice == null) {
+                selectedInvoiceValue.setText("Selecciona una factura");
+                invoiceConceptValue.setText("-");
+                invoiceDueDateValue.setText("-");
+                invoiceBalanceValue.setText("$ 0");
+                paymentSummaryValue.setText("0 abonos");
+                invoiceProgressBar.setProgress(0);
+                invoiceProgressCaption.setText("Sin factura seleccionada");
+                return;
+            }
+
+            List<MockData.SupplierPaymentMockRow> payments = MockData.paymentsByInvoice(invoice.id());
+            BigDecimal total = parseCurrencyOrZero(invoice.valorTotal());
+            BigDecimal paid = parseCurrencyOrZero(invoice.abonado());
+            selectedInvoiceValue.setText(invoice.numero());
+            invoiceConceptValue.setText(invoice.concepto());
+            invoiceDueDateValue.setText(invoice.vencimiento() + " | " + invoice.estado());
+            invoiceBalanceValue.setText(invoice.saldo());
+            paymentSummaryValue.setText(payments.size() + " abonos mock");
+            invoiceProgressBar.setProgress(calculateLayawayProgress(total, paid));
+            invoiceProgressCaption.setText(invoice.abonado() + " abonados de " + invoice.valorTotal());
+        });
+
+        if (!invoiceSource.isEmpty()) {
+            invoiceTable.getSelectionModel().selectFirst();
+        }
+
+        VBox root = createDialogRoot(
+                "Facturas de " + provider.nombre(),
+                "Vista de consulta. Todo lo importante queda visible en una sola pantalla de trabajo."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(10);
+        root.setPadding(new Insets(14));
+
+        VBox invoiceListCard = createCard(
+                "Facturas del proveedor",
+                "Selecciona una factura para revisar sus abonos sin bajar a otras secciones."
+        );
+        HBox.setHgrow(invoiceListCard, Priority.ALWAYS);
+        VBox.setVgrow(invoiceTable, Priority.ALWAYS);
+        FlowPane providerSummaryFlow = new FlowPane();
+        providerSummaryFlow.setHgap(10);
+        providerSummaryFlow.setVgap(8);
+        providerSummaryFlow.getStyleClass().add("invoice-provider-flow");
+        providerSummaryFlow.getChildren().addAll(
+                createCompactInfoBlock("Proveedor", createMetaValueLabel(provider.nombre())),
+                createCompactInfoBlock("Categoria", createMetaValueLabel(provider.categoria())),
+                createCompactInfoBlock("Contacto", createMetaValueLabel(provider.contacto())),
+                createCompactInfoBlock("Saldo proveedor", debtValue),
+                createCompactInfoBlock("Facturas visibles", invoiceCountValue),
+                createCompactInfoBlock("Soportes cargados", supportCountValue)
+        );
+        invoiceListCard.getChildren().addAll(
+                providerSummaryFlow,
+                invoiceTable
+        );
+
+        VBox paymentsCard = createCard(
+                "Abonos registrados",
+                "La derecha se reserva para ver los pagos parciales de la factura seleccionada."
+        );
+        paymentsCard.getStyleClass().add("invoice-compact-card");
+        VBox.setVgrow(paymentTable, Priority.ALWAYS);
+        FlowPane selectedInvoiceFlow = new FlowPane();
+        selectedInvoiceFlow.setHgap(10);
+        selectedInvoiceFlow.setVgap(8);
+        selectedInvoiceFlow.getStyleClass().add("invoice-provider-flow");
+        selectedInvoiceFlow.getChildren().addAll(
+                createCompactInfoBlock("Factura", selectedInvoiceValue),
+                createCompactInfoBlock("Concepto", invoiceConceptValue),
+                createCompactInfoBlock("Vencimiento", invoiceDueDateValue),
+                createCompactInfoBlock("Saldo", invoiceBalanceValue),
+                createCompactInfoBlock("Abonos", paymentSummaryValue)
+        );
+        paymentsCard.getChildren().addAll(
+                selectedInvoiceFlow,
+                createProgressCard("Avance de pago", invoiceProgressBar, invoiceProgressCaption),
+                paymentTable
+        );
+
+        FlowPane actionButtons = createResponsiveRow(
+                newInvoiceButton,
+                registerPaymentButton,
+                refreshButton
+        );
+        actionButtons.getStyleClass().add("invoice-action-grid");
+        actionButtons.setPrefWrapLength(760);
+
+        VBox actionsFooter = createCard(
+                "Acciones",
+                "Accesos rapidos para operar esta factura sin salir de la vista."
+        );
+        actionsFooter.getStyleClass().add("invoice-compact-card");
+        actionsFooter.getChildren().add(actionButtons);
+
+        SplitPane workspace = createWorkspaceSplitPane(false, 0.64, invoiceListCard, paymentsCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().addAll(workspace, actionsFooter);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.95, 0.9, 1220, 760);
+        stage.show();
+    }
+
+    private void showMockProviderPortfolioWindow(Window owner, MockData.ProviderMockRow provider) {
+        if (provider == null) {
+            showError("Facturas", "Selecciona un proveedor para gestionar su cartera.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Gestion cartera | " + provider.nombre());
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        ObservableList<MockData.SupplierInvoiceMockRow> invoiceSource = FXCollections.observableArrayList(
+                MockData.invoicesByProvider(provider.id())
+        );
+        ObservableList<MockData.SupplierPaymentMockRow> paymentSource = FXCollections.observableArrayList();
+        ObservableList<MockData.SupplierSupportMockRow> supportSource = FXCollections.observableArrayList();
+
+        TableView<MockData.SupplierInvoiceMockRow> invoiceTable = createSupplierInvoicesMockTable();
+        invoiceTable.setItems(invoiceSource);
+        invoiceTable.prefHeightProperty().unbind();
+        invoiceTable.setMaxHeight(Double.MAX_VALUE);
+        TableView<MockData.SupplierPaymentMockRow> paymentTable = createSupplierPaymentsMockTable();
+        paymentTable.setItems(paymentSource);
+        paymentTable.prefHeightProperty().unbind();
+        paymentTable.setMaxHeight(Double.MAX_VALUE);
+        TableView<MockData.SupplierSupportMockRow> supportTable = createSupplierSupportsMockTable();
+        supportTable.setItems(supportSource);
+        supportTable.prefHeightProperty().unbind();
+        supportTable.setMaxHeight(Double.MAX_VALUE);
+
+        Label selectedInvoiceValue = createMetaValueLabel("Selecciona una factura");
+        Label invoiceConceptValue = createMetaValueLabel("-");
+        Label invoiceDueDateValue = createMetaValueLabel("-");
+        Label invoiceBalanceValue = createMetaValueLabel("$ 0");
+        Label invoiceSupportValue = createMetaValueLabel("-");
+        Label paymentSummaryValue = createMetaValueLabel("0 abonos");
+        Label supportSummaryValue = createMetaValueLabel("0 soportes");
+        ProgressBar invoiceProgressBar = new ProgressBar(0);
+        invoiceProgressBar.setMaxWidth(Double.MAX_VALUE);
+        invoiceProgressBar.getStyleClass().add("accent-progress");
+        Label invoiceProgressCaption = new Label("Selecciona una factura para operar la cartera");
+        invoiceProgressCaption.getStyleClass().add("progress-caption");
+
+        Label totalDebtValue = createMetricValueLabel(
+                formatCurrency(invoiceSource.stream()
+                        .map(invoice -> parseCurrencyOrZero(invoice.saldo()))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add))
+        );
+        Label totalDebtCaption = createMetricCaptionLabel("Deuda total del proveedor");
+        Label invoiceCountValue = createMetricValueLabel(String.valueOf(invoiceSource.size()));
+        Label invoiceCountCaption = createMetricCaptionLabel("Facturas disponibles");
+        Button newInvoiceButton = createActionButton("Nueva factura", "primary-button");
+        newInvoiceButton.setMaxWidth(Double.MAX_VALUE);
+        newInvoiceButton.setPrefWidth(170);
+        newInvoiceButton.setOnAction(event -> showMockInvoiceWindow(stage, provider));
+
+        Button registerPaymentButton = createActionButton("Registrar abono", "ghost-button");
+        registerPaymentButton.setMaxWidth(Double.MAX_VALUE);
+        registerPaymentButton.setPrefWidth(170);
+        registerPaymentButton.disableProperty().bind(
+                Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty())
+        );
+        registerPaymentButton.setOnAction(event -> showMockInvoicePaymentWindow(
+                stage,
+                provider,
+                invoiceTable.getSelectionModel().getSelectedItem()
+        ));
+
+        Button uploadSupportButton = createActionButton("Cargar soporte", "ghost-button");
+        uploadSupportButton.setMaxWidth(Double.MAX_VALUE);
+        uploadSupportButton.setPrefWidth(170);
+        uploadSupportButton.disableProperty().bind(
+                Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty())
+        );
+        uploadSupportButton.setOnAction(event -> showMockSupportWindow(
+                stage,
+                provider,
+                invoiceTable.getSelectionModel().getSelectedItem()
+        ));
+
+        Button viewInvoicesButton = createActionButton("Abrir vista consulta", "ghost-button");
+        viewInvoicesButton.setMaxWidth(Double.MAX_VALUE);
+        viewInvoicesButton.setPrefWidth(170);
+        viewInvoicesButton.setOnAction(event -> showMockProviderInvoicesWindow(stage, provider));
+
+        Button refreshButton = createActionButton("Actualizar mock", "ghost-button");
+        refreshButton.setMaxWidth(Double.MAX_VALUE);
+        refreshButton.setPrefWidth(170);
+        refreshButton.setOnAction(event -> {
+            invoiceSource.setAll(MockData.invoicesByProvider(provider.id()));
+            MockData.SupplierInvoiceMockRow selectedInvoice = invoiceTable.getSelectionModel().getSelectedItem();
+            if (selectedInvoice != null) {
+                for (MockData.SupplierInvoiceMockRow row : invoiceSource) {
+                    if (row.id().equals(selectedInvoice.id())) {
+                        invoiceTable.getSelectionModel().select(row);
+                        return;
+                    }
+                }
+            }
+            if (!invoiceSource.isEmpty()) {
+                invoiceTable.getSelectionModel().selectFirst();
+            } else {
+                paymentSource.clear();
+                supportSource.clear();
+                updateSelectedInvoiceMockState(
+                        null,
+                        selectedInvoiceValue,
+                        invoiceConceptValue,
+                        invoiceDueDateValue,
+                        invoiceBalanceValue,
+                        invoiceSupportValue,
+                        paymentSummaryValue,
+                        supportSummaryValue,
+                        invoiceProgressBar,
+                        invoiceProgressCaption
+                );
+            }
+        });
+
+        invoiceTable.getSelectionModel().selectedItemProperty().addListener((obs, previous, invoice) -> {
+            updateSelectedInvoiceMockState(
+                    invoice,
+                    selectedInvoiceValue,
+                    invoiceConceptValue,
+                    invoiceDueDateValue,
+                    invoiceBalanceValue,
+                    invoiceSupportValue,
+                    paymentSummaryValue,
+                    supportSummaryValue,
+                    invoiceProgressBar,
+                    invoiceProgressCaption
+            );
+            paymentSource.setAll(invoice == null ? List.of() : MockData.paymentsByInvoice(invoice.id()));
+            supportSource.setAll(invoice == null ? List.of() : MockData.supportsByInvoice(invoice.id()));
+        });
+        invoiceTable.setOnMouseClicked(event -> {
+            if (event.getClickCount() < 2) {
+                return;
+            }
+            MockData.SupplierInvoiceMockRow invoice = invoiceTable.getSelectionModel().getSelectedItem();
+            if (invoice != null) {
+                showMockInvoicePaymentWindow(stage, provider, invoice);
+            }
+        });
+
+        if (!invoiceSource.isEmpty()) {
+            invoiceTable.getSelectionModel().selectFirst();
+        }
+
+        VBox root = createDialogRoot(
+                "Gestion de cartera | " + provider.nombre(),
+                "Ventana operativa diseñada para ver facturas, abonos y soportes sin perder contexto."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(10);
+        root.setPadding(new Insets(14));
+
+        VBox invoicesCard = createCard(
+                "Facturas del proveedor",
+                "Doble clic sobre una factura para abrir el registro de abono mock."
+        );
+        HBox.setHgrow(invoicesCard, Priority.ALWAYS);
+        VBox.setVgrow(invoiceTable, Priority.ALWAYS);
+        invoicesCard.getChildren().add(invoiceTable);
+
+        VBox actionsCard = createCard(
+                "Acciones de cartera",
+                "Todo el contexto comercial y las acciones clave viven en este panel lateral."
+        );
+        actionsCard.getStyleClass().add("invoice-compact-card");
+        FlowPane actionButtons = createResponsiveRow(
+                newInvoiceButton,
+                registerPaymentButton,
+                uploadSupportButton,
+                viewInvoicesButton,
+                refreshButton
+        );
+        actionButtons.getStyleClass().add("invoice-action-grid");
+        actionButtons.setPrefWrapLength(340);
+        actionsCard.getChildren().addAll(
+                createKeyValue("Deuda total", totalDebtValue),
+                createKeyValue("Facturas", invoiceCountValue),
+                new Separator(),
+                createKeyValue("Factura activa", selectedInvoiceValue),
+                createKeyValue("Concepto", invoiceConceptValue),
+                createKeyValue("Vencimiento", invoiceDueDateValue),
+                createKeyValue("Saldo", invoiceBalanceValue),
+                createProgressCard("Avance de pago", invoiceProgressBar, invoiceProgressCaption),
+                new Separator(),
+                actionButtons
+        );
+
+        VBox rightColumn = new VBox(10, actionsCard);
+        rightColumn.setMaxWidth(Double.MAX_VALUE);
+
+        SplitPane workspace = createWorkspaceSplitPane(false, 0.63, invoicesCard, rightColumn);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.95, 0.9, 1200, 760);
+        stage.show();
+    }
+
+    private void showMockProviderWindow(Window owner) {
+        Stage stage = createDialogStage("Nuevo proveedor");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Nuevo proveedor",
+                "Mock para crear y administrar un proveedor antes de asociarle facturas."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+        TextField nameField = createField("");
+        nameField.setPromptText("Nombre del proveedor");
+        TextField categoryField = createField("");
+        categoryField.setPromptText("Categoria o linea");
+        TextField contactField = createField("");
+        contactField.setPromptText("Contacto principal");
+        TextField phoneField = createField("");
+        phoneField.setPromptText("Telefono");
+        TextArea notesArea = createArea("", 2);
+        notesArea.setPromptText("Notas internas del proveedor");
+        Button save = createActionButton("Guardar mock", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            stage.close();
+            showInfo(
+                    "Proveedor mock",
+                    "Se preparó el flujo mock para crear el proveedor " + safeText(nameField.getText(), "sin nombre") + "."
+            );
+        });
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Proveedor", nameField, 280),
+                createFieldGroup("Categoria", categoryField, 220),
+                createFieldGroup("Contacto", contactField, 220),
+                createFieldGroup("Telefono", phoneField, 220)
+        );
+        VBox formCard = createCard(
+                "Datos del proveedor",
+                "Completa la informacion base del proveedor."
+        );
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+        formCard.getChildren().addAll(fields, createFieldGroup("Notas", notesArea, 520));
+
+        VBox summaryCard = createCard(
+                "Resumen del flujo",
+                "Desde aqui validas lo minimo necesario antes de guardarlo."
+        );
+        bindRegionWidthToScene(summaryCard, 0.28, 260, 320);
+        summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
+        summaryCard.getChildren().addAll(
+                createKeyValue("Proveedor", createMetaValueLabel("Nuevo registro mock")),
+                createKeyValue("Relacion", createMetaValueLabel("Listo para facturas")),
+                createProgressCard("Ruta del mock", 0.35, "Proveedor listo para relacionarlo con facturas y pagos."),
+                save
+        );
+
+        HBox workspace = createAdaptivePanelRow(formCard, summaryCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.78, 0.72, 860, 520);
+        stage.show();
+    }
+
+    private void showMockInvoiceWindow(Window owner, MockData.ProviderMockRow provider) {
+        if (provider == null) {
+            showError("Facturas", "Selecciona un proveedor para crear una factura mock.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Nueva factura");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Nueva factura",
+                "Mock para cargar factura PDF/JPG, valor adeudado y control de vencimiento."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+        TextField providerField = createField(provider.nombre());
+        providerField.setDisable(true);
+        TextField numberField = createField("");
+        numberField.setPromptText("Numero de factura");
+        TextField amountField = createField("0");
+        amountField.setPromptText("Valor total adeudado");
+        configureSelectAllOnFocus(amountField);
+        DatePicker dueDatePicker = new DatePicker(LocalDate.now().plusDays(15));
+        ComboBox<String> supportFormat = new ComboBox<>(FXCollections.observableArrayList(MockData.supportFormats()));
+        supportFormat.getSelectionModel().select("PDF");
+        Label supportFormatValue = createMetaValueLabel(supportFormat.getSelectionModel().getSelectedItem());
+        supportFormatValue.textProperty().bind(Bindings.createStringBinding(
+                () -> safeText(supportFormat.getValue(), "-"),
+                supportFormat.valueProperty()
+        ));
+        Button addSupportButton = createActionButton("+", "ghost-button");
+        addSupportButton.getStyleClass().add("mini-action-button");
+        addSupportButton.setOnAction(event -> showInfo(
+                "Soporte inicial",
+                "Aqui puedes preparar la carga mock del soporte inicial de la factura en formato "
+                        + safeText(supportFormat.getValue(), "PDF") + "."
+        ));
+        HBox supportSelector = new HBox(8, supportFormat, addSupportButton);
+        supportSelector.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(supportFormat, Priority.ALWAYS);
+        TextArea descriptionArea = createArea("", 2);
+        descriptionArea.setPromptText("Concepto o descripcion comercial");
+        Button save = createActionButton("Guardar mock", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            stage.close();
+            showInfo(
+                    "Factura mock",
+                    "Se diseñó la factura mock " + safeText(numberField.getText(), "sin numero")
+                            + " para " + provider.nombre() + "."
+            );
+        });
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Proveedor", providerField, 280),
+                createFieldGroup("Factura", numberField, 220),
+                createFieldGroup("Valor", amountField, 220),
+                createFieldGroup("Vencimiento", dueDatePicker, 220),
+                createFieldGroup("Soporte inicial", supportSelector, 280)
+        );
+        VBox formCard = createCard(
+                "Datos de la factura",
+                "Captura comercial principal de la factura del proveedor."
+        );
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+        formCard.getChildren().addAll(fields, createFieldGroup("Concepto", descriptionArea, 520));
+
+        VBox summaryCard = createCard(
+                "Contexto del registro",
+                "Resumen compacto del flujo documental y financiero."
+        );
+        bindRegionWidthToScene(summaryCard, 0.28, 270, 330);
+        summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
+        summaryCard.getChildren().addAll(
+                createKeyValue("Proveedor", createMetaValueLabel(provider.nombre())),
+                createKeyValue("Soporte inicial", supportFormatValue),
+                createKeyValue("Formatos", createMetaValueLabel("PDF / JPG / PNG")),
+                createKeyValue("Estado esperado", createMetaValueLabel("Pendiente o abonada")),
+                createProgressCard("Carga mock", 0.45, "La factura puede asociar PDF o JPG y dejar saldo pendiente."),
+                save
+        );
+
+        HBox workspace = createAdaptivePanelRow(formCard, summaryCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.84, 0.74, 960, 560);
+        stage.show();
+    }
+
+    private void showMockInvoicePaymentWindow(
+            Window owner,
+            MockData.ProviderMockRow provider,
+            MockData.SupplierInvoiceMockRow invoice
+    ) {
+        if (provider == null || invoice == null) {
+            showError("Facturas", "Selecciona una factura para registrar un abono mock.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Registrar abono");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Registrar abono",
+                "Mock para ingresar un valor manual y adjuntar imagen o PDF del comprobante."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+        TextField providerField = createField(provider.nombre());
+        providerField.setDisable(true);
+        TextField invoiceField = createField(invoice.numero());
+        invoiceField.setDisable(true);
+        TextField currentBalanceField = createField(invoice.saldo());
+        currentBalanceField.setDisable(true);
+        TextField amountField = createField("0");
+        amountField.setPromptText("Valor del abono");
+        configureSelectAllOnFocus(amountField);
+        TextField projectedBalanceField = createField(invoice.saldo());
+        projectedBalanceField.setDisable(true);
+        ComboBox<String> supportFormat = new ComboBox<>(FXCollections.observableArrayList(MockData.supportFormats()));
+        supportFormat.getSelectionModel().select("JPG");
+        Label supportFormatValue = createMetaValueLabel(supportFormat.getSelectionModel().getSelectedItem());
+        supportFormatValue.textProperty().bind(Bindings.createStringBinding(
+                () -> safeText(supportFormat.getValue(), "-"),
+                supportFormat.valueProperty()
+        ));
+        Button addSupportButton = createActionButton("+", "ghost-button");
+        addSupportButton.getStyleClass().add("mini-action-button");
+        addSupportButton.setOnAction(event -> showInfo(
+                "Soporte del abono",
+                "Aqui puedes preparar la carga mock del comprobante del abono en formato "
+                        + safeText(supportFormat.getValue(), "JPG") + "."
+        ));
+        HBox supportSelector = new HBox(8, supportFormat, addSupportButton);
+        supportSelector.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(supportFormat, Priority.ALWAYS);
+        TextArea notesArea = createArea("", 2);
+        notesArea.setPromptText("Observacion del abono");
+
+        Runnable updateProjectedBalance = () -> {
+            BigDecimal currentBalance = parseCurrencyOrZero(invoice.saldo());
+            BigDecimal payment = parseCurrencyOrZero(amountField.getText());
+            projectedBalanceField.setText(formatCurrency(currentBalance.subtract(payment).max(BigDecimal.ZERO)));
+        };
+        amountField.textProperty().addListener((obs, oldValue, newValue) -> updateProjectedBalance.run());
+        updateProjectedBalance.run();
+
+        Button save = createActionButton("Guardar mock", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            stage.close();
+            showInfo(
+                    "Abono mock",
+                    "Se preparó el abono mock para la factura " + invoice.numero()
+                            + " por " + formatCurrency(parseCurrencyOrZero(amountField.getText())) + "."
+            );
+        });
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Proveedor", providerField, 260),
+                createFieldGroup("Factura", invoiceField, 220),
+                createFieldGroup("Saldo actual", currentBalanceField, 220),
+                createFieldGroup("Valor abono", amountField, 220),
+                createFieldGroup("Restante estimado", projectedBalanceField, 220),
+                createFieldGroup("Soporte", supportSelector, 280)
+        );
+        VBox formCard = createCard(
+                "Registro de abono",
+                "Captura el abono y revisa de inmediato el saldo proyectado."
+        );
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+        formCard.getChildren().addAll(fields, createFieldGroup("Observacion", notesArea, 520));
+
+        VBox summaryCard = createCard(
+                "Impacto del abono",
+                "La ventana deja visible el antes y el despues del pago parcial."
+        );
+        bindRegionWidthToScene(summaryCard, 0.28, 270, 330);
+        summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
+        Label projectedBalanceLabel = createMetaValueLabel(projectedBalanceField.getText());
+        projectedBalanceLabel.textProperty().bind(projectedBalanceField.textProperty());
+        summaryCard.getChildren().addAll(
+                createKeyValue("Factura", createMetaValueLabel(invoice.numero())),
+                createKeyValue("Saldo actual", createMetaValueLabel(invoice.saldo())),
+                createKeyValue("Soporte del abono", supportFormatValue),
+                createKeyValue("Restante", projectedBalanceLabel),
+                createProgressCard("Escenario mock", 0.58, "El comprobante del abono puede ser JPG, PNG o PDF."),
+                save
+        );
+
+        HBox workspace = createAdaptivePanelRow(formCard, summaryCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.86, 0.76, 980, 580);
+        stage.show();
+    }
+
+    private void showMockSupportWindow(
+            Window owner,
+            MockData.ProviderMockRow provider,
+            MockData.SupplierInvoiceMockRow invoice
+    ) {
+        if (provider == null || invoice == null) {
+            showError("Facturas", "Selecciona una factura para cargar un soporte mock.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Cargar soporte");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Cargar soporte",
+                "Mock para asociar facturas proveedor y comprobantes de abono en PDF o JPG."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+        TextField providerField = createField(provider.nombre());
+        providerField.setDisable(true);
+        TextField invoiceField = createField(invoice.numero());
+        invoiceField.setDisable(true);
+        ComboBox<String> supportType = new ComboBox<>(FXCollections.observableArrayList(MockData.supportTypes()));
+        supportType.getSelectionModel().selectFirst();
+        ComboBox<String> supportFormat = new ComboBox<>(FXCollections.observableArrayList(MockData.supportFormats()));
+        supportFormat.getSelectionModel().select("PDF");
+        TextField fileNameField = createField("");
+        fileNameField.setPromptText("Ejemplo: factura_9031.pdf");
+        TextArea notesArea = createArea("", 2);
+        notesArea.setPromptText("Notas del soporte cargado");
+        Button save = createActionButton("Guardar mock", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            stage.close();
+            showInfo(
+                    "Soporte mock",
+                    "Se preparó la carga mock del archivo " + safeText(fileNameField.getText(), "sin nombre")
+                            + " para la factura " + invoice.numero() + "."
+            );
+        });
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Proveedor", providerField, 260),
+                createFieldGroup("Factura", invoiceField, 220),
+                createFieldGroup("Tipo soporte", supportType, 220),
+                createFieldGroup("Formato", supportFormat, 220),
+                createFieldGroup("Archivo", fileNameField, 280)
+        );
+        VBox formCard = createCard(
+                "Datos del soporte",
+                "Asocia el archivo al documento correcto sin perder contexto."
+        );
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+        formCard.getChildren().addAll(fields, createFieldGroup("Notas", notesArea, 520));
+
+        VBox summaryCard = createCard(
+                "Control documental",
+                "Resumen visual del tipo de evidencia que estas cargando."
+        );
+        bindRegionWidthToScene(summaryCard, 0.28, 270, 330);
+        summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
+        summaryCard.getChildren().addAll(
+                createKeyValue("Proveedor", createMetaValueLabel(provider.nombre())),
+                createKeyValue("Factura", createMetaValueLabel(invoice.numero())),
+                createKeyValue("Flujo", createMetaValueLabel("Factura o comprobante")),
+                createProgressCard("Carga visual", 0.72, "La misma factura puede tener soportes de factura y de abono."),
+                save
+        );
+
+        HBox workspace = createAdaptivePanelRow(formCard, summaryCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.84, 0.74, 960, 560);
+        stage.show();
+    }
+
     private void showNewLayawayWindow(Window owner, Runnable refreshAction, Consumer<String> onCreated) {
         Stage stage = createDialogStage("Nuevo separado");
         if (owner != null) {
@@ -2499,6 +3624,34 @@ public class PosDesktopFxApplication extends Application {
         stage.show();
     }
 
+    private SplitPane createWorkspaceSplitPane(boolean vertical, double dividerPosition, Node... children) {
+        SplitPane pane = new SplitPane(children);
+        pane.getStyleClass().add("workspace-split");
+        pane.setOrientation(vertical ? Orientation.VERTICAL : Orientation.HORIZONTAL);
+        pane.setDividerPositions(dividerPosition);
+        pane.setMaxWidth(Double.MAX_VALUE);
+        pane.setMaxHeight(Double.MAX_VALUE);
+        return pane;
+    }
+
+    private void applyResponsiveStageSize(
+            Stage stage,
+            double widthRatio,
+            double heightRatio,
+            double minWidth,
+            double minHeight
+    ) {
+        Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
+        double width = clamp(visualBounds.getWidth() * widthRatio, minWidth, visualBounds.getWidth() * 0.96);
+        double height = clamp(visualBounds.getHeight() * heightRatio, minHeight, visualBounds.getHeight() * 0.94);
+        stage.setMinWidth(minWidth);
+        stage.setMinHeight(minHeight);
+        stage.setWidth(width);
+        stage.setHeight(height);
+        stage.setMaxWidth(visualBounds.getWidth());
+        stage.setMaxHeight(visualBounds.getHeight());
+    }
+
     private Stage createDialogStage(String title) {
         Stage stage = new Stage();
         stage.initModality(Modality.NONE);
@@ -2616,6 +3769,17 @@ public class PosDesktopFxApplication extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         return new HBox(10, left, spacer, valueLabel);
+    }
+
+    private VBox createCompactInfoBlock(String key, Label valueLabel) {
+        Label title = new Label(key);
+        title.getStyleClass().add("meta-key");
+        if (!valueLabel.getStyleClass().contains("meta-value")) {
+            valueLabel.getStyleClass().add("meta-value");
+        }
+        VBox box = new VBox(4, title, valueLabel);
+        box.getStyleClass().add("invoice-info-block");
+        return box;
     }
 
     private Label createMetaValueLabel(String value) {
@@ -2778,11 +3942,37 @@ public class PosDesktopFxApplication extends Application {
         String normalized = value
                 .replace("$", "")
                 .replace("COP", "")
-                .replace(" ", "");
-        if (normalized.contains(",") && normalized.contains(".")) {
-            normalized = normalized.replace(".", "").replace(",", ".");
-        } else if (normalized.contains(",")) {
-            normalized = normalized.replace(",", ".");
+                .replace("\u00A0", "")
+                .replace(" ", "")
+                .trim();
+        normalized = normalized.replaceAll("[^\\d,.-]", "");
+
+        int commaCount = normalized.length() - normalized.replace(",", "").length();
+        int dotCount = normalized.length() - normalized.replace(".", "").length();
+        int lastComma = normalized.lastIndexOf(',');
+        int lastDot = normalized.lastIndexOf('.');
+
+        if (commaCount > 0 && dotCount > 0) {
+            boolean commaIsDecimal = lastComma > lastDot;
+            if (commaIsDecimal) {
+                normalized = normalized.replace(".", "").replace(",", ".");
+            } else {
+                normalized = normalized.replace(",", "");
+            }
+        } else if (commaCount > 1) {
+            normalized = normalized.replace(",", "");
+        } else if (dotCount > 1) {
+            normalized = normalized.replace(".", "");
+        } else if (commaCount == 1) {
+            int digitsAfterComma = normalized.length() - lastComma - 1;
+            normalized = digitsAfterComma == 3
+                    ? normalized.replace(",", "")
+                    : normalized.replace(",", ".");
+        } else if (dotCount == 1) {
+            int digitsAfterDot = normalized.length() - lastDot - 1;
+            if (digitsAfterDot == 3) {
+                normalized = normalized.replace(".", "");
+            }
         }
         return new BigDecimal(normalized).setScale(2, RoundingMode.HALF_UP);
     }
@@ -2799,6 +3989,10 @@ public class PosDesktopFxApplication extends Application {
 
     private String formatNumber(BigDecimal value) {
         return value == null ? "0" : value.stripTrailingZeros().toPlainString();
+    }
+
+    private String safeText(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 
     private String formatDateTime(LocalDateTime value) {
@@ -2878,6 +4072,18 @@ public class PosDesktopFxApplication extends Application {
                         () -> clamp(newScene.getWidth() * ratio, min, max),
                         newScene.widthProperty()
                 ));
+            }
+        });
+    }
+
+    private void bindRegionHeightToScene(Region region, double offset, double minHeight) {
+        region.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                region.prefHeightProperty().bind(Bindings.createDoubleBinding(
+                        () -> Math.max(minHeight, newScene.getHeight() - offset),
+                        newScene.heightProperty()
+                ));
+                region.minHeightProperty().bind(region.prefHeightProperty());
             }
         });
     }

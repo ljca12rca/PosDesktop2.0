@@ -262,6 +262,18 @@
     -fx-border-radius: 18;
 }
 
+.mini-action-button {
+    -fx-min-width: 42;
+    -fx-pref-width: 42;
+    -fx-max-width: 42;
+    -fx-min-height: 42;
+    -fx-pref-height: 42;
+    -fx-max-height: 42;
+    -fx-padding: 0;
+    -fx-font-size: 18px;
+    -fx-font-weight: 900;
+}
+
 .pill {
     -fx-background-color: rgba(20, 104, 104, 0.10);
     -fx-background-radius: 999;
@@ -358,6 +370,137 @@
     -fx-background-color:
         radial-gradient(center 10% 10%, radius 65%, rgba(244, 205, 153, 0.28), transparent 60%),
         linear-gradient(to bottom right, #faf6ef, #f0ece2);
+}
+
+.invoice-workspace {
+    -fx-spacing: 10;
+    -fx-padding: 14;
+}
+
+.invoice-main-screen {
+    -fx-spacing: 10;
+    -fx-padding: 10 14 10 14;
+}
+
+.invoice-main-screen .screen-title {
+    -fx-font-size: 24px;
+}
+
+.invoice-main-screen .screen-subtitle {
+    -fx-font-size: 11px;
+}
+
+.invoice-main-screen .icon-badge.badge-lg {
+    -fx-min-width: 48;
+    -fx-min-height: 48;
+    -fx-max-width: 48;
+    -fx-max-height: 48;
+}
+
+.invoice-main-screen .surface-card {
+    -fx-padding: 14;
+}
+
+.invoice-main-screen .card-subtitle,
+.invoice-main-screen .metric-caption,
+.invoice-main-screen .meta-key {
+    -fx-font-size: 11px;
+}
+
+.invoice-main-screen .meta-value {
+    -fx-font-size: 13px;
+}
+
+.invoice-top-band {
+    -fx-alignment: top-left;
+    -fx-spacing: 12;
+    -fx-padding: 12;
+}
+
+.invoice-provider-identity {
+    -fx-spacing: 2;
+}
+
+.invoice-provider-name {
+    -fx-font-size: 20px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #173746;
+}
+
+.invoice-provider-status {
+    -fx-text-fill: #216351;
+}
+
+.invoice-provider-summary {
+    -fx-spacing: 8;
+}
+
+.invoice-provider-flow {
+    -fx-hgap: 10;
+    -fx-vgap: 8;
+}
+
+.invoice-info-block {
+    -fx-spacing: 3;
+    -fx-padding: 6 9 6 9;
+    -fx-background-color: rgba(245, 239, 227, 0.72);
+    -fx-background-radius: 12;
+}
+
+.invoice-action-column {
+    -fx-spacing: 8;
+    -fx-fill-width: true;
+}
+
+.invoice-inline-progress {
+    -fx-spacing: 4;
+    -fx-padding: 8 10 8 10;
+    -fx-background-color: rgba(242, 165, 95, 0.10);
+    -fx-background-radius: 12;
+}
+
+.invoice-provider-caption {
+    -fx-font-size: 11px;
+}
+
+.invoice-table-toolbar {
+    -fx-alignment: bottom-left;
+    -fx-spacing: 12;
+}
+
+.invoice-workspace .screen-title {
+    -fx-font-size: 24px;
+}
+
+.invoice-workspace .screen-subtitle {
+    -fx-font-size: 11px;
+}
+
+.invoice-compact-card {
+    -fx-padding: 14;
+}
+
+.invoice-workspace .surface-card {
+    -fx-padding: 14;
+}
+
+.invoice-workspace .progress-card {
+    -fx-padding: 12;
+}
+
+.invoice-action-grid {
+    -fx-hgap: 10;
+    -fx-vgap: 10;
+}
+
+.workspace-split {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.workspace-split > .split-pane-divider {
+    -fx-padding: 0 1 0 1;
+    -fx-background-color: rgba(28, 69, 79, 0.10);
 }
 
 .dialog-host {
@@ -724,6 +867,17 @@
     -fx-padding: 8 12 8 12;
 }
 
+.app-shell:compact .mini-action-button {
+    -fx-min-width: 38;
+    -fx-pref-width: 38;
+    -fx-max-width: 38;
+    -fx-min-height: 38;
+    -fx-pref-height: 38;
+    -fx-max-height: 38;
+    -fx-font-size: 16px;
+    -fx-padding: 0;
+}
+
 .app-shell:compact .metric-value {
     -fx-font-size: 22px;
 }
@@ -744,4 +898,27 @@
 
 .app-shell:compact .data-table .table-cell {
     -fx-padding: 6 6 6 6;
+}
+
+.app-shell:compact .invoice-compact-card {
+    -fx-padding: 10;
+}
+
+.app-shell:compact .invoice-main-screen {
+    -fx-spacing: 8;
+    -fx-padding: 8 12 8 12;
+}
+
+.app-shell:compact .invoice-provider-name {
+    -fx-font-size: 17px;
+}
+
+.app-shell:compact .invoice-info-block,
+.app-shell:compact .invoice-inline-progress {
+    -fx-padding: 6 8 6 8;
+}
+
+.app-shell:compact .invoice-workspace {
+    -fx-spacing: 10;
+    -fx-padding: 12;
 }
