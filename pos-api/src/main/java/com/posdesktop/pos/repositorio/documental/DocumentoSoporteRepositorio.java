@@ -11,4 +11,9 @@ public interface DocumentoSoporteRepositorio extends MongoRepository<DocumentoSo
             EntidadOrigenDocumento entidadOrigen,
             String entidadOrigenId
     );
+
+    List<DocumentoSoporte> findByEntidadOrigenAndEntidadOrigenIdIn(
+            EntidadOrigenDocumento entidadOrigen,
+            List<String> entidadOrigenIds
+    );
 }

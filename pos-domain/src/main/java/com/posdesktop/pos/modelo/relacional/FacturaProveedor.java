@@ -16,6 +16,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -144,10 +145,14 @@ public class FacturaProveedor extends EntidadAuditable {
     }
 
     public void recalcularSaldo() {
-        saldoPendiente = montoTotal.subtract(montoPagado);
+        saldoPendiente = montoTotal.subtract(montoPagado).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         if (saldoPendiente.signum() <= 0 && montoTotal.signum() > 0) {
             saldoPendiente = BigDecimal.ZERO;
             estado = EstadoFacturaProveedor.PAGADA;
+            return;
+        }
+        if (fechaVencimiento != null && fechaVencimiento.isBefore(LocalDate.now())) {
+            estado = EstadoFacturaProveedor.VENCIDA;
             return;
         }
         if (montoPagado.signum() > 0) {

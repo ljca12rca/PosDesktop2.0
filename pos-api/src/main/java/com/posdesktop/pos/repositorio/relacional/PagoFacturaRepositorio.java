@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PagoFacturaRepositorio extends JpaRepository<PagoFactura, UUID> {
 
     List<PagoFactura> findByFacturaProveedorId(UUID facturaProveedorId);
+
+    List<PagoFactura> findByFacturaProveedorIdOrderByFechaPagoAscCreadoEnAsc(UUID facturaProveedorId);
 }

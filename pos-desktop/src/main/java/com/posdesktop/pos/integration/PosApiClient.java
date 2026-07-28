@@ -13,11 +13,15 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class PosApiClient {
 
@@ -73,6 +77,90 @@ public final class PosApiClient {
                 "/separados/" + encode(separadoId) + "/abonos",
                 request,
                 new TypeReference<ApiResponseEnvelope<SeparadoDetalleResponse>>() {
+                }
+        ).data();
+    }
+
+    public List<ProveedorResponse> listarProveedores() {
+        return get("/proveedores", new TypeReference<ApiResponseEnvelope<List<ProveedorResponse>>>() {
+        }).data();
+    }
+
+    public ProveedorResponse registrarProveedor(RegistrarProveedorRequest request) {
+        return post("/proveedores", request, new TypeReference<ApiResponseEnvelope<ProveedorResponse>>() {
+        }).data();
+    }
+
+    public List<FacturaProveedorListadoResponse> listarFacturas(String proveedorId, String estado) {
+        StringBuilder path = new StringBuilder("/facturas-proveedor");
+        boolean hasQuery = false;
+        if (proveedorId != null && !proveedorId.isBlank()) {
+            path.append(hasQuery ? "&" : "?").append("proveedorId=").append(encode(proveedorId));
+            hasQuery = true;
+        }
+        if (estado != null && !estado.isBlank()) {
+            path.append(hasQuery ? "&" : "?").append("estado=").append(encode(estado));
+        }
+        return get(path.toString(), new TypeReference<ApiResponseEnvelope<List<FacturaProveedorListadoResponse>>>() {
+        }).data();
+    }
+
+    public FacturaProveedorDetalleResponse consultarFacturaProveedor(String facturaId) {
+        return get(
+                "/facturas-proveedor/" + encode(facturaId),
+                new TypeReference<ApiResponseEnvelope<FacturaProveedorDetalleResponse>>() {
+                }
+        ).data();
+    }
+
+    public FacturaProveedorDetalleResponse registrarFacturaProveedor(
+            RegistrarFacturaProveedorRequest request,
+            List<Path> imagenes
+    ) {
+        if (imagenes == null || imagenes.isEmpty()) {
+            return post("/facturas-proveedor", request, new TypeReference<ApiResponseEnvelope<FacturaProveedorDetalleResponse>>() {
+            }).data();
+        }
+        return postMultipart(
+                "/facturas-proveedor",
+                "factura",
+                request,
+                "imagenes",
+                imagenes,
+                new TypeReference<ApiResponseEnvelope<FacturaProveedorDetalleResponse>>() {
+                }
+        ).data();
+    }
+
+    public FacturaProveedorDetalleResponse actualizarFacturaProveedor(
+            String facturaId,
+            ActualizarFacturaProveedorRequest request
+    ) {
+        return put(
+                "/facturas-proveedor/" + encode(facturaId),
+                request,
+                new TypeReference<ApiResponseEnvelope<FacturaProveedorDetalleResponse>>() {
+                }
+        ).data();
+    }
+
+    public FacturaProveedorDetalleResponse registrarAbonoFactura(
+            String facturaId,
+            RegistrarPagoFacturaRequest request,
+            List<Path> soportes
+    ) {
+        String path = "/facturas-proveedor/" + encode(facturaId) + "/abonos";
+        if (soportes == null || soportes.isEmpty()) {
+            return post(path, request, new TypeReference<ApiResponseEnvelope<FacturaProveedorDetalleResponse>>() {
+            }).data();
+        }
+        return postMultipart(
+                path,
+                "abono",
+                request,
+                "soportes",
+                soportes,
+                new TypeReference<ApiResponseEnvelope<FacturaProveedorDetalleResponse>>() {
                 }
         ).data();
     }
@@ -140,6 +228,54 @@ public final class PosApiClient {
         }
     }
 
+    private <T> ApiResponseEnvelope<T> put(
+            String path,
+            Object body,
+            TypeReference<ApiResponseEnvelope<T>> typeReference
+    ) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + path))
+                    .timeout(API_REQUEST_TIMEOUT)
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
+                    .build();
+            return execute(request, typeReference);
+        } catch (IOException exception) {
+            throw new PosApiException("No fue posible serializar la solicitud hacia la API.", exception);
+        }
+    }
+
+    private <T> ApiResponseEnvelope<T> postMultipart(
+            String path,
+            String jsonPartName,
+            Object jsonBody,
+            String filePartName,
+            List<Path> files,
+            TypeReference<ApiResponseEnvelope<T>> typeReference
+    ) {
+        String boundary = "----POSDesktopBoundary" + System.nanoTime();
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + path))
+                    .timeout(API_REQUEST_TIMEOUT)
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofByteArrays(buildMultipartPayload(
+                            boundary,
+                            jsonPartName,
+                            jsonBody,
+                            filePartName,
+                            files
+                    )))
+                    .build();
+            return execute(request, typeReference);
+        } catch (IOException exception) {
+            throw new PosApiException("No fue posible construir la solicitud multipart hacia la API.", exception);
+        }
+    }
+
     private <T> ApiResponseEnvelope<T> execute(
             HttpRequest request,
             TypeReference<ApiResponseEnvelope<T>> typeReference
@@ -180,6 +316,61 @@ public final class PosApiClient {
 
     private String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private Iterable<byte[]> buildMultipartPayload(
+            String boundary,
+            String jsonPartName,
+            Object jsonBody,
+            String filePartName,
+            List<Path> files
+    ) throws IOException {
+        List<byte[]> payload = new ArrayList<>();
+        String separator = "--" + boundary + "\r\n";
+        String lineBreak = "\r\n";
+
+        payload.add(separator.getBytes(StandardCharsets.UTF_8));
+        payload.add(("Content-Disposition: form-data; name=\"" + jsonPartName + "\"" + lineBreak).getBytes(StandardCharsets.UTF_8));
+        payload.add(("Content-Type: application/json; charset=UTF-8" + lineBreak + lineBreak).getBytes(StandardCharsets.UTF_8));
+        payload.add(objectMapper.writeValueAsBytes(jsonBody));
+        payload.add(lineBreak.getBytes(StandardCharsets.UTF_8));
+
+        for (Path file : files) {
+            if (file == null) {
+                continue;
+            }
+            payload.add(separator.getBytes(StandardCharsets.UTF_8));
+            payload.add((
+                    "Content-Disposition: form-data; name=\"" + filePartName + "\"; filename=\"" + file.getFileName() + "\"" + lineBreak
+            ).getBytes(StandardCharsets.UTF_8));
+            payload.add(("Content-Type: " + detectContentType(file) + lineBreak + lineBreak).getBytes(StandardCharsets.UTF_8));
+            payload.add(Files.readAllBytes(file));
+            payload.add(lineBreak.getBytes(StandardCharsets.UTF_8));
+        }
+
+        payload.add(("--" + boundary + "--" + lineBreak).getBytes(StandardCharsets.UTF_8));
+        return payload;
+    }
+
+    private String detectContentType(Path file) throws IOException {
+        String detected = Files.probeContentType(file);
+        if (detected != null && !detected.isBlank()) {
+            return detected;
+        }
+        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        if (fileName.endsWith(".png")) {
+            return "image/png";
+        }
+        if (fileName.endsWith(".webp")) {
+            return "image/webp";
+        }
+        if (fileName.endsWith(".pdf")) {
+            return "application/pdf";
+        }
+        return "application/octet-stream";
     }
 
     public record ApiResponseEnvelope<T>(
@@ -250,6 +441,129 @@ public final class PosApiClient {
 
     public record RegistrarAbonoSeparadoRequest(
             BigDecimal valorAbono,
+            String observacion
+    ) {
+    }
+
+    public record RegistrarProveedorRequest(
+            String nit,
+            String nombre,
+            String telefono,
+            String correo,
+            String direccion,
+            String observacion
+    ) {
+    }
+
+    public record ProveedorResponse(
+            String id,
+            String nit,
+            String nombre,
+            String telefono,
+            String correo,
+            String direccion,
+            String observacion,
+            boolean activo,
+            BigDecimal saldoPendienteTotal,
+            int cantidadFacturas
+    ) {
+    }
+
+    public record RegistrarFacturaProveedorRequest(
+            String proveedorId,
+            String numeroFactura,
+            LocalDate fechaEmision,
+            LocalDate fechaVencimiento,
+            BigDecimal valorTotal,
+            BigDecimal saldoInicial,
+            String observacion
+    ) {
+    }
+
+    public record ActualizarFacturaProveedorRequest(
+            String numeroFactura,
+            LocalDate fechaEmision,
+            LocalDate fechaVencimiento,
+            BigDecimal valorTotal,
+            String observacion
+    ) {
+    }
+
+    public record ProveedorFacturaResponse(
+            String id,
+            String nit,
+            String nombre,
+            String telefono,
+            String correo
+    ) {
+    }
+
+    public record DocumentoSoporteResponse(
+            String id,
+            String entidadOrigen,
+            String entidadOrigenId,
+            String tipoDocumento,
+            String nombreArchivo,
+            String contentType,
+            Long tamanioBytes,
+            String rutaArchivo,
+            String rutaRelativa,
+            List<String> carpetas,
+            String checksum,
+            String observacion,
+            LocalDateTime cargadoEn
+    ) {
+    }
+
+    public record PagoFacturaResponse(
+            String id,
+            LocalDate fechaPago,
+            BigDecimal montoPago,
+            String metodoPago,
+            String referenciaPago,
+            String observacion,
+            BigDecimal saldoRestante,
+            List<DocumentoSoporteResponse> soportes
+    ) {
+    }
+
+    public record FacturaProveedorListadoResponse(
+            String id,
+            String proveedorId,
+            String proveedorNombre,
+            String proveedorNit,
+            String numeroFactura,
+            LocalDate fechaEmision,
+            LocalDate fechaVencimiento,
+            String estado,
+            BigDecimal montoTotal,
+            BigDecimal montoPagado,
+            BigDecimal saldoPendiente,
+            String observacion
+    ) {
+    }
+
+    public record FacturaProveedorDetalleResponse(
+            String id,
+            ProveedorFacturaResponse proveedor,
+            String numeroFactura,
+            LocalDate fechaEmision,
+            LocalDate fechaVencimiento,
+            String estado,
+            BigDecimal montoTotal,
+            BigDecimal montoPagado,
+            BigDecimal saldoPendiente,
+            String observacion,
+            List<DocumentoSoporteResponse> soportesFactura,
+            List<PagoFacturaResponse> abonos
+    ) {
+    }
+
+    public record RegistrarPagoFacturaRequest(
+            LocalDate fechaPago,
+            BigDecimal valorAbono,
+            String metodoPago,
+            String referenciaPago,
             String observacion
     ) {
     }

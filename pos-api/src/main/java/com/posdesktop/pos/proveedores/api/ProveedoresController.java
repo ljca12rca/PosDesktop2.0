@@ -1,13 +1,15 @@
 package com.posdesktop.pos.proveedores.api;
 
+import com.posdesktop.pos.proveedores.api.dto.ProveedorResponse;
 import com.posdesktop.pos.proveedores.api.dto.RegistrarProveedorRequest;
+import com.posdesktop.pos.proveedores.service.ProveedoresService;
 import com.posdesktop.pos.shared.api.ApiPaths;
 import com.posdesktop.pos.shared.api.ApiResponse;
 import com.posdesktop.pos.shared.api.ModuleStatusResponse;
-import com.posdesktop.pos.shared.exception.FeaturePendingException;
 import com.posdesktop.pos.shared.service.ModuleCatalogService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,9 +21,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProveedoresController {
 
     private final ModuleCatalogService moduleCatalogService;
+    private final ProveedoresService proveedoresService;
 
-    public ProveedoresController(ModuleCatalogService moduleCatalogService) {
+    public ProveedoresController(
+            ModuleCatalogService moduleCatalogService,
+            ProveedoresService proveedoresService
+    ) {
         this.moduleCatalogService = moduleCatalogService;
+        this.proveedoresService = proveedoresService;
     }
 
     @GetMapping("/estado")
@@ -33,13 +40,24 @@ public class ProveedoresController {
         );
     }
 
+    @GetMapping
+    public ApiResponse<List<ProveedorResponse>> listarProveedores(HttpServletRequest request) {
+        return ApiResponse.success(
+                "Proveedores consultados correctamente.",
+                request.getRequestURI(),
+                proveedoresService.listarProveedores()
+        );
+    }
+
     @PostMapping
-    public ApiResponse<Void> registrarProveedor(
+    public ApiResponse<ProveedorResponse> registrarProveedor(
             @Valid @RequestBody RegistrarProveedorRequest request,
             HttpServletRequest httpRequest
     ) {
-        throw new FeaturePendingException(
-                "Registrar proveedor aun no tiene logica implementada. Estructura de entrada ya disponible."
+        return ApiResponse.success(
+                "Proveedor registrado correctamente.",
+                httpRequest.getRequestURI(),
+                proveedoresService.registrarProveedor(request)
         );
     }
 }

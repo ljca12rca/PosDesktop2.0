@@ -1,9 +1,14 @@
 package com.posdesktop.pos;
 
 import com.posdesktop.pos.integration.PosApiClient;
+import java.awt.Desktop;
 import com.posdesktop.pos.mockfx.MockData;
+import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -14,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -52,12 +58,13 @@ import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.control.Separator;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
-import javafx.scene.control.Alert;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
@@ -73,6 +80,7 @@ import javafx.stage.Screen;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.stage.FileChooser;
 import javafx.stage.Window;
 import javafx.util.Duration;
 
@@ -655,17 +663,19 @@ public class PosDesktopFxApplication extends Application {
     private Node createInvoicesScreen() {
         VBox root = createScreenContainer(
                 "Facturas",
-                "Mock centrado en proveedores. La cartera y la gestion documental viven en ventanas flotantes."
+                "Consulta proveedores, registra facturas y abonos usando la API real del POS."
         );
         tuneCompactScreen(root);
         root.getStyleClass().add("invoice-main-screen");
         root.setSpacing(10);
         bindRegionHeightToScene(root, 58, 520);
 
-        ObservableList<MockData.ProviderMockRow> providerSource = FXCollections.observableArrayList(MockData.providers());
-        FilteredList<MockData.ProviderMockRow> filteredProviders = new FilteredList<>(providerSource);
-        TableView<MockData.ProviderMockRow> providerTable = createSupplierProvidersMockTable();
+        ObservableList<PosApiClient.ProveedorResponse> providerSource = FXCollections.observableArrayList();
+        FilteredList<PosApiClient.ProveedorResponse> filteredProviders = new FilteredList<>(providerSource);
+        TableView<PosApiClient.ProveedorResponse> providerTable = createSupplierProvidersTable();
         providerTable.setItems(filteredProviders);
+        AtomicReference<String> selectedProviderId = new AtomicReference<>();
+        AtomicReference<List<PosApiClient.FacturaProveedorListadoResponse>> invoiceCache = new AtomicReference<>(List.of());
 
         TextField providerSearchField = createField("");
         providerSearchField.setPromptText("Buscar proveedor");
@@ -679,8 +689,9 @@ public class PosDesktopFxApplication extends Application {
                     return true;
                 }
                 return containsIgnoreCase(provider.nombre(), normalized)
-                        || containsIgnoreCase(provider.contacto(), normalized)
-                        || containsIgnoreCase(provider.categoria(), normalized);
+                        || containsIgnoreCase(provider.nit(), normalized)
+                        || containsIgnoreCase(provider.telefono(), normalized)
+                        || containsIgnoreCase(provider.correo(), normalized);
             });
             if (!filteredProviders.isEmpty() && providerTable.getSelectionModel().getSelectedItem() == null) {
                 providerTable.getSelectionModel().selectFirst();
@@ -688,133 +699,118 @@ public class PosDesktopFxApplication extends Application {
         });
 
         Label providersValue = createMetricValueLabel("0");
-        Label providersCaption = createMetricCaptionLabel("Base mock");
+        Label providersCaption = createMetricCaptionLabel("Proveedores activos");
         Label invoicesValue = createMetricValueLabel("0");
-        Label invoicesCaption = createMetricCaptionLabel("Pendientes y abonadas");
+        Label invoicesCaption = createMetricCaptionLabel("Facturas registradas");
         Label balanceValue = createMetricValueLabel("$ 0");
         Label balanceCaption = createMetricCaptionLabel("Saldo total con proveedores");
-        Label supportsValue = createMetricValueLabel("0");
-        Label supportsCaption = createMetricCaptionLabel("PDF y JPG cargados");
+        Label paidInvoicesValue = createMetricValueLabel("0");
+        Label paidInvoicesCaption = createMetricCaptionLabel("Facturas pagadas");
 
         Label selectedProviderValue = createMetaValueLabel("Selecciona un proveedor");
-        Label providerCategoryValue = createMetaValueLabel("-");
-        Label providerContactValue = createMetaValueLabel("-");
+        Label providerNitValue = createMetaValueLabel("-");
         Label providerPhoneValue = createMetaValueLabel("-");
-        Label providerStatusValue = createMetaValueLabel("-");
+        Label providerEmailValue = createMetaValueLabel("-");
+        Label providerAddressValue = createMetaValueLabel("-");
         Label providerDebtValue = createMetaValueLabel("$ 0");
         Label providerInvoicesValue = createMetaValueLabel("0 facturas");
-        Label providerSupportsValue = createMetaValueLabel("0 soportes");
+        Label providerStatusValue = createMetaValueLabel("Sin facturas");
         ProgressBar providerExposureBar = new ProgressBar(0);
         providerExposureBar.setMaxWidth(Double.MAX_VALUE);
         providerExposureBar.getStyleClass().add("accent-progress");
         Label providerExposureCaption = new Label("Selecciona un proveedor para explorar su cartera");
         providerExposureCaption.getStyleClass().add("progress-caption");
 
-        updateInvoicesMockMetrics(
-                providerSource,
-                providersValue,
-                providersCaption,
-                invoicesValue,
-                invoicesCaption,
-                balanceValue,
-                balanceCaption,
-                supportsValue,
-                supportsCaption
-        );
-
         providerTable.getSelectionModel().selectedItemProperty().addListener((obs, previous, provider) -> {
-            if (provider == null) {
-                selectedProviderValue.setText("Selecciona un proveedor");
-                providerCategoryValue.setText("-");
-                providerContactValue.setText("-");
-                providerPhoneValue.setText("-");
-                providerStatusValue.setText("-");
-                providerDebtValue.setText("$ 0");
-                providerInvoicesValue.setText("0 facturas");
-                providerSupportsValue.setText("0 soportes");
-                providerExposureBar.setProgress(0);
-                providerExposureCaption.setText("Selecciona un proveedor para explorar su cartera");
-                return;
-            }
-
-            List<MockData.SupplierInvoiceMockRow> invoices = MockData.invoicesByProvider(provider.id());
-            BigDecimal totalDebt = invoices.stream()
-                    .map(invoice -> parseCurrencyOrZero(invoice.saldo()))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            int supportsCount = invoices.stream()
-                    .mapToInt(invoice -> MockData.supportsByInvoice(invoice.id()).size())
-                    .sum();
-            BigDecimal paid = invoices.stream()
-                    .map(invoice -> parseCurrencyOrZero(invoice.abonado()))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal total = invoices.stream()
-                    .map(invoice -> parseCurrencyOrZero(invoice.valorTotal()))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            selectedProviderValue.setText(provider.nombre());
-            providerCategoryValue.setText(provider.categoria());
-            providerContactValue.setText(provider.contacto());
-            providerPhoneValue.setText(provider.telefono());
-            providerStatusValue.setText(provider.estado() + " | " + provider.facturasActivas() + " facturas");
-            providerDebtValue.setText(formatCurrency(totalDebt));
-            providerInvoicesValue.setText(invoices.size() + " facturas mock");
-            providerSupportsValue.setText(supportsCount + " soportes cargados");
-            providerExposureBar.setProgress(calculateLayawayProgress(total, paid));
-            providerExposureCaption.setText(
-                    formatCurrency(paid) + " abonados de " + formatCurrency(total) + " en cartera mock"
+            selectedProviderId.set(provider == null ? null : provider.id());
+            updateProviderSummaryState(
+                    provider,
+                    invoiceCache.get(),
+                    selectedProviderValue,
+                    providerNitValue,
+                    providerPhoneValue,
+                    providerEmailValue,
+                    providerAddressValue,
+                    providerStatusValue,
+                    providerDebtValue,
+                    providerInvoicesValue,
+                    providerExposureBar,
+                    providerExposureCaption
             );
         });
 
-        if (!filteredProviders.isEmpty()) {
-            providerTable.getSelectionModel().selectFirst();
-        }
+        Runnable refreshProviders = () -> runAsync(
+                () -> new InvoiceDashboardData(
+                        posApiClient.listarProveedores(),
+                        posApiClient.listarFacturas(null, null)
+                ),
+                data -> {
+                    invoiceCache.set(data.facturas());
+                    providerSource.setAll(data.proveedores());
+                    updateInvoiceMetrics(
+                            data.proveedores(),
+                            data.facturas(),
+                            providersValue,
+                            providersCaption,
+                            invoicesValue,
+                            invoicesCaption,
+                            balanceValue,
+                            balanceCaption,
+                            paidInvoicesValue,
+                            paidInvoicesCaption
+                    );
+
+                    String selectedId = selectedProviderId.get();
+                    if (selectedId != null && selectProviderRow(providerTable, selectedId)) {
+                        return;
+                    }
+                    if (!filteredProviders.isEmpty()) {
+                        providerTable.getSelectionModel().selectFirst();
+                    } else {
+                        providerTable.getSelectionModel().clearSelection();
+                    }
+                },
+                exception -> showError("Facturas", exception.getMessage())
+        );
 
         providerTable.setOnMouseClicked(event -> {
             if (event.getClickCount() < 2) {
                 return;
             }
-            MockData.ProviderMockRow provider = providerTable.getSelectionModel().getSelectedItem();
+            PosApiClient.ProveedorResponse provider = providerTable.getSelectionModel().getSelectedItem();
             if (provider == null) {
                 return;
             }
-            showMockProviderInvoicesWindow(
+            showProviderInvoicesWindow(
                     contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
-                    provider
+                    provider,
+                    refreshProviders
             );
         });
 
         Button newProviderButton = createActionButton("Nuevo proveedor", "primary-button");
         newProviderButton.setMaxWidth(Double.MAX_VALUE);
-        newProviderButton.setOnAction(event -> showMockProviderWindow(
-                contentHost.getScene() == null ? null : contentHost.getScene().getWindow()
+        newProviderButton.setOnAction(event -> showProviderWindow(
+                contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
+                null,
+                createdId -> {
+                    selectedProviderId.set(createdId);
+                    refreshProviders.run();
+                }
         ));
 
         Button viewInvoicesButton = createActionButton("Ver facturas", "ghost-button");
         viewInvoicesButton.setMaxWidth(Double.MAX_VALUE);
-        viewInvoicesButton.setOnAction(event -> showMockProviderInvoicesWindow(
+        viewInvoicesButton.disableProperty().bind(Bindings.isNull(providerTable.getSelectionModel().selectedItemProperty()));
+        viewInvoicesButton.setOnAction(event -> showProviderInvoicesWindow(
                 contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
-                providerTable.getSelectionModel().getSelectedItem()
+                providerTable.getSelectionModel().getSelectedItem(),
+                refreshProviders
         ));
 
-        Button refreshButton = createActionButton("Actualizar mock", "ghost-button");
+        Button refreshButton = createActionButton("Actualizar", "ghost-button");
         refreshButton.setMaxWidth(Double.MAX_VALUE);
-        refreshButton.setOnAction(event -> {
-            providerSource.setAll(MockData.providers());
-            updateInvoicesMockMetrics(
-                    providerSource,
-                    providersValue,
-                    providersCaption,
-                    invoicesValue,
-                    invoicesCaption,
-                    balanceValue,
-                    balanceCaption,
-                    supportsValue,
-                    supportsCaption
-            );
-            if (!filteredProviders.isEmpty()) {
-                providerTable.getSelectionModel().selectFirst();
-            }
-        });
+        refreshButton.setOnAction(event -> refreshProviders.run());
 
         selectedProviderValue.getStyleClass().add("invoice-provider-name");
         providerStatusValue.getStyleClass().add("invoice-provider-status");
@@ -828,13 +824,13 @@ public class PosDesktopFxApplication extends Application {
         providerFacts.setVgap(8);
         providerFacts.getStyleClass().add("invoice-provider-flow");
         providerFacts.getChildren().addAll(
-                createCompactInfoBlock("Categoria", providerCategoryValue),
-                createCompactInfoBlock("Contacto", providerContactValue),
+                createCompactInfoBlock("NIT", providerNitValue),
                 createCompactInfoBlock("Telefono", providerPhoneValue),
+                createCompactInfoBlock("Correo", providerEmailValue),
+                createCompactInfoBlock("Direccion", providerAddressValue),
                 createCompactInfoBlock("Estado", providerStatusValue),
                 createCompactInfoBlock("Deuda", providerDebtValue),
-                createCompactInfoBlock("Facturas", providerInvoicesValue),
-                createCompactInfoBlock("Soportes", providerSupportsValue)
+                createCompactInfoBlock("Facturas", providerInvoicesValue)
         );
 
         VBox providerExposureBox = new VBox(4, createFormLabel("Cobertura del proveedor"), providerExposureBar, providerExposureCaption);
@@ -872,6 +868,7 @@ public class PosDesktopFxApplication extends Application {
 
         VBox.setVgrow(providersCard, Priority.ALWAYS);
         root.getChildren().addAll(topBand, providersCard);
+        refreshProviders.run();
         return root;
     }
 
@@ -2071,6 +2068,1456 @@ public class PosDesktopFxApplication extends Application {
         return table;
     }
 
+    private TableView<PosApiClient.ProveedorResponse> createSupplierProvidersTable() {
+        TableView<PosApiClient.ProveedorResponse> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.34, 260, 460);
+        table.getColumns().addAll(
+                tableColumn("Proveedor", PosApiClient.ProveedorResponse::nombre),
+                tableColumn("NIT", proveedor -> safeText(proveedor.nit(), "-")),
+                tableColumn("Telefono", proveedor -> safeText(proveedor.telefono(), "-")),
+                tableColumn("Facturas", proveedor -> String.valueOf(proveedor.cantidadFacturas())),
+                tableColumn("Saldo", proveedor -> formatCurrency(proveedor.saldoPendienteTotal()))
+        );
+        return table;
+    }
+
+    private TableView<PosApiClient.FacturaProveedorListadoResponse> createSupplierInvoicesTable() {
+        TableView<PosApiClient.FacturaProveedorListadoResponse> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.23, 150, 230);
+        table.getColumns().addAll(
+                tableColumn("Numero", PosApiClient.FacturaProveedorListadoResponse::numeroFactura),
+                tableColumn("Emision", factura -> formatShortDate(factura.fechaEmision())),
+                tableColumn("Vence", factura -> formatShortDate(factura.fechaVencimiento())),
+                tableColumn("Valor", factura -> formatCurrency(factura.montoTotal())),
+                tableColumn("Abonado", factura -> formatCurrency(factura.montoPagado())),
+                tableColumn("Saldo", factura -> formatCurrency(factura.saldoPendiente())),
+                tableColumn("Estado", factura -> formatInvoiceStatus(factura.estado()))
+        );
+        return table;
+    }
+
+    private TableView<PosApiClient.PagoFacturaResponse> createSupplierPaymentsTable() {
+        TableView<PosApiClient.PagoFacturaResponse> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.18, 120, 185);
+        table.getColumns().addAll(
+                tableColumn("Fecha", pago -> formatShortDate(pago.fechaPago())),
+                tableColumn("Valor", pago -> formatCurrency(pago.montoPago())),
+                tableColumn("Medio", pago -> formatPaymentMethod(pago.metodoPago())),
+                tableColumn("Restante", pago -> formatCurrency(pago.saldoRestante()))
+        );
+        return table;
+    }
+
+    private TableView<InvoiceSupportRow> createSupplierSupportsTable() {
+        TableView<InvoiceSupportRow> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.18, 120, 185);
+        table.getColumns().addAll(
+                tableColumn("Tipo", InvoiceSupportRow::tipo),
+                tableColumn("Archivo", InvoiceSupportRow::archivo),
+                tableColumn("Origen", InvoiceSupportRow::origen),
+                tableColumn("Cargado", InvoiceSupportRow::cargadoEn)
+        );
+        table.setRowFactory(ignored -> {
+            TableRow<InvoiceSupportRow> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && !row.isEmpty()) {
+                    openSupportDocument(row.getItem());
+                }
+            });
+            return row;
+        });
+        return table;
+    }
+
+    private void updateInvoiceMetrics(
+            List<PosApiClient.ProveedorResponse> providers,
+            List<PosApiClient.FacturaProveedorListadoResponse> invoices,
+            Label providersValue,
+            Label providersCaption,
+            Label invoicesValue,
+            Label invoicesCaption,
+            Label balanceValue,
+            Label balanceCaption,
+            Label paidInvoicesValue,
+            Label paidInvoicesCaption
+    ) {
+        long openInvoices = invoices.stream()
+                .filter(invoice -> invoice.saldoPendiente() != null && invoice.saldoPendiente().signum() > 0)
+                .count();
+        long paidInvoices = invoices.stream()
+                .filter(invoice -> "PAGADA".equalsIgnoreCase(invoice.estado()))
+                .count();
+        BigDecimal supplierBalance = invoices.stream()
+                .map(PosApiClient.FacturaProveedorListadoResponse::saldoPendiente)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        providersValue.setText(String.valueOf(providers.size()));
+        providersCaption.setText("Proveedores registrados");
+        invoicesValue.setText(String.valueOf(openInvoices));
+        invoicesCaption.setText(invoices.size() + " facturas consultadas");
+        balanceValue.setText(formatCurrency(supplierBalance));
+        balanceCaption.setText("Saldo agregado de proveedores");
+        paidInvoicesValue.setText(String.valueOf(paidInvoices));
+        paidInvoicesCaption.setText("Facturas completamente pagadas");
+    }
+
+    private void updateProviderSummaryState(
+            PosApiClient.ProveedorResponse provider,
+            List<PosApiClient.FacturaProveedorListadoResponse> allInvoices,
+            Label selectedProviderValue,
+            Label providerNitValue,
+            Label providerPhoneValue,
+            Label providerEmailValue,
+            Label providerAddressValue,
+            Label providerStatusValue,
+            Label providerDebtValue,
+            Label providerInvoicesValue,
+            ProgressBar providerExposureBar,
+            Label providerExposureCaption
+    ) {
+        if (provider == null) {
+            selectedProviderValue.setText("Selecciona un proveedor");
+            providerNitValue.setText("-");
+            providerPhoneValue.setText("-");
+            providerEmailValue.setText("-");
+            providerAddressValue.setText("-");
+            providerStatusValue.setText("Sin seleccion");
+            providerDebtValue.setText("$ 0");
+            providerInvoicesValue.setText("0 facturas");
+            providerExposureBar.setProgress(0);
+            providerExposureCaption.setText("Selecciona un proveedor para explorar su cartera");
+            return;
+        }
+
+        List<PosApiClient.FacturaProveedorListadoResponse> providerInvoices = allInvoices.stream()
+                .filter(invoice -> provider.id().equals(invoice.proveedorId()))
+                .toList();
+        BigDecimal total = providerInvoices.stream()
+                .map(PosApiClient.FacturaProveedorListadoResponse::montoTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal paid = providerInvoices.stream()
+                .map(PosApiClient.FacturaProveedorListadoResponse::montoPagado)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal debt = providerInvoices.stream()
+                .map(PosApiClient.FacturaProveedorListadoResponse::saldoPendiente)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        selectedProviderValue.setText(provider.nombre());
+        providerNitValue.setText(safeText(provider.nit(), "-"));
+        providerPhoneValue.setText(safeText(provider.telefono(), "-"));
+        providerEmailValue.setText(safeText(provider.correo(), "-"));
+        providerAddressValue.setText(safeText(provider.direccion(), "-"));
+        providerStatusValue.setText(providerInvoices.isEmpty() ? "Sin facturas" : providerInvoices.size() + " facturas registradas");
+        providerDebtValue.setText(formatCurrency(debt));
+        providerInvoicesValue.setText(providerInvoices.size() + " facturas");
+        providerExposureBar.setProgress(calculateLayawayProgress(total, paid));
+        providerExposureCaption.setText(
+                providerInvoices.isEmpty()
+                        ? "Este proveedor aun no tiene facturas registradas."
+                        : formatCurrency(paid) + " abonados de " + formatCurrency(total) + " | Restante " + formatCurrency(debt)
+        );
+    }
+
+    private void showProviderInvoicesWindow(Window owner, PosApiClient.ProveedorResponse provider, Runnable afterMutation) {
+        if (provider == null) {
+            showError("Facturas", "Selecciona un proveedor para visualizar sus facturas.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Facturas | " + provider.nombre());
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        ObservableList<PosApiClient.FacturaProveedorListadoResponse> invoiceSource = FXCollections.observableArrayList();
+        ObservableList<PosApiClient.PagoFacturaResponse> paymentSource = FXCollections.observableArrayList();
+        ObservableList<InvoiceSupportRow> supportSource = FXCollections.observableArrayList();
+        AtomicReference<PosApiClient.FacturaProveedorDetalleResponse> selectedInvoiceDetail = new AtomicReference<>();
+
+        TableView<PosApiClient.FacturaProveedorListadoResponse> invoiceTable = createSupplierInvoicesTable();
+        invoiceTable.setItems(invoiceSource);
+        invoiceTable.prefHeightProperty().unbind();
+        invoiceTable.setMaxHeight(Double.MAX_VALUE);
+        bindTableHeightToScene(invoiceTable, 0.22, 180, 300);
+
+        AtomicReference<String> selectedInvoiceId = new AtomicReference<>();
+
+        Label debtValue = createMetricValueLabel("$ 0");
+        Label invoiceCountValue = createMetricValueLabel("0");
+        Label paidInvoiceCountValue = createMetricValueLabel("0");
+
+        Label selectedInvoiceValue = createMetaValueLabel("Selecciona una factura");
+        Label invoiceConceptValue = createMetaValueLabel("-");
+        Label invoiceDueDateValue = createMetaValueLabel("-");
+        Label invoiceBalanceValue = createMetaValueLabel("$ 0");
+        Label paymentSummaryValue = createMetaValueLabel("0 abonos");
+        Label supportSummaryValue = createMetaValueLabel("0 soportes");
+        Label providerNameValue = createMetaValueLabel(provider.nombre());
+        Label providerNitValue = createMetaValueLabel(safeText(provider.nit(), "-"));
+        Label providerPhoneValue = createMetaValueLabel(safeText(provider.telefono(), "-"));
+        Label providerEmailValue = createMetaValueLabel(safeText(provider.correo(), "-"));
+        ProgressBar invoiceProgressBar = new ProgressBar(0);
+        invoiceProgressBar.setMaxWidth(Double.MAX_VALUE);
+        invoiceProgressBar.getStyleClass().add("accent-progress");
+        Label invoiceProgressCaption = new Label("Selecciona una factura para revisar su avance");
+        invoiceProgressCaption.getStyleClass().add("progress-caption");
+
+        Button newInvoiceButton = createActionButton("Nueva factura", "primary-button");
+        newInvoiceButton.setPrefWidth(170);
+
+        Button registerPaymentButton = createActionButton("Registrar abono", "ghost-button");
+        registerPaymentButton.setPrefWidth(170);
+        registerPaymentButton.disableProperty().bind(Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty()));
+
+        Button viewPaymentsButton = createActionButton("Ver abonos", "ghost-button");
+        viewPaymentsButton.setPrefWidth(170);
+        viewPaymentsButton.disableProperty().bind(Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty()));
+
+        Button viewSupportsButton = createActionButton("Ver soportes", "ghost-button");
+        viewSupportsButton.setPrefWidth(170);
+        viewSupportsButton.disableProperty().bind(Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty()));
+
+        Button refreshButton = createActionButton("Actualizar", "ghost-button");
+        refreshButton.setPrefWidth(170);
+        refreshButton.disableProperty().bind(Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty()));
+
+        Runnable refreshInvoices = () -> runAsync(
+                () -> posApiClient.listarFacturas(provider.id(), null),
+                invoices -> {
+                    invoiceSource.setAll(invoices);
+                    BigDecimal totalDebt = invoices.stream()
+                            .map(PosApiClient.FacturaProveedorListadoResponse::saldoPendiente)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    long paidCount = invoices.stream()
+                            .filter(invoice -> "PAGADA".equalsIgnoreCase(invoice.estado()))
+                            .count();
+                    debtValue.setText(formatCurrency(totalDebt));
+                    invoiceCountValue.setText(String.valueOf(invoices.size()));
+                    paidInvoiceCountValue.setText(String.valueOf(paidCount));
+
+                    String selectedId = selectedInvoiceId.get();
+                    if (selectedId != null && selectSupplierInvoiceRow(invoiceTable, selectedId)) {
+                        return;
+                    }
+                    if (!invoiceSource.isEmpty()) {
+                        invoiceTable.getSelectionModel().selectFirst();
+                    } else {
+                        selectedInvoiceDetail.set(null);
+                        invoiceTable.getSelectionModel().clearSelection();
+                        paymentSource.clear();
+                        supportSource.clear();
+                        updateInvoiceDetailState(
+                                null,
+                                paymentSource,
+                                supportSource,
+                                selectedInvoiceValue,
+                                invoiceConceptValue,
+                                invoiceDueDateValue,
+                                invoiceBalanceValue,
+                                paymentSummaryValue,
+                                supportSummaryValue,
+                                invoiceProgressBar,
+                                invoiceProgressCaption
+                        );
+                    }
+                },
+                exception -> showError("Facturas", exception.getMessage())
+        );
+
+        invoiceTable.getSelectionModel().selectedItemProperty().addListener((obs, previous, invoice) -> {
+            selectedInvoiceId.set(invoice == null ? null : invoice.id());
+            if (invoice == null) {
+                selectedInvoiceDetail.set(null);
+                paymentSource.clear();
+                supportSource.clear();
+                updateInvoiceDetailState(
+                        null,
+                        paymentSource,
+                        supportSource,
+                        selectedInvoiceValue,
+                        invoiceConceptValue,
+                        invoiceDueDateValue,
+                        invoiceBalanceValue,
+                        paymentSummaryValue,
+                        supportSummaryValue,
+                        invoiceProgressBar,
+                        invoiceProgressCaption
+                );
+                return;
+            }
+
+            runAsync(
+                    () -> posApiClient.consultarFacturaProveedor(invoice.id()),
+                    detail -> {
+                        if (!invoice.id().equals(selectedInvoiceId.get())) {
+                            return;
+                        }
+                        selectedInvoiceDetail.set(detail);
+                        updateInvoiceDetailState(
+                                detail,
+                                paymentSource,
+                                supportSource,
+                                selectedInvoiceValue,
+                                invoiceConceptValue,
+                                invoiceDueDateValue,
+                                invoiceBalanceValue,
+                                paymentSummaryValue,
+                                supportSummaryValue,
+                                invoiceProgressBar,
+                                invoiceProgressCaption
+                        );
+                    },
+                    exception -> {
+                        if (invoice.id().equals(selectedInvoiceId.get())) {
+                            selectedInvoiceDetail.set(null);
+                            paymentSource.clear();
+                            supportSource.clear();
+                        }
+                        showError("Facturas", exception.getMessage());
+                    }
+            );
+        });
+
+        newInvoiceButton.setOnAction(event -> showInvoiceWindow(
+                stage,
+                provider,
+                () -> {
+                    refreshInvoices.run();
+                    if (afterMutation != null) {
+                        afterMutation.run();
+                    }
+                },
+                createdInvoiceId -> selectedInvoiceId.set(createdInvoiceId)
+        ));
+
+        registerPaymentButton.setOnAction(event -> showInvoicePaymentWindow(
+                stage,
+                provider,
+                invoiceTable.getSelectionModel().getSelectedItem(),
+                () -> {
+                    refreshInvoices.run();
+                    if (afterMutation != null) {
+                        afterMutation.run();
+                    }
+                }
+        ));
+
+        viewPaymentsButton.setOnAction(event -> {
+            PosApiClient.FacturaProveedorDetalleResponse detail = selectedInvoiceDetail.get();
+            if (detail == null) {
+                showError("Facturas", "Selecciona una factura y espera a que se cargue el detalle para ver sus abonos.");
+                return;
+            }
+            showInvoicePaymentsViewerWindow(stage, detail);
+        });
+
+        viewSupportsButton.setOnAction(event -> {
+            PosApiClient.FacturaProveedorDetalleResponse detail = selectedInvoiceDetail.get();
+            if (detail == null) {
+                showError("Facturas", "Selecciona una factura y espera a que se cargue el detalle para ver sus soportes.");
+                return;
+            }
+            showInvoiceSupportsViewerWindow(stage, detail);
+        });
+
+        refreshButton.setOnAction(event -> showInvoiceUpdateWindow(
+                stage,
+                provider,
+                invoiceTable.getSelectionModel().getSelectedItem(),
+                selectedInvoiceDetail.get(),
+                () -> {
+                    refreshInvoices.run();
+                    if (afterMutation != null) {
+                        afterMutation.run();
+                    }
+                }
+        ));
+
+        invoiceTable.setOnMouseClicked(event -> {
+            if (event.getClickCount() < 2) {
+                return;
+            }
+            PosApiClient.FacturaProveedorListadoResponse selectedInvoice = invoiceTable.getSelectionModel().getSelectedItem();
+            if (selectedInvoice == null) {
+                return;
+            }
+            showInvoicePaymentWindow(
+                    stage,
+                    provider,
+                    selectedInvoice,
+                    () -> {
+                        refreshInvoices.run();
+                        if (afterMutation != null) {
+                            afterMutation.run();
+                        }
+                    }
+            );
+        });
+
+        VBox root = createDialogRoot(
+                "Facturas de " + provider.nombre(),
+                ""
+        );
+        root.getStyleClass().addAll("invoice-workspace", "invoice-review-window");
+        root.setSpacing(8);
+        root.setPadding(new Insets(10));
+
+        VBox invoiceListCard = createCard(
+                "Facturas del proveedor",
+                ""
+        );
+        invoiceListCard.setMaxWidth(Double.MAX_VALUE);
+        VBox.setVgrow(invoiceTable, Priority.ALWAYS);
+        FlowPane providerSummaryFlow = new FlowPane();
+        providerSummaryFlow.setHgap(10);
+        providerSummaryFlow.setVgap(8);
+        providerSummaryFlow.getStyleClass().add("invoice-provider-flow");
+        providerSummaryFlow.getChildren().addAll(
+                createCompactInfoBlock("Proveedor", providerNameValue),
+                createCompactInfoBlock("NIT", providerNitValue),
+                createCompactInfoBlock("Telefono", providerPhoneValue),
+                createCompactInfoBlock("Correo", providerEmailValue),
+                createCompactInfoBlock("Saldo proveedor", debtValue),
+                createCompactInfoBlock("Facturas", invoiceCountValue),
+                createCompactInfoBlock("Pagadas", paidInvoiceCountValue)
+        );
+        invoiceListCard.getChildren().addAll(providerSummaryFlow, invoiceTable);
+
+        VBox paymentsCard = createCard(
+                "Resumen de factura",
+                ""
+        );
+        paymentsCard.getStyleClass().add("invoice-compact-card");
+        FlowPane selectedInvoiceFlow = new FlowPane();
+        selectedInvoiceFlow.setHgap(10);
+        selectedInvoiceFlow.setVgap(8);
+        selectedInvoiceFlow.getStyleClass().add("invoice-provider-flow");
+        selectedInvoiceFlow.getChildren().addAll(
+                createCompactInfoBlock("Factura", selectedInvoiceValue),
+                createCompactInfoBlock("Vencimiento", invoiceDueDateValue),
+                createCompactInfoBlock("Saldo", invoiceBalanceValue),
+                createCompactInfoBlock("Abonos", paymentSummaryValue)
+        );
+        paymentsCard.getChildren().addAll(
+                createKeyValue("Detalle", invoiceConceptValue),
+                createKeyValue("Soportes", supportSummaryValue),
+                selectedInvoiceFlow,
+                createProgressCard("Avance de pago", invoiceProgressBar, invoiceProgressCaption)
+        );
+
+        VBox supportsCard = createCard(
+                "Centro de consulta",
+                ""
+        );
+        supportsCard.getStyleClass().add("invoice-compact-card");
+        supportsCard.getChildren().addAll(
+                createFloatingActionPanel(
+                        "Abonos registrados",
+                        "",
+                        viewPaymentsButton
+                ),
+                createFloatingActionPanel(
+                        "Soportes documentales",
+                        "Explora facturas y comprobantes cargados en una ventana dedicada y más cómoda.",
+                        viewSupportsButton
+                )
+        );
+
+        FlowPane actionButtons = createResponsiveRow(newInvoiceButton, registerPaymentButton, refreshButton);
+        actionButtons.getStyleClass().add("invoice-action-row");
+        actionButtons.getChildren().forEach(node -> {
+            if (node instanceof Button button) {
+                button.setPrefWidth(170);
+            }
+        });
+
+        VBox actionsFooter = createCard(
+                "Acciones",
+                ""
+        );
+        actionsFooter.getStyleClass().addAll("invoice-compact-card", "invoice-actions-card");
+        actionsFooter.setMaxWidth(Double.MAX_VALUE);
+        actionsFooter.getChildren().add(actionButtons);
+
+        VBox leftColumn = new VBox(6, invoiceListCard, actionsFooter);
+        leftColumn.setMaxWidth(Double.MAX_VALUE);
+        leftColumn.setFillWidth(true);
+        bindRegionWidthToScene(leftColumn, 0.62, 640, 920);
+
+        VBox rightColumn = new VBox(6, paymentsCard, supportsCard);
+        rightColumn.setMaxWidth(Double.MAX_VALUE);
+        rightColumn.getStyleClass().add("invoice-side-rail");
+        bindRegionWidthToScene(rightColumn, 0.25, 280, 345);
+        rightColumn.setFillWidth(true);
+
+        FlowPane workspace = createResponsiveRow(leftColumn, rightColumn);
+        workspace.getStyleClass().add("invoice-responsive-workspace");
+        VBox.setVgrow(workspace, Priority.NEVER);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        workspace.prefWrapLengthProperty().bind(Bindings.createDoubleBinding(
+                () -> Math.max(820, scene.getWidth() - 48),
+                scene.widthProperty()
+        ));
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.95, 0.88, 1060, 700);
+        refreshInvoices.run();
+        stage.show();
+    }
+
+    private void updateInvoiceDetailState(
+            PosApiClient.FacturaProveedorDetalleResponse detail,
+            ObservableList<PosApiClient.PagoFacturaResponse> paymentSource,
+            ObservableList<InvoiceSupportRow> supportSource,
+            Label selectedInvoiceValue,
+            Label invoiceConceptValue,
+            Label invoiceDueDateValue,
+            Label invoiceBalanceValue,
+            Label paymentSummaryValue,
+            Label supportSummaryValue,
+            ProgressBar invoiceProgressBar,
+            Label invoiceProgressCaption
+    ) {
+        if (detail == null) {
+            selectedInvoiceValue.setText("Selecciona una factura");
+            invoiceConceptValue.setText("-");
+            invoiceDueDateValue.setText("-");
+            invoiceBalanceValue.setText("$ 0");
+            paymentSummaryValue.setText("0 abonos");
+            supportSummaryValue.setText("0 soportes");
+            invoiceProgressBar.setProgress(0);
+            invoiceProgressCaption.setText("Sin factura seleccionada");
+            return;
+        }
+
+        paymentSource.setAll(detail.abonos());
+        supportSource.setAll(buildSupportRows(detail));
+        selectedInvoiceValue.setText(detail.numeroFactura());
+        invoiceConceptValue.setText(safeText(detail.observacion(), "Sin observacion"));
+        invoiceDueDateValue.setText(formatShortDate(detail.fechaVencimiento()) + " | " + formatInvoiceStatus(detail.estado()));
+        invoiceBalanceValue.setText(formatCurrency(detail.saldoPendiente()));
+        paymentSummaryValue.setText(detail.abonos().size() + " abonos");
+        supportSummaryValue.setText(supportSource.size() + " soportes");
+        invoiceProgressBar.setProgress(calculateLayawayProgress(detail.montoTotal(), detail.montoPagado()));
+        invoiceProgressCaption.setText(
+                formatCurrency(detail.montoPagado()) + " abonados de " + formatCurrency(detail.montoTotal())
+                        + " | Restante " + formatCurrency(detail.saldoPendiente())
+        );
+    }
+
+    private VBox createFloatingActionPanel(String title, String description, Button actionButton) {
+        VBox panel = new VBox(12);
+        panel.getStyleClass().add("invoice-floating-panel");
+
+        Label heading = new Label(title);
+        heading.getStyleClass().add("invoice-floating-title");
+
+        actionButton.getStyleClass().add("invoice-floating-button");
+        actionButton.setMaxWidth(Double.MAX_VALUE);
+
+        panel.getChildren().add(heading);
+        if (description != null && !description.isBlank()) {
+            Label copy = new Label(description);
+            copy.getStyleClass().add("invoice-floating-copy");
+            copy.setWrapText(true);
+            panel.getChildren().add(copy);
+        }
+        panel.getChildren().add(actionButton);
+        return panel;
+    }
+
+    private void showInvoicePaymentsViewerWindow(Window owner, PosApiClient.FacturaProveedorDetalleResponse detail) {
+        Stage stage = createDialogStage("Abonos | " + detail.numeroFactura());
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        ObservableList<PosApiClient.PagoFacturaResponse> paymentSource = FXCollections.observableArrayList(detail.abonos());
+        TableView<PosApiClient.PagoFacturaResponse> paymentTable = createSupplierPaymentsTable();
+        paymentTable.setItems(paymentSource);
+        paymentTable.prefHeightProperty().unbind();
+        paymentTable.setMaxHeight(Double.MAX_VALUE);
+        bindTableHeightToScene(paymentTable, 0.42, 220, 420);
+
+        Label invoiceValue = createMetaValueLabel(detail.numeroFactura());
+        Label totalValue = createMetaValueLabel(formatCurrency(detail.montoTotal()));
+        Label paidValue = createMetaValueLabel(formatCurrency(detail.montoPagado()));
+        Label pendingValue = createMetaValueLabel(formatCurrency(detail.saldoPendiente()));
+        Label countValue = createMetaValueLabel(detail.abonos().size() + " movimientos");
+        ProgressBar progressBar = new ProgressBar(calculateLayawayProgress(detail.montoTotal(), detail.montoPagado()));
+        progressBar.getStyleClass().add("accent-progress");
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        Label progressCaption = new Label(
+                formatCurrency(detail.montoPagado()) + " abonados de " + formatCurrency(detail.montoTotal())
+                        + " | Restante " + formatCurrency(detail.saldoPendiente())
+        );
+        progressCaption.getStyleClass().add("progress-caption");
+
+        VBox root = createDialogRoot(
+                "Abonos registrados",
+                "Historial limpio de movimientos aplicados a la factura seleccionada."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+
+        VBox summaryCard = createCard(
+                "Resumen de cartera",
+                "Una lectura rápida del comportamiento de pago de esta factura."
+        );
+        FlowPane summaryFlow = new FlowPane();
+        summaryFlow.setHgap(10);
+        summaryFlow.setVgap(8);
+        summaryFlow.getStyleClass().add("invoice-provider-flow");
+        summaryFlow.getChildren().addAll(
+                createCompactInfoBlock("Factura", invoiceValue),
+                createCompactInfoBlock("Valor total", totalValue),
+                createCompactInfoBlock("Abonado", paidValue),
+                createCompactInfoBlock("Pendiente", pendingValue),
+                createCompactInfoBlock("Abonos", countValue)
+        );
+        summaryCard.getChildren().addAll(summaryFlow, createProgressCard("Avance de pago", progressBar, progressCaption));
+
+        VBox tableCard = createCard(
+                "Movimientos",
+                detail.abonos().isEmpty()
+                        ? "Esta factura aún no tiene abonos registrados."
+                        : "Detalle cronológico de cada abono aplicado."
+        );
+        VBox.setVgrow(paymentTable, Priority.ALWAYS);
+        tableCard.getChildren().add(paymentTable);
+
+        VBox.setVgrow(tableCard, Priority.ALWAYS);
+        root.getChildren().addAll(summaryCard, tableCard);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.76, 0.74, 880, 560);
+        stage.show();
+    }
+
+    private void showInvoiceSupportsViewerWindow(Window owner, PosApiClient.FacturaProveedorDetalleResponse detail) {
+        Stage stage = createDialogStage("Soportes | " + detail.numeroFactura());
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        List<InvoiceSupportRow> rows = buildSupportRows(detail);
+        ObservableList<InvoiceSupportRow> supportSource = FXCollections.observableArrayList(rows);
+        TableView<InvoiceSupportRow> supportTable = createSupplierSupportsTable();
+        supportTable.setItems(supportSource);
+        supportTable.prefHeightProperty().unbind();
+        supportTable.setMaxHeight(Double.MAX_VALUE);
+        bindTableHeightToScene(supportTable, 0.42, 220, 420);
+
+        long facturaSupports = detail.soportesFactura().size();
+        long paymentSupports = detail.abonos().stream().mapToLong(abono -> abono.soportes().size()).sum();
+
+        VBox root = createDialogRoot(
+                "Soportes documentales",
+                "Explora evidencias de factura y comprobantes de abono en una vista dedicada."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+
+        VBox summaryCard = createCard(
+                "Cobertura documental",
+                "Separación clara entre soportes de origen y comprobantes de pago."
+        );
+        FlowPane summaryFlow = new FlowPane();
+        summaryFlow.setHgap(10);
+        summaryFlow.setVgap(8);
+        summaryFlow.getStyleClass().add("invoice-provider-flow");
+        summaryFlow.getChildren().addAll(
+                createCompactInfoBlock("Factura", createMetaValueLabel(detail.numeroFactura())),
+                createCompactInfoBlock("Soportes factura", createMetaValueLabel(String.valueOf(facturaSupports))),
+                createCompactInfoBlock("Soportes abonos", createMetaValueLabel(String.valueOf(paymentSupports))),
+                createCompactInfoBlock("Total", createMetaValueLabel(String.valueOf(rows.size())))
+        );
+        summaryCard.getChildren().add(summaryFlow);
+
+        VBox tableCard = createCard(
+                "Archivos",
+                rows.isEmpty()
+                        ? "Esta factura aún no tiene soportes cargados."
+                        : "Listado de archivos asociados a la factura y a sus abonos."
+        );
+        VBox.setVgrow(supportTable, Priority.ALWAYS);
+        tableCard.getChildren().add(supportTable);
+
+        VBox.setVgrow(tableCard, Priority.ALWAYS);
+        root.getChildren().addAll(summaryCard, tableCard);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.76, 0.74, 880, 560);
+        stage.show();
+    }
+
+    private List<InvoiceSupportRow> buildSupportRows(PosApiClient.FacturaProveedorDetalleResponse detail) {
+        List<InvoiceSupportRow> rows = new ArrayList<>();
+        for (PosApiClient.DocumentoSoporteResponse soporte : detail.soportesFactura()) {
+            rows.add(new InvoiceSupportRow(
+                    formatDocumentType(soporte.tipoDocumento()),
+                    soporte.nombreArchivo(),
+                    "Factura",
+                    formatDateTime(soporte.cargadoEn()),
+                    soporte.rutaArchivo(),
+                    soporte.rutaRelativa()
+            ));
+        }
+        for (PosApiClient.PagoFacturaResponse pago : detail.abonos()) {
+            for (PosApiClient.DocumentoSoporteResponse soporte : pago.soportes()) {
+                rows.add(new InvoiceSupportRow(
+                        formatDocumentType(soporte.tipoDocumento()),
+                        soporte.nombreArchivo(),
+                        "Abono " + formatShortDate(pago.fechaPago()),
+                        formatDateTime(soporte.cargadoEn()),
+                        soporte.rutaArchivo(),
+                        soporte.rutaRelativa()
+                ));
+            }
+        }
+        rows.sort(Comparator.comparing(InvoiceSupportRow::cargadoEn).reversed());
+        return rows;
+    }
+
+    private void openSupportDocument(InvoiceSupportRow support) {
+        if (support == null) {
+            return;
+        }
+        if (!Desktop.isDesktopSupported()) {
+            showError("Soportes", "Este equipo no permite abrir archivos automaticamente desde la aplicacion.");
+            return;
+        }
+
+        Path filePath = resolveSupportPath(support);
+        if (filePath == null) {
+            showError(
+                    "Soportes",
+                    "No se encontro una ruta valida para el archivo " + safeText(support.archivo(), "seleccionado") + "."
+            );
+            return;
+        }
+        if (!Files.exists(filePath)) {
+            showError(
+                    "Soportes",
+                    "El archivo ya no existe en la ruta almacenada:\n" + filePath
+            );
+            return;
+        }
+
+        try {
+            Desktop.getDesktop().open(filePath.toFile());
+        } catch (IOException exception) {
+            showError(
+                    "Soportes",
+                    "No fue posible abrir el archivo seleccionado.\n" + exception.getMessage()
+            );
+        }
+    }
+
+    private Path resolveSupportPath(InvoiceSupportRow support) {
+        Path absolutePath = buildPath(support.rutaArchivo());
+        if (absolutePath != null && Files.exists(absolutePath)) {
+            return absolutePath;
+        }
+        Path relativePath = buildPath(support.rutaRelativa());
+        if (relativePath != null) {
+            return relativePath;
+        }
+        return absolutePath;
+    }
+
+    private Path buildPath(String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
+            return null;
+        }
+        try {
+            return Path.of(rawPath.trim());
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private boolean selectProviderRow(TableView<PosApiClient.ProveedorResponse> table, String providerId) {
+        if (providerId == null || providerId.isBlank()) {
+            return false;
+        }
+        for (PosApiClient.ProveedorResponse row : table.getItems()) {
+            if (providerId.equals(row.id())) {
+                table.getSelectionModel().select(row);
+                table.scrollTo(row);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean selectSupplierInvoiceRow(TableView<PosApiClient.FacturaProveedorListadoResponse> table, String invoiceId) {
+        if (invoiceId == null || invoiceId.isBlank()) {
+            return false;
+        }
+        for (PosApiClient.FacturaProveedorListadoResponse row : table.getItems()) {
+            if (invoiceId.equals(row.id())) {
+                table.getSelectionModel().select(row);
+                table.scrollTo(row);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void showProviderWindow(Window owner, Runnable afterSave, Consumer<String> onCreated) {
+        Stage stage = createDialogStage("Nuevo proveedor");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Nuevo proveedor",
+                "Crea el proveedor en la base real para poder asociarle facturas de inmediato."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+
+        TextField nitField = createField("");
+        nitField.setPromptText("NIT o identificacion");
+        TextField nameField = createField("");
+        nameField.setPromptText("Nombre del proveedor");
+        TextField phoneField = createField("");
+        phoneField.setPromptText("Telefono");
+        TextField emailField = createField("");
+        emailField.setPromptText("Correo");
+        TextField addressField = createField("");
+        addressField.setPromptText("Direccion");
+        TextArea notesArea = createArea("", 2);
+        notesArea.setPromptText("Observacion interna");
+
+        Label providerPreviewValue = createMetaValueLabel("Nuevo proveedor");
+        providerPreviewValue.textProperty().bind(Bindings.createStringBinding(
+                () -> safeText(nameField.getText(), "Nuevo proveedor"),
+                nameField.textProperty()
+        ));
+        Label nitPreviewValue = createMetaValueLabel("-");
+        nitPreviewValue.textProperty().bind(Bindings.createStringBinding(
+                () -> safeText(nitField.getText(), "-"),
+                nitField.textProperty()
+        ));
+
+        Button save = createActionButton("Guardar proveedor", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            save.setDisable(true);
+            runAsync(
+                    () -> posApiClient.registrarProveedor(new PosApiClient.RegistrarProveedorRequest(
+                            nitField.getText(),
+                            nameField.getText(),
+                            phoneField.getText(),
+                            emailField.getText(),
+                            addressField.getText(),
+                            notesArea.getText()
+                    )),
+                    createdProvider -> {
+                        stage.close();
+                        if (afterSave != null) {
+                            afterSave.run();
+                        }
+                        if (onCreated != null) {
+                            onCreated.accept(createdProvider.id());
+                        }
+                        showInfo(
+                                "Proveedor registrado",
+                                "Se creó el proveedor " + createdProvider.nombre() + " y ya quedó disponible para asociarle facturas."
+                        );
+                    },
+                    exception -> {
+                        save.setDisable(false);
+                        showError("Nuevo proveedor", exception.getMessage());
+                    }
+            );
+        });
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("NIT", nitField, 220),
+                createFieldGroup("Proveedor", nameField, 280),
+                createFieldGroup("Telefono", phoneField, 220),
+                createFieldGroup("Correo", emailField, 240),
+                createFieldGroup("Direccion", addressField, 280)
+        );
+        VBox formCard = createCard(
+                "Datos del proveedor",
+                "Completa la informacion base para registrar el proveedor en la API."
+        );
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+        formCard.getChildren().addAll(fields, createFieldGroup("Observacion", notesArea, 520));
+
+        VBox summaryCard = createCard(
+                "Resumen",
+                "Validas el registro antes de enviarlo."
+        );
+        bindRegionWidthToScene(summaryCard, 0.28, 260, 320);
+        summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
+        summaryCard.getChildren().addAll(
+                createKeyValue("Proveedor", providerPreviewValue),
+                createKeyValue("NIT", nitPreviewValue),
+                createProgressCard("Registro real", 0.62, "Al guardar, el proveedor queda visible en la bandeja principal."),
+                save
+        );
+
+        HBox workspace = createAdaptivePanelRow(formCard, summaryCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.82, 0.74, 900, 560);
+        stage.show();
+    }
+
+    private void showInvoiceWindow(
+            Window owner,
+            PosApiClient.ProveedorResponse provider,
+            Runnable afterSave,
+            Consumer<String> onCreated
+    ) {
+        if (provider == null) {
+            showError("Facturas", "Selecciona un proveedor para crear una factura.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Nueva factura");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Nueva factura",
+                "Registra la factura real del proveedor y adjunta sus soportes desde el computador."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+
+        TextField providerField = createField(provider.nombre());
+        providerField.setDisable(true);
+        TextField numberField = createField("");
+        numberField.setPromptText("Numero de factura");
+        TextField amountField = createField("0");
+        amountField.setPromptText("Valor total de la factura");
+        TextField initialPaymentField = createField("0");
+        initialPaymentField.setPromptText("Abono inicial");
+        configureSelectAllOnFocus(amountField);
+        configureSelectAllOnFocus(initialPaymentField);
+        TextField remainingField = createField("$ 0");
+        remainingField.setDisable(true);
+        DatePicker issueDatePicker = new DatePicker(LocalDate.now());
+        DatePicker dueDatePicker = new DatePicker(LocalDate.now().plusDays(15));
+        TextArea descriptionArea = createArea("", 2);
+        descriptionArea.setPromptText("Concepto, detalle u observacion comercial");
+        AtomicReference<List<File>> selectedFiles = new AtomicReference<>(List.of());
+        Label filesValue = createMetaValueLabel("Sin soportes adjuntos");
+        Label filesSummaryValue = createMetaValueLabel(filesValue.getText());
+        filesSummaryValue.textProperty().bind(filesValue.textProperty());
+        Button chooseFilesButton = createActionButton("Adjuntar soportes", "ghost-button");
+        chooseFilesButton.setOnAction(event -> {
+            List<File> files = chooseSupportFiles(stage, "Selecciona soportes de la factura");
+            if (!files.isEmpty()) {
+                selectedFiles.set(files);
+                filesValue.setText(formatSelectedFiles(files));
+            }
+        });
+
+        Runnable updateRemaining = () -> {
+            BigDecimal total = parseCurrencyOrZero(amountField.getText());
+            BigDecimal initialPayment = parseCurrencyOrZero(initialPaymentField.getText());
+            remainingField.setText(formatCurrency(total.subtract(initialPayment).max(BigDecimal.ZERO)));
+        };
+        amountField.textProperty().addListener((obs, oldValue, newValue) -> updateRemaining.run());
+        initialPaymentField.textProperty().addListener((obs, oldValue, newValue) -> updateRemaining.run());
+        updateRemaining.run();
+
+        Button save = createActionButton("Guardar factura", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            try {
+                BigDecimal total = parseRequiredPositive(amountField.getText(), "El valor de la factura debe ser mayor a cero.");
+                BigDecimal initialPayment = parseCurrencyOrZero(initialPaymentField.getText());
+                if (initialPayment.signum() < 0) {
+                    throw new IllegalArgumentException("El abono inicial no puede ser negativo.");
+                }
+                if (initialPayment.compareTo(total) > 0) {
+                    throw new IllegalArgumentException("El abono inicial no puede superar el valor total de la factura.");
+                }
+                save.setDisable(true);
+                runAsync(
+                        () -> posApiClient.registrarFacturaProveedor(
+                                new PosApiClient.RegistrarFacturaProveedorRequest(
+                                        provider.id(),
+                                        numberField.getText(),
+                                        issueDatePicker.getValue(),
+                                        dueDatePicker.getValue(),
+                                        total,
+                                        total.subtract(initialPayment).max(BigDecimal.ZERO),
+                                        descriptionArea.getText()
+                                ),
+                                selectedFiles.get().stream().map(File::toPath).toList()
+                        ),
+                        createdInvoice -> {
+                            stage.close();
+                            if (afterSave != null) {
+                                afterSave.run();
+                            }
+                            if (onCreated != null) {
+                                onCreated.accept(createdInvoice.id());
+                            }
+                            showInfo(
+                                    "Factura registrada",
+                                    "Se creó la factura " + createdInvoice.numeroFactura() + " para " + provider.nombre()
+                                            + " con saldo inicial de " + formatCurrency(createdInvoice.saldoPendiente()) + "."
+                            );
+                        },
+                        exception -> {
+                            save.setDisable(false);
+                            showError("Nueva factura", exception.getMessage());
+                        }
+                );
+            } catch (IllegalArgumentException exception) {
+                showError("Nueva factura", exception.getMessage());
+            }
+        });
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Proveedor", providerField, 280),
+                createFieldGroup("Factura", numberField, 220),
+                createFieldGroup("Fecha emision", issueDatePicker, 220),
+                createFieldGroup("Vencimiento", dueDatePicker, 220),
+                createFieldGroup("Valor total", amountField, 220),
+                createFieldGroup("Abono inicial", initialPaymentField, 220)
+        );
+        VBox formCard = createCard(
+                "Datos de la factura",
+                "Captura el valor total, cualquier abono inicial y los soportes asociados."
+        );
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+        formCard.getChildren().addAll(
+                fields,
+                createFieldGroup("Observacion", descriptionArea, 520),
+                createFieldGroup("Soportes", new VBox(8, chooseFilesButton, filesValue), 520)
+        );
+
+        VBox summaryCard = createCard(
+                "Impacto financiero",
+                "La pantalla proyecta el saldo restante antes de enviar la factura."
+        );
+        bindRegionWidthToScene(summaryCard, 0.28, 270, 330);
+        summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
+        Label remainingValue = createMetaValueLabel(remainingField.getText());
+        remainingValue.textProperty().bind(remainingField.textProperty());
+        summaryCard.getChildren().addAll(
+                createKeyValue("Proveedor", createMetaValueLabel(provider.nombre())),
+                createKeyValue("NIT", createMetaValueLabel(safeText(provider.nit(), "-"))),
+                createKeyValue("Soportes", filesSummaryValue),
+                createKeyValue("Saldo inicial", remainingValue),
+                createProgressCard("Registro real", 0.74, "La API guardará la factura, sus soportes y el saldo pendiente."),
+                save
+        );
+
+        HBox workspace = createAdaptivePanelRow(formCard, summaryCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.88, 0.78, 1020, 600);
+        stage.show();
+    }
+
+    private void showInvoiceUpdateWindow(
+            Window owner,
+            PosApiClient.ProveedorResponse provider,
+            PosApiClient.FacturaProveedorListadoResponse invoice,
+            PosApiClient.FacturaProveedorDetalleResponse invoiceDetail,
+            Runnable afterSave
+    ) {
+        if (provider == null || invoice == null) {
+            showError("Facturas", "Selecciona una factura para actualizar sus datos.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Actualizar factura");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Actualizar factura",
+                "Edita el valor o los detalles principales de la factura seleccionada."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+
+        TextField providerField = createField(provider.nombre());
+        providerField.setDisable(true);
+        TextField numberField = createField(safeText(invoice.numeroFactura(), ""));
+        numberField.setPromptText("Numero de factura");
+        TextField amountField = createField(formatPlainNumber(invoice.montoTotal()));
+        amountField.setPromptText("Valor total de la factura");
+        configureSelectAllOnFocus(amountField);
+        TextField paidField = createField(formatCurrency(invoice.montoPagado()));
+        paidField.setDisable(true);
+        TextField projectedBalanceField = createField(formatCurrency(invoice.saldoPendiente()));
+        projectedBalanceField.setDisable(true);
+        DatePicker issueDatePicker = new DatePicker(invoice.fechaEmision());
+        DatePicker dueDatePicker = new DatePicker(invoice.fechaVencimiento());
+        TextArea descriptionArea = createArea(
+                safeText(invoiceDetail == null ? invoice.observacion() : invoiceDetail.observacion(), ""),
+                2
+        );
+        descriptionArea.setPromptText("Concepto, detalle u observacion comercial");
+
+        Runnable updateProjectedBalance = () -> {
+            BigDecimal total = parseCurrencyOrZero(amountField.getText());
+            BigDecimal paid = invoice.montoPagado() == null ? BigDecimal.ZERO : invoice.montoPagado();
+            projectedBalanceField.setText(formatCurrency(total.subtract(paid).max(BigDecimal.ZERO)));
+        };
+        amountField.textProperty().addListener((obs, oldValue, newValue) -> updateProjectedBalance.run());
+        updateProjectedBalance.run();
+
+        Button save = createActionButton("Guardar cambios", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            try {
+                BigDecimal total = parseRequiredPositive(amountField.getText(), "El valor total debe ser mayor a cero.");
+                BigDecimal paid = invoice.montoPagado() == null ? BigDecimal.ZERO : invoice.montoPagado();
+                if (total.compareTo(paid) < 0) {
+                    throw new IllegalArgumentException(
+                            "El valor total no puede ser menor a lo ya abonado en la factura."
+                    );
+                }
+                save.setDisable(true);
+                runAsync(
+                        () -> posApiClient.actualizarFacturaProveedor(
+                                invoice.id(),
+                                new PosApiClient.ActualizarFacturaProveedorRequest(
+                                        numberField.getText(),
+                                        issueDatePicker.getValue(),
+                                        dueDatePicker.getValue(),
+                                        total,
+                                        descriptionArea.getText()
+                                )
+                        ),
+                        updatedInvoice -> {
+                            stage.close();
+                            if (afterSave != null) {
+                                afterSave.run();
+                            }
+                            showInfo(
+                                    "Factura actualizada",
+                                    "Se actualizo la factura " + updatedInvoice.numeroFactura()
+                                            + " y el nuevo saldo pendiente es "
+                                            + formatCurrency(updatedInvoice.saldoPendiente()) + "."
+                            );
+                        },
+                        exception -> {
+                            save.setDisable(false);
+                            showError("Actualizar factura", exception.getMessage());
+                        }
+                );
+            } catch (IllegalArgumentException exception) {
+                showError("Actualizar factura", exception.getMessage());
+            }
+        });
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Proveedor", providerField, 260),
+                createFieldGroup("Factura", numberField, 220),
+                createFieldGroup("Fecha emision", issueDatePicker, 220),
+                createFieldGroup("Vencimiento", dueDatePicker, 220),
+                createFieldGroup("Valor total", amountField, 220),
+                createFieldGroup("Abonado", paidField, 220),
+                createFieldGroup("Saldo proyectado", projectedBalanceField, 220)
+        );
+        VBox formCard = createCard(
+                "Edicion de factura",
+                "Ajusta los valores base sin perder el historico de abonos registrados."
+        );
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+        formCard.getChildren().addAll(
+                fields,
+                createFieldGroup("Observacion", descriptionArea, 520)
+        );
+
+        VBox summaryCard = createCard(
+                "Impacto del ajuste",
+                "La API recalcula el saldo pendiente con base en lo ya abonado."
+        );
+        bindRegionWidthToScene(summaryCard, 0.28, 270, 330);
+        summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
+        Label projectedBalanceLabel = createMetaValueLabel(projectedBalanceField.getText());
+        projectedBalanceLabel.textProperty().bind(projectedBalanceField.textProperty());
+        summaryCard.getChildren().addAll(
+                createKeyValue("Factura", createMetaValueLabel(safeText(invoice.numeroFactura(), "-"))),
+                createKeyValue("Proveedor", createMetaValueLabel(provider.nombre())),
+                createKeyValue("Abonado", createMetaValueLabel(formatCurrency(invoice.montoPagado()))),
+                createKeyValue("Saldo nuevo", projectedBalanceLabel),
+                createProgressCard("Actualizacion real", 0.78, "La factura mantiene sus abonos y recalcula el saldo restante."),
+                save
+        );
+
+        HBox workspace = createAdaptivePanelRow(formCard, summaryCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.88, 0.78, 1020, 600);
+        stage.show();
+    }
+
+    private void showInvoicePaymentWindow(
+            Window owner,
+            PosApiClient.ProveedorResponse provider,
+            PosApiClient.FacturaProveedorListadoResponse invoice,
+            Runnable afterSave
+    ) {
+        if (provider == null || invoice == null) {
+            showError("Facturas", "Selecciona una factura para registrar un abono.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Registrar abono");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Registrar abono",
+                "Registra el pago parcial o total y adjunta su comprobante real."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+
+        TextField providerField = createField(provider.nombre());
+        providerField.setDisable(true);
+        TextField invoiceField = createField(invoice.numeroFactura());
+        invoiceField.setDisable(true);
+        TextField currentBalanceField = createField(formatCurrency(invoice.saldoPendiente()));
+        currentBalanceField.setDisable(true);
+        TextField amountField = createField("0");
+        amountField.setPromptText("Valor del abono");
+        configureSelectAllOnFocus(amountField);
+        TextField projectedBalanceField = createField(formatCurrency(invoice.saldoPendiente()));
+        projectedBalanceField.setDisable(true);
+        DatePicker paymentDatePicker = new DatePicker(LocalDate.now());
+        ComboBox<String> paymentMethod = new ComboBox<>(FXCollections.observableArrayList(
+                "TRANSFERENCIA", "EFECTIVO", "CONSIGNACION", "TARJETA", "OTRO"
+        ));
+        paymentMethod.getSelectionModel().select("TRANSFERENCIA");
+        TextField referenceField = createField("");
+        referenceField.setPromptText("Referencia opcional");
+        TextArea notesArea = createArea("", 2);
+        notesArea.setPromptText("Observacion del abono");
+        AtomicReference<List<File>> selectedFiles = new AtomicReference<>(List.of());
+        Label supportFilesValue = createMetaValueLabel("Sin comprobantes adjuntos");
+        Label supportFilesSummaryValue = createMetaValueLabel(supportFilesValue.getText());
+        supportFilesSummaryValue.textProperty().bind(supportFilesValue.textProperty());
+        Button chooseFilesButton = createActionButton("Adjuntar comprobantes", "ghost-button");
+        chooseFilesButton.setOnAction(event -> {
+            List<File> files = chooseSupportFiles(stage, "Selecciona comprobantes del abono");
+            if (!files.isEmpty()) {
+                selectedFiles.set(files);
+                supportFilesValue.setText(formatSelectedFiles(files));
+            }
+        });
+
+        Runnable updateProjectedBalance = () -> {
+            BigDecimal currentBalance = invoice.saldoPendiente() == null ? BigDecimal.ZERO : invoice.saldoPendiente();
+            BigDecimal payment = parseCurrencyOrZero(amountField.getText());
+            projectedBalanceField.setText(formatCurrency(currentBalance.subtract(payment).max(BigDecimal.ZERO)));
+        };
+        amountField.textProperty().addListener((obs, oldValue, newValue) -> updateProjectedBalance.run());
+        updateProjectedBalance.run();
+
+        Button save = createActionButton("Guardar abono", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            try {
+                BigDecimal payment = parseRequiredPositive(amountField.getText(), "El valor del abono debe ser mayor a cero.");
+                BigDecimal currentBalance = invoice.saldoPendiente() == null ? BigDecimal.ZERO : invoice.saldoPendiente();
+                if (payment.compareTo(currentBalance) > 0) {
+                    throw new IllegalArgumentException("El abono no puede superar el saldo pendiente de la factura.");
+                }
+                save.setDisable(true);
+                runAsync(
+                        () -> posApiClient.registrarAbonoFactura(
+                                invoice.id(),
+                                new PosApiClient.RegistrarPagoFacturaRequest(
+                                        paymentDatePicker.getValue(),
+                                        payment,
+                                        paymentMethod.getValue(),
+                                        referenceField.getText(),
+                                        notesArea.getText()
+                                ),
+                                selectedFiles.get().stream().map(File::toPath).toList()
+                        ),
+                        updatedInvoice -> {
+                            stage.close();
+                            if (afterSave != null) {
+                                afterSave.run();
+                            }
+                            showInfo(
+                                    "Abono registrado",
+                                    "Se registró un abono de " + formatCurrency(payment) + " para la factura "
+                                            + updatedInvoice.numeroFactura() + ". Restante: "
+                                            + formatCurrency(updatedInvoice.saldoPendiente()) + "."
+                            );
+                        },
+                        exception -> {
+                            save.setDisable(false);
+                            showError("Registrar abono", exception.getMessage());
+                        }
+                );
+            } catch (IllegalArgumentException exception) {
+                showError("Registrar abono", exception.getMessage());
+            }
+        });
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Proveedor", providerField, 260),
+                createFieldGroup("Factura", invoiceField, 220),
+                createFieldGroup("Saldo actual", currentBalanceField, 220),
+                createFieldGroup("Fecha pago", paymentDatePicker, 220),
+                createFieldGroup("Valor abono", amountField, 220),
+                createFieldGroup("Restante proyectado", projectedBalanceField, 220),
+                createFieldGroup("Medio", paymentMethod, 220),
+                createFieldGroup("Referencia", referenceField, 220)
+        );
+        VBox formCard = createCard(
+                "Registro de abono",
+                "El saldo se recalcula contra la factura padre en tiempo real."
+        );
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+        formCard.getChildren().addAll(
+                fields,
+                createFieldGroup("Observacion", notesArea, 520),
+                createFieldGroup("Comprobantes", new VBox(8, chooseFilesButton, supportFilesValue), 520)
+        );
+
+        VBox summaryCard = createCard(
+                "Disminución proyectada",
+                "Revisa cuánto bajará la deuda antes de enviar el abono."
+        );
+        bindRegionWidthToScene(summaryCard, 0.28, 270, 330);
+        summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
+        Label projectedBalanceLabel = createMetaValueLabel(projectedBalanceField.getText());
+        projectedBalanceLabel.textProperty().bind(projectedBalanceField.textProperty());
+        Label paymentMethodValue = createMetaValueLabel(formatPaymentMethod(paymentMethod.getValue()));
+        paymentMethodValue.textProperty().bind(Bindings.createStringBinding(
+                () -> formatPaymentMethod(paymentMethod.getValue()),
+                paymentMethod.valueProperty()
+        ));
+        summaryCard.getChildren().addAll(
+                createKeyValue("Factura", createMetaValueLabel(invoice.numeroFactura())),
+                createKeyValue("Saldo actual", createMetaValueLabel(formatCurrency(invoice.saldoPendiente()))),
+                createKeyValue("Medio", paymentMethodValue),
+                createKeyValue("Comprobantes", supportFilesSummaryValue),
+                createKeyValue("Restante", projectedBalanceLabel),
+                createProgressCard("Actualización real", 0.8, "La API recalcula el saldo de la factura y conserva los soportes del abono."),
+                save
+        );
+
+        HBox workspace = createAdaptivePanelRow(formCard, summaryCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.9, 0.8, 1040, 620);
+        stage.show();
+    }
+
+    private List<File> chooseSupportFiles(Window owner, String title) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Soportes", "*.jpg", "*.jpeg", "*.png", "*.webp", "*.pdf"),
+                new FileChooser.ExtensionFilter("Imagenes", "*.jpg", "*.jpeg", "*.png", "*.webp"),
+                new FileChooser.ExtensionFilter("PDF", "*.pdf")
+        );
+        List<File> files = chooser.showOpenMultipleDialog(owner);
+        return files == null ? List.of() : files;
+    }
+
+    private String formatSelectedFiles(List<File> files) {
+        if (files == null || files.isEmpty()) {
+            return "Sin archivos adjuntos";
+        }
+        if (files.size() == 1) {
+            return files.get(0).getName();
+        }
+        return files.size() + " archivos seleccionados";
+    }
+
+    private String formatInvoiceStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "-";
+        }
+        return switch (status.toUpperCase(Locale.ROOT)) {
+            case "REGISTRADA" -> "Registrada";
+            case "PARCIALMENTE_PAGADA" -> "Parcial";
+            case "PAGADA" -> "Pagada";
+            case "VENCIDA" -> "Vencida";
+            case "CANCELADA" -> "Cancelada";
+            default -> status;
+        };
+    }
+
+    private String formatPaymentMethod(String method) {
+        if (method == null || method.isBlank()) {
+            return "-";
+        }
+        return switch (method.toUpperCase(Locale.ROOT)) {
+            case "TRANSFERENCIA" -> "Transferencia";
+            case "EFECTIVO" -> "Efectivo";
+            case "CONSIGNACION" -> "Consignacion";
+            case "TARJETA" -> "Tarjeta";
+            case "OTRO" -> "Otro";
+            default -> method;
+        };
+    }
+
+    private String formatDocumentType(String type) {
+        if (type == null || type.isBlank()) {
+            return "Soporte";
+        }
+        return switch (type.toUpperCase(Locale.ROOT)) {
+            case "IMAGEN_FACTURA" -> "Factura";
+            case "COMPROBANTE_PAGO" -> "Comprobante";
+            default -> type;
+        };
+    }
+
     private TableView<MockData.ProviderMockRow> createSupplierProvidersMockTable() {
         TableView<MockData.ProviderMockRow> table = new TableView<>();
         table.getStyleClass().add("data-table");
@@ -2540,6 +3987,10 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void showMockProviderInvoicesWindow(Window owner, MockData.ProviderMockRow provider) {
+        showMockProviderInvoicesWindow(owner, provider, null);
+    }
+
+    private void showMockProviderInvoicesWindow(Window owner, MockData.ProviderMockRow provider, Runnable afterMutation) {
         if (provider == null) {
             showError("Facturas", "Selecciona un proveedor para visualizar sus facturas.");
             return;
@@ -2563,24 +4014,20 @@ public class PosDesktopFxApplication extends Application {
         paymentTable.setItems(paymentSource);
         paymentTable.prefHeightProperty().unbind();
         paymentTable.setMaxHeight(Double.MAX_VALUE);
+        AtomicReference<String> selectedInvoiceId = new AtomicReference<>();
 
         Label debtValue = createMetricValueLabel("$ 0");
         Label invoiceCountValue = createMetricValueLabel(String.valueOf(invoiceSource.size()));
-        int supportCount = invoiceSource.stream()
-                .mapToInt(invoice -> MockData.supportsByInvoice(invoice.id()).size())
-                .sum();
-        Label supportCountValue = createMetricValueLabel(String.valueOf(supportCount));
-
-        BigDecimal totalDebt = invoiceSource.stream()
-                .map(invoice -> parseCurrencyOrZero(invoice.saldo()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        debtValue.setText(formatCurrency(totalDebt));
+        Label supportCountValue = createMetricValueLabel("0");
 
         Label selectedInvoiceValue = createMetaValueLabel("Selecciona una factura");
         Label invoiceConceptValue = createMetaValueLabel("-");
         Label invoiceDueDateValue = createMetaValueLabel("-");
         Label invoiceBalanceValue = createMetaValueLabel("$ 0");
         Label paymentSummaryValue = createMetaValueLabel("0 abonos");
+        Label providerNameValue = createMetaValueLabel(provider.nombre());
+        Label providerCategoryValue = createMetaValueLabel(provider.categoria());
+        Label providerContactValue = createMetaValueLabel(provider.contacto());
         ProgressBar invoiceProgressBar = new ProgressBar(0);
         invoiceProgressBar.setMaxWidth(Double.MAX_VALUE);
         invoiceProgressBar.getStyleClass().add("accent-progress");
@@ -2589,49 +4036,20 @@ public class PosDesktopFxApplication extends Application {
 
         Button newInvoiceButton = createActionButton("Nueva factura", "primary-button");
         newInvoiceButton.setPrefWidth(170);
-        newInvoiceButton.setOnAction(event -> showMockInvoiceWindow(stage, provider));
 
         Button registerPaymentButton = createActionButton("Registrar abono", "ghost-button");
         registerPaymentButton.setPrefWidth(170);
         registerPaymentButton.disableProperty().bind(
                 Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty())
         );
-        registerPaymentButton.setOnAction(event -> showMockInvoicePaymentWindow(
-                stage,
-                provider,
-                invoiceTable.getSelectionModel().getSelectedItem()
-        ));
 
         Button refreshButton = createActionButton("Actualizar mock", "ghost-button");
         refreshButton.setPrefWidth(170);
-        refreshButton.setOnAction(event -> {
-            invoiceSource.setAll(MockData.invoicesByProvider(provider.id()));
-            MockData.SupplierInvoiceMockRow selectedInvoice = invoiceTable.getSelectionModel().getSelectedItem();
-            if (selectedInvoice != null) {
-                for (MockData.SupplierInvoiceMockRow row : invoiceSource) {
-                    if (row.id().equals(selectedInvoice.id())) {
-                        invoiceTable.getSelectionModel().select(row);
-                        return;
-                    }
-                }
-            }
-            if (!invoiceSource.isEmpty()) {
-                invoiceTable.getSelectionModel().selectFirst();
-            } else {
-                paymentSource.clear();
-                selectedInvoiceValue.setText("Selecciona una factura");
-                invoiceConceptValue.setText("-");
-                invoiceDueDateValue.setText("-");
-                invoiceBalanceValue.setText("$ 0");
-                paymentSummaryValue.setText("0 abonos");
-                invoiceProgressBar.setProgress(0);
-                invoiceProgressCaption.setText("Sin factura seleccionada");
-            }
-        });
 
         invoiceTable.getSelectionModel().selectedItemProperty().addListener((obs, previous, invoice) -> {
             paymentSource.setAll(invoice == null ? List.of() : MockData.paymentsByInvoice(invoice.id()));
             if (invoice == null) {
+                selectedInvoiceId.set(null);
                 selectedInvoiceValue.setText("Selecciona una factura");
                 invoiceConceptValue.setText("-");
                 invoiceDueDateValue.setText("-");
@@ -2642,6 +4060,7 @@ public class PosDesktopFxApplication extends Application {
                 return;
             }
 
+            selectedInvoiceId.set(invoice.id());
             List<MockData.SupplierPaymentMockRow> payments = MockData.paymentsByInvoice(invoice.id());
             BigDecimal total = parseCurrencyOrZero(invoice.valorTotal());
             BigDecimal paid = parseCurrencyOrZero(invoice.abonado());
@@ -2654,9 +4073,92 @@ public class PosDesktopFxApplication extends Application {
             invoiceProgressCaption.setText(invoice.abonado() + " abonados de " + invoice.valorTotal());
         });
 
-        if (!invoiceSource.isEmpty()) {
-            invoiceTable.getSelectionModel().selectFirst();
-        }
+        Runnable refreshInvoices = () -> {
+            MockData.ProviderMockRow refreshedProvider = MockData.findProvider(provider.id()).orElse(provider);
+            providerNameValue.setText(refreshedProvider.nombre());
+            providerCategoryValue.setText(refreshedProvider.categoria());
+            providerContactValue.setText(refreshedProvider.contacto());
+            invoiceSource.setAll(MockData.invoicesByProvider(refreshedProvider.id()));
+            BigDecimal totalDebt = invoiceSource.stream()
+                    .map(invoice -> parseCurrencyOrZero(invoice.saldo()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            int supportCount = invoiceSource.stream()
+                    .mapToInt(invoice -> MockData.supportsByInvoice(invoice.id()).size())
+                    .sum();
+            debtValue.setText(formatCurrency(totalDebt));
+            invoiceCountValue.setText(String.valueOf(invoiceSource.size()));
+            supportCountValue.setText(String.valueOf(supportCount));
+
+            String selectedId = selectedInvoiceId.get();
+            if (selectedId != null) {
+                for (MockData.SupplierInvoiceMockRow row : invoiceSource) {
+                    if (selectedId.equals(row.id())) {
+                        invoiceTable.getSelectionModel().select(row);
+                        invoiceTable.scrollTo(row);
+                        return;
+                    }
+                }
+            }
+            if (!invoiceSource.isEmpty()) {
+                invoiceTable.getSelectionModel().selectFirst();
+            } else {
+                invoiceTable.getSelectionModel().clearSelection();
+                paymentSource.clear();
+            }
+        };
+
+        newInvoiceButton.setOnAction(event -> showMockInvoiceWindow(
+                stage,
+                MockData.findProvider(provider.id()).orElse(provider),
+                null,
+                createdInvoiceId -> {
+                    selectedInvoiceId.set(createdInvoiceId);
+                    refreshInvoices.run();
+                    if (afterMutation != null) {
+                        afterMutation.run();
+                    }
+                }
+        ));
+
+        registerPaymentButton.setOnAction(event -> showMockInvoicePaymentWindow(
+                stage,
+                MockData.findProvider(provider.id()).orElse(provider),
+                invoiceTable.getSelectionModel().getSelectedItem(),
+                () -> {
+                    refreshInvoices.run();
+                    if (afterMutation != null) {
+                        afterMutation.run();
+                    }
+                }
+        ));
+
+        refreshButton.setOnAction(event -> {
+            refreshInvoices.run();
+            if (afterMutation != null) {
+                afterMutation.run();
+            }
+        });
+
+        invoiceTable.setOnMouseClicked(event -> {
+            if (event.getClickCount() < 2) {
+                return;
+            }
+            MockData.SupplierInvoiceMockRow selectedInvoice = invoiceTable.getSelectionModel().getSelectedItem();
+            if (selectedInvoice == null) {
+                return;
+            }
+            showMockInvoicePaymentWindow(
+                    stage,
+                    MockData.findProvider(provider.id()).orElse(provider),
+                    selectedInvoice,
+                    () -> {
+                        refreshInvoices.run();
+                        if (afterMutation != null) {
+                            afterMutation.run();
+                        }
+                    }
+            );
+        });
 
         VBox root = createDialogRoot(
                 "Facturas de " + provider.nombre(),
@@ -2677,9 +4179,9 @@ public class PosDesktopFxApplication extends Application {
         providerSummaryFlow.setVgap(8);
         providerSummaryFlow.getStyleClass().add("invoice-provider-flow");
         providerSummaryFlow.getChildren().addAll(
-                createCompactInfoBlock("Proveedor", createMetaValueLabel(provider.nombre())),
-                createCompactInfoBlock("Categoria", createMetaValueLabel(provider.categoria())),
-                createCompactInfoBlock("Contacto", createMetaValueLabel(provider.contacto())),
+                createCompactInfoBlock("Proveedor", providerNameValue),
+                createCompactInfoBlock("Categoria", providerCategoryValue),
+                createCompactInfoBlock("Contacto", providerContactValue),
                 createCompactInfoBlock("Saldo proveedor", debtValue),
                 createCompactInfoBlock("Facturas visibles", invoiceCountValue),
                 createCompactInfoBlock("Soportes cargados", supportCountValue)
@@ -2735,6 +4237,7 @@ public class PosDesktopFxApplication extends Application {
         scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
         stage.setScene(scene);
         applyResponsiveStageSize(stage, 0.95, 0.9, 1220, 760);
+        refreshInvoices.run();
         stage.show();
     }
 
@@ -2945,6 +4448,10 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void showMockProviderWindow(Window owner) {
+        showMockProviderWindow(owner, null, null);
+    }
+
+    private void showMockProviderWindow(Window owner, Runnable afterSave, Consumer<String> onCreated) {
         Stage stage = createDialogStage("Nuevo proveedor");
         if (owner != null) {
             stage.initOwner(owner);
@@ -2967,14 +4474,40 @@ public class PosDesktopFxApplication extends Application {
         phoneField.setPromptText("Telefono");
         TextArea notesArea = createArea("", 2);
         notesArea.setPromptText("Notas internas del proveedor");
+        Label providerPreviewValue = createMetaValueLabel("Nuevo registro mock");
+        providerPreviewValue.textProperty().bind(Bindings.createStringBinding(
+                () -> safeText(nameField.getText(), "Nuevo registro mock"),
+                nameField.textProperty()
+        ));
+        Label relationValue = createMetaValueLabel("Listo para facturas");
+        relationValue.textProperty().bind(Bindings.createStringBinding(
+                () -> safeText(categoryField.getText(), "Listo para facturas"),
+                categoryField.textProperty()
+        ));
         Button save = createActionButton("Guardar mock", "primary-button");
         save.setMaxWidth(Double.MAX_VALUE);
         save.setOnAction(event -> {
-            stage.close();
-            showInfo(
-                    "Proveedor mock",
-                    "Se preparó el flujo mock para crear el proveedor " + safeText(nameField.getText(), "sin nombre") + "."
-            );
+            try {
+                MockData.ProviderMockRow createdProvider = MockData.createProvider(
+                        nameField.getText(),
+                        categoryField.getText(),
+                        contactField.getText(),
+                        phoneField.getText()
+                );
+                stage.close();
+                if (afterSave != null) {
+                    afterSave.run();
+                }
+                if (onCreated != null) {
+                    onCreated.accept(createdProvider.id());
+                }
+                showInfo(
+                        "Proveedor registrado",
+                        "Se creó el proveedor " + createdProvider.nombre() + " y ya quedó disponible para asociarle facturas."
+                );
+            } catch (IllegalArgumentException exception) {
+                showError("Nuevo proveedor", exception.getMessage());
+            }
         });
 
         FlowPane fields = createResponsiveRow(
@@ -2997,9 +4530,9 @@ public class PosDesktopFxApplication extends Application {
         bindRegionWidthToScene(summaryCard, 0.28, 260, 320);
         summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
         summaryCard.getChildren().addAll(
-                createKeyValue("Proveedor", createMetaValueLabel("Nuevo registro mock")),
-                createKeyValue("Relacion", createMetaValueLabel("Listo para facturas")),
-                createProgressCard("Ruta del mock", 0.35, "Proveedor listo para relacionarlo con facturas y pagos."),
+                createKeyValue("Proveedor", providerPreviewValue),
+                createKeyValue("Relacion", relationValue),
+                createProgressCard("Ruta del registro", 0.62, "Al guardar, el proveedor entra de inmediato a la bandeja principal."),
                 save
         );
 
@@ -3015,6 +4548,15 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void showMockInvoiceWindow(Window owner, MockData.ProviderMockRow provider) {
+        showMockInvoiceWindow(owner, provider, null, null);
+    }
+
+    private void showMockInvoiceWindow(
+            Window owner,
+            MockData.ProviderMockRow provider,
+            Runnable afterSave,
+            Consumer<String> onCreated
+    ) {
         if (provider == null) {
             showError("Facturas", "Selecciona un proveedor para crear una factura mock.");
             return;
@@ -3042,32 +4584,74 @@ public class PosDesktopFxApplication extends Application {
         DatePicker dueDatePicker = new DatePicker(LocalDate.now().plusDays(15));
         ComboBox<String> supportFormat = new ComboBox<>(FXCollections.observableArrayList(MockData.supportFormats()));
         supportFormat.getSelectionModel().select("PDF");
+        AtomicReference<String> supportFileName = new AtomicReference<>("");
         Label supportFormatValue = createMetaValueLabel(supportFormat.getSelectionModel().getSelectedItem());
         supportFormatValue.textProperty().bind(Bindings.createStringBinding(
                 () -> safeText(supportFormat.getValue(), "-"),
                 supportFormat.valueProperty()
         ));
+        Label supportFileValue = createMetaValueLabel("Pendiente por adjuntar");
         Button addSupportButton = createActionButton("+", "ghost-button");
         addSupportButton.getStyleClass().add("mini-action-button");
-        addSupportButton.setOnAction(event -> showInfo(
-                "Soporte inicial",
-                "Aqui puedes preparar la carga mock del soporte inicial de la factura en formato "
-                        + safeText(supportFormat.getValue(), "PDF") + "."
-        ));
+        addSupportButton.setOnAction(event -> {
+            String suggestedFile = buildSupportFileNameSuggestion(
+                    "factura_" + safeText(numberField.getText(), provider.nombre()),
+                    safeText(supportFormat.getValue(), "PDF")
+            );
+            promptSupportFileName(
+                    stage,
+                    "Soporte inicial",
+                    "Nombre del archivo mock",
+                    suggestedFile
+            ).ifPresent(fileName -> {
+                supportFileName.set(fileName);
+                supportFileValue.setText(fileName);
+            });
+        });
         HBox supportSelector = new HBox(8, supportFormat, addSupportButton);
         supportSelector.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(supportFormat, Priority.ALWAYS);
         TextArea descriptionArea = createArea("", 2);
         descriptionArea.setPromptText("Concepto o descripcion comercial");
+        Label amountValue = createMetaValueLabel("$ 0");
+        amountValue.textProperty().bind(Bindings.createStringBinding(
+                () -> formatCurrency(parseCurrencyOrZero(amountField.getText())),
+                amountField.textProperty()
+        ));
+        Label dueDateValue = createMetaValueLabel("-");
+        dueDateValue.textProperty().bind(Bindings.createStringBinding(
+                () -> dueDatePicker.getValue() == null ? "-" : SHORT_DATE_FORMATTER.format(dueDatePicker.getValue()),
+                dueDatePicker.valueProperty()
+        ));
         Button save = createActionButton("Guardar mock", "primary-button");
         save.setMaxWidth(Double.MAX_VALUE);
         save.setOnAction(event -> {
-            stage.close();
-            showInfo(
-                    "Factura mock",
-                    "Se diseñó la factura mock " + safeText(numberField.getText(), "sin numero")
-                            + " para " + provider.nombre() + "."
-            );
+            try {
+                BigDecimal total = parseRequiredPositive(amountField.getText(), "El valor de la factura debe ser mayor a cero.");
+                MockData.SupplierInvoiceMockRow createdInvoice = MockData.createSupplierInvoice(
+                        provider.id(),
+                        numberField.getText(),
+                        descriptionArea.getText(),
+                        dueDatePicker.getValue(),
+                        total,
+                        supportFormat.getValue(),
+                        supportFileName.get()
+                );
+                stage.close();
+                if (afterSave != null) {
+                    afterSave.run();
+                }
+                if (onCreated != null) {
+                    onCreated.accept(createdInvoice.id());
+                }
+                showInfo(
+                        "Factura registrada",
+                        "Se creó la factura " + createdInvoice.numero() + " para " + provider.nombre()
+                                + " con saldo inicial de " + createdInvoice.saldo() + "."
+                );
+            } catch (IllegalArgumentException exception) {
+                showError("Nueva factura", exception.getMessage());
+            }
         });
 
         FlowPane fields = createResponsiveRow(
@@ -3093,9 +4677,12 @@ public class PosDesktopFxApplication extends Application {
         summaryCard.getChildren().addAll(
                 createKeyValue("Proveedor", createMetaValueLabel(provider.nombre())),
                 createKeyValue("Soporte inicial", supportFormatValue),
+                createKeyValue("Archivo mock", supportFileValue),
+                createKeyValue("Valor capturado", amountValue),
+                createKeyValue("Vence", dueDateValue),
                 createKeyValue("Formatos", createMetaValueLabel("PDF / JPG / PNG")),
                 createKeyValue("Estado esperado", createMetaValueLabel("Pendiente o abonada")),
-                createProgressCard("Carga mock", 0.45, "La factura puede asociar PDF o JPG y dejar saldo pendiente."),
+                createProgressCard("Carga activa", 0.72, "Al guardar se crea la factura, su saldo y el soporte inicial."),
                 save
         );
 
@@ -3114,6 +4701,15 @@ public class PosDesktopFxApplication extends Application {
             Window owner,
             MockData.ProviderMockRow provider,
             MockData.SupplierInvoiceMockRow invoice
+    ) {
+        showMockInvoicePaymentWindow(owner, provider, invoice, null);
+    }
+
+    private void showMockInvoicePaymentWindow(
+            Window owner,
+            MockData.ProviderMockRow provider,
+            MockData.SupplierInvoiceMockRow invoice,
+            Runnable afterSave
     ) {
         if (provider == null || invoice == null) {
             showError("Facturas", "Selecciona una factura para registrar un abono mock.");
@@ -3143,20 +4739,39 @@ public class PosDesktopFxApplication extends Application {
         configureSelectAllOnFocus(amountField);
         TextField projectedBalanceField = createField(invoice.saldo());
         projectedBalanceField.setDisable(true);
+        ComboBox<String> paymentMethod = new ComboBox<>(FXCollections.observableArrayList(MockData.paymentMethods()));
+        paymentMethod.getSelectionModel().select("Transferencia");
         ComboBox<String> supportFormat = new ComboBox<>(FXCollections.observableArrayList(MockData.supportFormats()));
         supportFormat.getSelectionModel().select("JPG");
+        AtomicReference<String> supportFileName = new AtomicReference<>("");
         Label supportFormatValue = createMetaValueLabel(supportFormat.getSelectionModel().getSelectedItem());
         supportFormatValue.textProperty().bind(Bindings.createStringBinding(
                 () -> safeText(supportFormat.getValue(), "-"),
                 supportFormat.valueProperty()
         ));
+        Label supportFileValue = createMetaValueLabel("Pendiente por adjuntar");
+        Label paymentMethodValue = createMetaValueLabel(paymentMethod.getSelectionModel().getSelectedItem());
+        paymentMethodValue.textProperty().bind(Bindings.createStringBinding(
+                () -> safeText(paymentMethod.getValue(), "-"),
+                paymentMethod.valueProperty()
+        ));
         Button addSupportButton = createActionButton("+", "ghost-button");
         addSupportButton.getStyleClass().add("mini-action-button");
-        addSupportButton.setOnAction(event -> showInfo(
-                "Soporte del abono",
-                "Aqui puedes preparar la carga mock del comprobante del abono en formato "
-                        + safeText(supportFormat.getValue(), "JPG") + "."
-        ));
+        addSupportButton.setOnAction(event -> {
+            String suggestedFile = buildSupportFileNameSuggestion(
+                    "abono_" + invoice.numero(),
+                    safeText(supportFormat.getValue(), "JPG")
+            );
+            promptSupportFileName(
+                    stage,
+                    "Comprobante del abono",
+                    "Nombre del archivo mock",
+                    suggestedFile
+            ).ifPresent(fileName -> {
+                supportFileName.set(fileName);
+                supportFileValue.setText(fileName);
+            });
+        });
         HBox supportSelector = new HBox(8, supportFormat, addSupportButton);
         supportSelector.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(supportFormat, Priority.ALWAYS);
@@ -3174,12 +4789,28 @@ public class PosDesktopFxApplication extends Application {
         Button save = createActionButton("Guardar mock", "primary-button");
         save.setMaxWidth(Double.MAX_VALUE);
         save.setOnAction(event -> {
-            stage.close();
-            showInfo(
-                    "Abono mock",
-                    "Se preparó el abono mock para la factura " + invoice.numero()
-                            + " por " + formatCurrency(parseCurrencyOrZero(amountField.getText())) + "."
-            );
+            try {
+                BigDecimal payment = parseRequiredPositive(amountField.getText(), "El valor del abono debe ser mayor a cero.");
+                MockData.SupplierPaymentMockRow createdPayment = MockData.createSupplierPayment(
+                        invoice.id(),
+                        payment,
+                        paymentMethod.getValue(),
+                        supportFormat.getValue(),
+                        supportFileName.get()
+                );
+                MockData.SupplierInvoiceMockRow updatedInvoice = MockData.findInvoice(invoice.id()).orElse(invoice);
+                stage.close();
+                if (afterSave != null) {
+                    afterSave.run();
+                }
+                showInfo(
+                        "Abono registrado",
+                        "Se registró un abono de " + createdPayment.valor() + " para la factura "
+                                + updatedInvoice.numero() + ". Restante: " + updatedInvoice.saldo() + "."
+                );
+            } catch (IllegalArgumentException exception) {
+                showError("Registrar abono", exception.getMessage());
+            }
         });
 
         FlowPane fields = createResponsiveRow(
@@ -3188,6 +4819,7 @@ public class PosDesktopFxApplication extends Application {
                 createFieldGroup("Saldo actual", currentBalanceField, 220),
                 createFieldGroup("Valor abono", amountField, 220),
                 createFieldGroup("Restante estimado", projectedBalanceField, 220),
+                createFieldGroup("Medio", paymentMethod, 220),
                 createFieldGroup("Soporte", supportSelector, 280)
         );
         VBox formCard = createCard(
@@ -3208,9 +4840,11 @@ public class PosDesktopFxApplication extends Application {
         summaryCard.getChildren().addAll(
                 createKeyValue("Factura", createMetaValueLabel(invoice.numero())),
                 createKeyValue("Saldo actual", createMetaValueLabel(invoice.saldo())),
+                createKeyValue("Medio", paymentMethodValue),
                 createKeyValue("Soporte del abono", supportFormatValue),
+                createKeyValue("Archivo mock", supportFileValue),
                 createKeyValue("Restante", projectedBalanceLabel),
-                createProgressCard("Escenario mock", 0.58, "El comprobante del abono puede ser JPG, PNG o PDF."),
+                createProgressCard("Escenario realista", 0.78, "Al guardar se crea el abono, su soporte y el nuevo saldo de la factura."),
                 save
         );
 
@@ -3262,12 +4896,21 @@ public class PosDesktopFxApplication extends Application {
         Button save = createActionButton("Guardar mock", "primary-button");
         save.setMaxWidth(Double.MAX_VALUE);
         save.setOnAction(event -> {
-            stage.close();
-            showInfo(
-                    "Soporte mock",
-                    "Se preparó la carga mock del archivo " + safeText(fileNameField.getText(), "sin nombre")
-                            + " para la factura " + invoice.numero() + "."
-            );
+            try {
+                MockData.SupplierSupportMockRow support = MockData.createSupplierSupport(
+                        invoice.id(),
+                        supportType.getValue(),
+                        fileNameField.getText(),
+                        supportFormat.getValue()
+                );
+                stage.close();
+                showInfo(
+                        "Soporte registrado",
+                        "Se agregó el soporte " + support.archivo() + " a la factura " + invoice.numero() + "."
+                );
+            } catch (IllegalArgumentException exception) {
+                showError("Cargar soporte", exception.getMessage());
+            }
         });
 
         FlowPane fields = createResponsiveRow(
@@ -3307,6 +4950,38 @@ public class PosDesktopFxApplication extends Application {
         stage.setScene(scene);
         applyResponsiveStageSize(stage, 0.84, 0.74, 960, 560);
         stage.show();
+    }
+
+    private Optional<String> promptSupportFileName(
+            Window owner,
+            String title,
+            String label,
+            String suggestedFileName
+    ) {
+        TextInputDialog dialog = new TextInputDialog(suggestedFileName);
+        dialog.setTitle(title);
+        dialog.setHeaderText(null);
+        dialog.setContentText(label);
+        if (owner != null) {
+            dialog.initOwner(owner);
+        }
+        return dialog.showAndWait()
+                .map(String::trim)
+                .filter(value -> !value.isBlank());
+    }
+
+    private String buildSupportFileNameSuggestion(String baseName, String format) {
+        String extension = safeText(format, "PDF").toLowerCase(Locale.ROOT);
+        String normalizedBase = safeText(baseName, "archivo")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^_+", "")
+                .replaceAll("_+$", "");
+        if (normalizedBase.isBlank()) {
+            normalizedBase = "archivo";
+        }
+        return normalizedBase + "." + extension;
     }
 
     private void showNewLayawayWindow(Window owner, Runnable refreshAction, Consumer<String> onCreated) {
@@ -4025,20 +5700,95 @@ public class PosDesktopFxApplication extends Application {
         return value.stripTrailingZeros().toPlainString();
     }
 
+    private void showFeedbackDialog(String title, String message, boolean error) {
+        Stage stage = new Stage();
+        Window owner = resolveActiveWindow();
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.initStyle(StageStyle.TRANSPARENT);
+        stage.setTitle(title);
+
+        StackPane root = new StackPane();
+        root.getStyleClass().addAll("dialog-host", "feedback-overlay");
+        root.setPadding(new Insets(26));
+
+        VBox card = new VBox(18);
+        card.getStyleClass().addAll("surface-card", "feedback-dialog", error ? "feedback-dialog-error" : "feedback-dialog-info");
+
+        HBox hero = new HBox(16);
+        hero.setAlignment(Pos.TOP_LEFT);
+
+        StackPane badge = new StackPane();
+        badge.getStyleClass().addAll("feedback-badge", error ? "feedback-badge-error" : "feedback-badge-info");
+        Label symbol = new Label(error ? "!" : "i");
+        symbol.getStyleClass().add("feedback-symbol");
+        badge.getChildren().add(symbol);
+
+        VBox copy = new VBox(6);
+        copy.setAlignment(Pos.TOP_LEFT);
+        HBox.setHgrow(copy, Priority.ALWAYS);
+
+        Label overline = new Label(error ? "Revisa este detalle" : "Operacion completada");
+        overline.getStyleClass().add("feedback-overline");
+
+        Label heading = new Label(safeText(title, error ? "Atencion" : "Mensaje"));
+        heading.getStyleClass().add("feedback-title");
+        heading.setWrapText(true);
+
+        Label body = new Label(safeText(message, ""));
+        body.getStyleClass().add("feedback-message");
+        body.setWrapText(true);
+
+        copy.getChildren().addAll(overline, heading, body);
+        hero.getChildren().addAll(badge, copy);
+
+        HBox actions = new HBox();
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        Button closeButton = createActionButton(error ? "Entendido" : "Aceptar", error ? "ghost-button" : "primary-button");
+        closeButton.setDefaultButton(true);
+        closeButton.setCancelButton(true);
+        closeButton.setOnAction(event -> stage.close());
+        actions.getChildren().add(closeButton);
+
+        card.getChildren().addAll(hero, actions);
+        root.getChildren().add(card);
+
+        Scene scene = new Scene(root, 480, 250);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        scene.setFill(Color.TRANSPARENT);
+        scene.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ESCAPE || event.getCode() == KeyCode.ENTER) {
+                closeButton.fire();
+                event.consume();
+            }
+        });
+        stage.setScene(scene);
+        stage.setOnShown(event -> Platform.runLater(closeButton::requestFocus));
+        stage.showAndWait();
+    }
+
+    private Window resolveActiveWindow() {
+        for (Window window : Window.getWindows()) {
+            if (window != null && window.isShowing() && window.isFocused()) {
+                return window;
+            }
+        }
+        for (Window window : Window.getWindows()) {
+            if (window != null && window.isShowing()) {
+                return window;
+            }
+        }
+        return null;
+    }
+
     private void showInfo(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+        showFeedbackDialog(title, message, false);
     }
 
     private void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+        showFeedbackDialog(title, message, true);
     }
 
     private String initials(String title) {
@@ -4121,6 +5871,22 @@ public class PosDesktopFxApplication extends Application {
             BigDecimal totalFinal,
             BigDecimal promedioPorCierre,
             PosApiClient.CierreDiarioListadoResponse mayorCierre
+    ) {
+    }
+
+    private record InvoiceDashboardData(
+            List<PosApiClient.ProveedorResponse> proveedores,
+            List<PosApiClient.FacturaProveedorListadoResponse> facturas
+    ) {
+    }
+
+    private record InvoiceSupportRow(
+            String tipo,
+            String archivo,
+            String origen,
+            String cargadoEn,
+            String rutaArchivo,
+            String rutaRelativa
     ) {
     }
 }

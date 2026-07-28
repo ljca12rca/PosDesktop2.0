@@ -32,6 +32,9 @@ public class Proveedor extends EntidadAuditable {
     @Column(length = 250)
     private String direccion;
 
+    @Column(length = 500)
+    private String observacion;
+
     @Column(nullable = false)
     private boolean activo = true;
 
@@ -77,6 +80,14 @@ public class Proveedor extends EntidadAuditable {
 
     public void setDireccion(String direccion) {
         this.direccion = direccion;
+    }
+
+    public String getObservacion() {
+        return observacion;
+    }
+
+    public void setObservacion(String observacion) {
+        this.observacion = observacion;
     }
 
     public boolean isActivo() {

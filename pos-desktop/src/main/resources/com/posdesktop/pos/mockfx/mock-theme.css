@@ -476,6 +476,30 @@
     -fx-font-size: 11px;
 }
 
+.invoice-review-window .screen-title {
+    -fx-font-size: 18px;
+}
+
+.invoice-review-window .screen-subtitle {
+    -fx-font-size: 10px;
+}
+
+.invoice-review-window .card-title {
+    -fx-font-size: 14px;
+}
+
+.invoice-review-window .card-subtitle {
+    -fx-font-size: 10px;
+}
+
+.invoice-review-window .meta-key {
+    -fx-font-size: 10px;
+}
+
+.invoice-review-window .meta-value {
+    -fx-font-size: 11px;
+}
+
 .invoice-compact-card {
     -fx-padding: 14;
 }
@@ -493,6 +517,142 @@
     -fx-vgap: 10;
 }
 
+.invoice-responsive-workspace {
+    -fx-hgap: 12;
+    -fx-vgap: 12;
+    -fx-alignment: top-left;
+}
+
+.invoice-side-rail {
+    -fx-spacing: 8;
+}
+
+.invoice-review-window .invoice-compact-card,
+.invoice-review-window .surface-card {
+    -fx-padding: 10;
+}
+
+.invoice-review-window .invoice-provider-flow {
+    -fx-hgap: 8;
+    -fx-vgap: 6;
+}
+
+.invoice-review-window .invoice-info-block {
+    -fx-padding: 4 7 4 7;
+    -fx-background-radius: 10;
+}
+
+.invoice-review-window .progress-card {
+    -fx-padding: 8;
+}
+
+.invoice-review-window .progress-title {
+    -fx-font-size: 12px;
+}
+
+.invoice-review-window .progress-caption {
+    -fx-font-size: 10px;
+}
+
+.invoice-actions-card {
+    -fx-padding: 12;
+}
+
+.invoice-action-stack {
+    -fx-spacing: 6;
+    -fx-fill-width: true;
+}
+
+.invoice-action-row {
+    -fx-hgap: 10;
+    -fx-vgap: 8;
+    -fx-alignment: center-left;
+}
+
+.invoice-floating-panel {
+    -fx-spacing: 10;
+    -fx-padding: 12 14 12 14;
+    -fx-background-color: linear-gradient(to right bottom, rgba(23, 55, 70, 0.05), rgba(242, 165, 95, 0.12));
+    -fx-background-radius: 16;
+    -fx-border-color: rgba(23, 55, 70, 0.08);
+    -fx-border-radius: 16;
+}
+
+.invoice-floating-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #173746;
+}
+
+.invoice-floating-copy {
+    -fx-font-size: 11px;
+    -fx-line-spacing: 1px;
+    -fx-text-fill: #5a685f;
+}
+
+.invoice-floating-button {
+    -fx-background-color: rgba(255, 255, 255, 0.88);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(23, 55, 70, 0.14);
+    -fx-border-radius: 14;
+    -fx-font-weight: 800;
+    -fx-padding: 10 14 10 14;
+}
+
+.invoice-floating-button:hover {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(242, 165, 95, 0.55);
+}
+
+.invoice-review-window .invoice-floating-panel {
+    -fx-spacing: 8;
+    -fx-padding: 9 10 9 10;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+}
+
+.invoice-review-window .invoice-floating-title {
+    -fx-font-size: 13px;
+}
+
+.invoice-review-window .invoice-floating-copy {
+    -fx-font-size: 0px;
+    -fx-max-height: 0;
+    -fx-pref-height: 0;
+    -fx-opacity: 0;
+    -fx-padding: 0;
+}
+
+.invoice-review-window .invoice-floating-button {
+    -fx-padding: 8 12 8 12;
+}
+
+.invoice-review-window .button {
+    -fx-font-size: 11px;
+}
+
+.invoice-review-window .data-table {
+    -fx-padding: 4;
+}
+
+.invoice-review-window .data-table .column-header,
+.invoice-review-window .data-table .filler {
+    -fx-size: 30;
+}
+
+.invoice-review-window .data-table .column-header .label,
+.invoice-review-window .data-table .table-cell {
+    -fx-font-size: 11px;
+}
+
+.invoice-review-window .data-table .table-cell {
+    -fx-padding: 6 6 6 6;
+}
+
+.invoice-review-window .data-table .table-row-cell {
+    -fx-cell-size: 30px;
+}
+
 .workspace-split {
     -fx-background-color: transparent;
     -fx-padding: 0;
@@ -505,6 +665,85 @@
 
 .dialog-host {
     -fx-background-color: transparent;
+}
+
+.feedback-overlay {
+    -fx-background-color: rgba(18, 26, 33, 0.28);
+}
+
+.feedback-dialog {
+    -fx-background-radius: 30;
+    -fx-padding: 20 22 18 22;
+    -fx-spacing: 16;
+    -fx-max-width: 460;
+    -fx-pref-width: 460;
+    -fx-border-width: 1;
+}
+
+.feedback-dialog-info {
+    -fx-background-color:
+        linear-gradient(to bottom right, rgba(255, 252, 247, 0.98), rgba(248, 244, 236, 0.96)),
+        radial-gradient(center 12% 10%, radius 68%, rgba(244, 190, 120, 0.18), transparent 55%);
+    -fx-border-color: rgba(16, 117, 101, 0.12);
+    -fx-effect: dropshadow(gaussian, rgba(25, 36, 44, 0.22), 34, 0.2, 0, 14);
+}
+
+.feedback-dialog-error {
+    -fx-background-color:
+        linear-gradient(to bottom right, rgba(255, 249, 247, 0.98), rgba(249, 241, 236, 0.96)),
+        radial-gradient(center 12% 10%, radius 68%, rgba(239, 142, 88, 0.18), transparent 55%);
+    -fx-border-color: rgba(197, 61, 47, 0.16);
+    -fx-effect: dropshadow(gaussian, rgba(56, 24, 20, 0.22), 34, 0.2, 0, 14);
+}
+
+.feedback-badge {
+    -fx-min-width: 52;
+    -fx-min-height: 52;
+    -fx-max-width: 52;
+    -fx-max-height: 52;
+    -fx-background-radius: 999;
+    -fx-alignment: center;
+}
+
+.feedback-badge-info {
+    -fx-background-color: linear-gradient(to bottom right, #4d8fd1, #325fae);
+    -fx-border-color: rgba(255, 255, 255, 0.92);
+    -fx-border-radius: 999;
+    -fx-border-width: 3;
+    -fx-effect: dropshadow(gaussian, rgba(50, 95, 174, 0.32), 18, 0.16, 0, 5);
+}
+
+.feedback-badge-error {
+    -fx-background-color: linear-gradient(to bottom right, #ef8e58, #d45a42);
+    -fx-border-color: rgba(255, 255, 255, 0.92);
+    -fx-border-radius: 999;
+    -fx-border-width: 3;
+    -fx-effect: dropshadow(gaussian, rgba(212, 90, 66, 0.28), 18, 0.16, 0, 5);
+}
+
+.feedback-symbol {
+    -fx-text-fill: white;
+    -fx-font-size: 28px;
+    -fx-font-weight: 900;
+}
+
+.feedback-overline {
+    -fx-text-fill: #7b8277;
+    -fx-font-size: 11px;
+    -fx-font-weight: 800;
+    -fx-letter-spacing: 0.4px;
+}
+
+.feedback-title {
+    -fx-text-fill: #173746;
+    -fx-font-size: 24px;
+    -fx-font-weight: 900;
+}
+
+.feedback-message {
+    -fx-text-fill: #42545c;
+    -fx-font-size: 14px;
+    -fx-line-spacing: 2px;
 }
 
 .change-confirm-card {
@@ -916,6 +1155,19 @@
 .app-shell:compact .invoice-info-block,
 .app-shell:compact .invoice-inline-progress {
     -fx-padding: 6 8 6 8;
+}
+
+.app-shell:compact .invoice-floating-panel {
+    -fx-padding: 10 12 10 12;
+}
+
+.app-shell:compact .invoice-responsive-workspace {
+    -fx-hgap: 10;
+    -fx-vgap: 10;
+}
+
+.app-shell:compact .invoice-actions-card {
+    -fx-padding: 10;
 }
 
 .app-shell:compact .invoice-workspace {

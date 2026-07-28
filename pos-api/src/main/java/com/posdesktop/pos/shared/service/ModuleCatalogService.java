@@ -31,8 +31,8 @@ public class ModuleCatalogService {
                 module("ventas", "Ventas", ApiPaths.VENTAS, "BOOTSTRAP", "Preparado para logica de ventas manuales y futuras ventas con articulos."),
                 module("cierres", "Cierres", ApiPaths.CIERRES, "BOOTSTRAP", "Preparado para cierres diarios y consolidacion de movimientos."),
                 module("separados", "Separados", ApiPaths.SEPARADOS, "BOOTSTRAP", "Preparado para apartados, abonos y saldo pendiente."),
-                module("proveedores", "Proveedores", ApiPaths.PROVEEDORES, "BOOTSTRAP", "Preparado para administrar proveedores base."),
-                module("facturas-proveedor", "Facturas proveedor", ApiPaths.FACTURAS, "BOOTSTRAP", "Preparado para deuda, pagos y soportes."),
+                module("proveedores", "Proveedores", ApiPaths.PROVEEDORES, "LIVE", "Permite crear y consultar proveedores con su saldo agregado."),
+                module("facturas-proveedor", "Facturas proveedor", ApiPaths.FACTURAS, "LIVE", "Permite crear facturas, consultar cartera, registrar abonos y guardar soportes."),
                 module("articulos", "Articulos", ApiPaths.ARTICULOS, "BOOTSTRAP", "Preparado para catalogo e integracion futura con ventas.")
         );
     }

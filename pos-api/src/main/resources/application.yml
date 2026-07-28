@@ -38,3 +38,5 @@ pos:
     version: v1
     environment: local
     desktop-mock-enabled: true
+    documentos:
+      storage-root: ${POS_DOCUMENT_STORAGE_ROOT:${user.home}/posdesktop-media}

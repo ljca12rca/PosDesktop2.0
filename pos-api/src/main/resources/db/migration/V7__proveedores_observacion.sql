@@ -1,0 +1,2 @@
+ALTER TABLE proveedores
+    ADD COLUMN IF NOT EXISTS observacion VARCHAR(500);
