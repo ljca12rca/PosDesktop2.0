@@ -101,7 +101,7 @@ public class PosDesktopFxApplication extends Application {
     private static final String RECEIPT_BUSINESS_NAME = "Milenaso del norte";
     private static final String RECEIPT_OWNER_NAME = "KELI MONSALVE";
     private static final String RECEIPT_ADDRESS = "CALLE 28 # 29-18";
-    private static final String RECEIPT_NIT = "NIT. 1.035.830.505-7";
+    private static final String RECEIPT_NIT = "NIT. 1.035.833.243-6";
     private static final String RECEIPT_CASHIER = "Caja principal";
     private static final String PERM_VENTAS_VIEW = "VENTAS_VIEW";
     private static final String PERM_VENTAS_EDIT = "VENTAS_EDIT";
@@ -119,7 +119,7 @@ public class PosDesktopFxApplication extends Application {
     private final StackPane contentHost = new StackPane();
     private final PosApiClient posApiClient = PosApiClient.createDefault();
     private final ObservableList<SaleDraftRow> saleDraftRows = FXCollections.observableArrayList();
-    private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO"));
+    private final NumberFormat currencyFormat = createCurrencyFormat();
     private final SimpleObjectProperty<BigDecimal> saleTotal = new SimpleObjectProperty<>(BigDecimal.ZERO);
     private final BooleanProperty apiAvailable = new SimpleBooleanProperty(false);
     private final BooleanProperty apiProbeInProgress = new SimpleBooleanProperty(false);
@@ -6085,6 +6085,13 @@ public class PosDesktopFxApplication extends Application {
 
     private String formatCurrency(BigDecimal value) {
         return currencyFormat.format(value == null ? BigDecimal.ZERO : value);
+    }
+
+    private NumberFormat createCurrencyFormat() {
+        NumberFormat format = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO"));
+        format.setMinimumFractionDigits(0);
+        format.setMaximumFractionDigits(0);
+        return format;
     }
 
     private String formatPlainNumber(BigDecimal value) {

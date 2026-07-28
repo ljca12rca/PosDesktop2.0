@@ -16,7 +16,7 @@ public final class MockData {
 
     private static final Locale COLOMBIA_LOCALE = Locale.forLanguageTag("es-CO");
     private static final DateTimeFormatter SHORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
-    private static final NumberFormat CURRENCY_FORMAT = NumberFormat.getCurrencyInstance(COLOMBIA_LOCALE);
+    private static final NumberFormat CURRENCY_FORMAT = createCurrencyFormat();
 
     private static final List<ProviderMockRow> PROVIDER_SEED = List.of(
             new ProviderMockRow("PV-001", "Maderas del Norte", "Insumos hogar", "Lina Romero", "320 555 1120", "$ 4.280.000", "Activo", 3),
@@ -562,5 +562,12 @@ public final class MockData {
 
     private static String formatCurrency(BigDecimal value) {
         return CURRENCY_FORMAT.format(value == null ? BigDecimal.ZERO : value);
+    }
+
+    private static NumberFormat createCurrencyFormat() {
+        NumberFormat format = NumberFormat.getCurrencyInstance(COLOMBIA_LOCALE);
+        format.setMinimumFractionDigits(0);
+        format.setMaximumFractionDigits(0);
+        return format;
     }
 }
