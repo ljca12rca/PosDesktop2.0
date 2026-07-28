@@ -4,6 +4,8 @@ services:
     container_name: posdesktop-api
     pull_policy: always
     restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     environment:
       POS_API_PORT: 8083
       POS_PG_URL: jdbc:postgresql://postgres:5432/posdesktop
@@ -32,6 +34,17 @@ services:
       timeout: 5s
       retries: 10
       start_period: 90s
+    networks:
+      - pos-network
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: posdesktop-watchtower
+    pull_policy: always
+    restart: unless-stopped
+    command: --interval 60 --cleanup --label-enable
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - pos-network
 

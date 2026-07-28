@@ -84,6 +84,21 @@ Comando de despliegue:
 docker compose -f docker-compose.yml up -d
 ```
 
+Ese despliegue incluye `watchtower`, que revisa automaticamente si existe una version nueva
+de la imagen del API en GHCR y, si detecta una nueva, recrea solo el contenedor `api`
+manteniendo la misma configuracion.
+
+Comportamiento esperado:
+
+```text
+- haces push a master
+- GitHub Actions publica ghcr.io/ljca12rca/posdesktop-api:latest
+- watchtower detecta la nueva imagen
+- el contenedor api se reinicia con la version actualizada
+```
+
+La revision automatica esta configurada cada 60 segundos.
+
 ## Publicacion automatica de la imagen
 
 Se agrego el workflow:
@@ -133,6 +148,38 @@ Comando equivalente:
 
 ```powershell
 mvn -pl pos-desktop javafx:run
+```
+
+## Generar instalador del POS Desktop
+
+Genera un instalador de Windows para la interfaz del POS:
+
+```powershell
+.\scripts\build-desktop-installer.ps1
+```
+
+Opciones disponibles:
+
+```powershell
+.\scripts\build-desktop-installer.ps1 -Type exe
+.\scripts\build-desktop-installer.ps1 -Type msi
+.\scripts\build-desktop-installer.ps1 -Type app-image
+```
+
+Detalles del flujo:
+
+```text
+- descarga Maven si no esta instalado
+- descarga WiX si no esta instalado y el tipo es exe o msi
+- compila pos-desktop
+- copia dependencias runtime
+- ejecuta jpackage
+```
+
+Salida esperada:
+
+```text
+pos-desktop/target/installer/dist
 ```
 
 ## Empaquetado por modulo
