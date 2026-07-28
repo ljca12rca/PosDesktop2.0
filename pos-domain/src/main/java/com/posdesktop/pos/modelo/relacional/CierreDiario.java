@@ -8,9 +8,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
@@ -80,6 +83,10 @@ public class CierreDiario extends EntidadAuditable {
 
     @Column(length = 500)
     private String observacion;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "responsable_usuario_id", nullable = false)
+    private UsuarioSistema responsableUsuario;
 
     @OneToMany(mappedBy = "cierreDiario", cascade = CascadeType.PERSIST)
     private List<Venta> ventas = new ArrayList<>();
@@ -181,6 +188,14 @@ public class CierreDiario extends EntidadAuditable {
 
     public void setObservacion(String observacion) {
         this.observacion = observacion;
+    }
+
+    public UsuarioSistema getResponsableUsuario() {
+        return responsableUsuario;
+    }
+
+    public void setResponsableUsuario(UsuarioSistema responsableUsuario) {
+        this.responsableUsuario = responsableUsuario;
     }
 
     public List<Venta> getVentas() {

@@ -1,5 +1,7 @@
 package com.posdesktop.pos.facturas.api;
 
+import com.posdesktop.pos.auth.service.PermisosSistema;
+import com.posdesktop.pos.auth.web.RequiresPermissions;
 import com.posdesktop.pos.facturas.api.dto.ActualizarFacturaProveedorRequest;
 import com.posdesktop.pos.facturas.api.dto.FacturaProveedorDetalleResponse;
 import com.posdesktop.pos.facturas.api.dto.FacturaProveedorListadoResponse;
@@ -52,6 +54,7 @@ public class FacturasProveedorController {
     }
 
     @GetMapping
+    @RequiresPermissions(PermisosSistema.FACTURAS_VIEW)
     public ApiResponse<List<FacturaProveedorListadoResponse>> listarFacturas(
             @RequestParam(name = "proveedorId", required = false) UUID proveedorId,
             @RequestParam(name = "estado", required = false) EstadoFacturaProveedor estado,
@@ -65,6 +68,7 @@ public class FacturasProveedorController {
     }
 
     @GetMapping("/{facturaId}")
+    @RequiresPermissions(PermisosSistema.FACTURAS_VIEW)
     public ApiResponse<FacturaProveedorDetalleResponse> consultarFactura(
             @PathVariable UUID facturaId,
             HttpServletRequest request
@@ -77,6 +81,7 @@ public class FacturasProveedorController {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    @RequiresPermissions(PermisosSistema.FACTURAS_EDIT)
     public ApiResponse<FacturaProveedorDetalleResponse> registrarFacturaProveedor(
             @Valid @RequestBody RegistrarFacturaProveedorRequest request,
             HttpServletRequest httpRequest
@@ -89,6 +94,7 @@ public class FacturasProveedorController {
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RequiresPermissions(PermisosSistema.FACTURAS_EDIT)
     public ApiResponse<FacturaProveedorDetalleResponse> registrarFacturaProveedorConImagenes(
             @Valid @RequestPart("factura") RegistrarFacturaProveedorRequest request,
             @RequestPart(name = "imagenes", required = false) List<MultipartFile> imagenes,
@@ -102,6 +108,7 @@ public class FacturasProveedorController {
     }
 
     @PutMapping(path = "/{facturaId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @RequiresPermissions(PermisosSistema.FACTURAS_EDIT)
     public ApiResponse<FacturaProveedorDetalleResponse> actualizarFacturaProveedor(
             @PathVariable UUID facturaId,
             @Valid @RequestBody ActualizarFacturaProveedorRequest request,
@@ -115,6 +122,7 @@ public class FacturasProveedorController {
     }
 
     @PostMapping(path = "/{facturaId}/abonos", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @RequiresPermissions(PermisosSistema.FACTURAS_EDIT)
     public ApiResponse<FacturaProveedorDetalleResponse> registrarAbono(
             @PathVariable UUID facturaId,
             @Valid @RequestBody RegistrarPagoFacturaRequest request,
@@ -128,6 +136,7 @@ public class FacturasProveedorController {
     }
 
     @PostMapping(path = "/{facturaId}/abonos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RequiresPermissions(PermisosSistema.FACTURAS_EDIT)
     public ApiResponse<FacturaProveedorDetalleResponse> registrarAbonoConSoporte(
             @PathVariable UUID facturaId,
             @Valid @RequestPart("abono") RegistrarPagoFacturaRequest request,

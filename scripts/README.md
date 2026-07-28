@@ -12,15 +12,30 @@ pos-root
 
 ## Infraestructura local
 
-Levanta PostgreSQL y MongoDB:
+Levanta PostgreSQL, MongoDB y el API compilado desde este repositorio:
 
 ```powershell
 .\scripts\dev-up.ps1
 ```
 
+Ese comando usa dos archivos:
+
+```text
+scripts/docker-compose.yml
+  pensado para despliegue consumiendo una imagen publicada
+
+scripts/docker-compose.local-build.yml
+  override local para construir el API desde el repo durante desarrollo
+```
+
 Servicios incluidos:
 
 ```text
+API
+  host: localhost
+  port: 8083
+  health: /actuator/health
+
 PostgreSQL
   host: localhost
   port: 55432
@@ -40,10 +55,50 @@ MongoDB
 El compose crea:
 
 ```text
+- contenedor posdesktop-api con reinicio automatico
 - base relacional posdesktop
 - base documental posdesktop_media
-- usuario de aplicacion Mongo pos_app
-- coleccion inicial documentos_soporte
+- acceso Mongo del API usando el usuario root configurado en Docker
+- volumen persistente para documentos de facturas y soportes
+```
+
+## Despliegue en otro computador
+
+Para no depender del repositorio completo, el archivo principal `scripts/docker-compose.yml`
+consume la imagen publicada del API en GHCR:
+
+```text
+ghcr.io/ljca12rca/posdesktop-api:latest
+```
+
+Con eso, en otra maquina solo necesitas:
+
+```text
+- Docker Desktop
+- el archivo docker-compose.yml
+```
+
+Comando de despliegue:
+
+```powershell
+docker compose -f docker-compose.yml up -d
+```
+
+## Publicacion automatica de la imagen
+
+Se agrego el workflow:
+
+```text
+.github/workflows/publish-api-image.yml
+```
+
+Publica el API a GHCR cuando haces push a `master` o cuando lo ejecutas manualmente desde GitHub Actions.
+
+Imagen publicada:
+
+```text
+ghcr.io/ljca12rca/posdesktop-api:latest
+ghcr.io/ljca12rca/posdesktop-api:sha-<commit>
 ```
 
 Detiene la infraestructura:
@@ -52,7 +107,7 @@ Detiene la infraestructura:
 .\scripts\dev-down.ps1
 ```
 
-## Ejecutar la API
+## Ejecutar la API por fuera de Docker
 
 Cuando Maven este disponible en la maquina:
 

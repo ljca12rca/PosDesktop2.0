@@ -1,5 +1,6 @@
 package com.posdesktop.pos.system.api;
 
+import com.posdesktop.pos.auth.web.PublicEndpoint;
 import com.posdesktop.pos.shared.api.ApiPaths;
 import com.posdesktop.pos.shared.api.ApiResponse;
 import com.posdesktop.pos.shared.api.ModuleStatusResponse;
@@ -22,6 +23,7 @@ public class SystemController {
         this.moduleCatalogService = moduleCatalogService;
     }
 
+    @PublicEndpoint
     @GetMapping("/ping")
     public ApiResponse<SystemStatusResponse> ping(HttpServletRequest request) {
         return ApiResponse.success(

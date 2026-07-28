@@ -1,5 +1,7 @@
 package com.posdesktop.pos.ventas.api;
 
+import com.posdesktop.pos.auth.service.PermisosSistema;
+import com.posdesktop.pos.auth.web.RequiresPermissions;
 import com.posdesktop.pos.shared.api.ApiPaths;
 import com.posdesktop.pos.shared.api.ApiResponse;
 import com.posdesktop.pos.shared.api.ModuleStatusResponse;
@@ -41,6 +43,7 @@ public class VentasController {
     }
 
     @GetMapping("/movimientos")
+    @RequiresPermissions(PermisosSistema.MOVIMIENTOS_VIEW)
     public ApiResponse<List<MovimientoVentaResponse>> movimientos(
             @RequestParam(name = "fechaInicial", required = false) LocalDate fechaInicial,
             @RequestParam(name = "fechaFinal", required = false) LocalDate fechaFinal,
@@ -54,6 +57,7 @@ public class VentasController {
     }
 
     @PostMapping
+    @RequiresPermissions(PermisosSistema.VENTAS_EDIT)
     public ApiResponse<VentaRegistradaResponse> registrarVentaManual(
             @Valid @RequestBody RegistrarVentaManualRequest request,
             HttpServletRequest httpRequest

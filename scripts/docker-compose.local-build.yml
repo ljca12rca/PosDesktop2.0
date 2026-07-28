@@ -1,0 +1,7 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: pos-api/Dockerfile
+    image: posdesktop-api:local
+    pull_policy: never

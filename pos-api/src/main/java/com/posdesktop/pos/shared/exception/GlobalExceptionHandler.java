@@ -1,5 +1,7 @@
 package com.posdesktop.pos.shared.exception;
 
+import com.posdesktop.pos.auth.exception.ForbiddenException;
+import com.posdesktop.pos.auth.exception.UnauthorizedException;
 import com.posdesktop.pos.shared.api.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -71,6 +73,26 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return ResponseEntity.badRequest().body(
+                ApiErrorResponse.of(exception.getMessage(), request.getRequestURI(), List.of())
+        );
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnauthorized(
+            UnauthorizedException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ApiErrorResponse.of(exception.getMessage(), request.getRequestURI(), List.of())
+        );
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiErrorResponse> handleForbidden(
+            ForbiddenException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
                 ApiErrorResponse.of(exception.getMessage(), request.getRequestURI(), List.of())
         );
     }

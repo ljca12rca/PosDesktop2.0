@@ -1,6 +1,8 @@
 package com.posdesktop.pos.articulos.api;
 
 import com.posdesktop.pos.articulos.api.dto.RegistrarArticuloRequest;
+import com.posdesktop.pos.auth.service.PermisosSistema;
+import com.posdesktop.pos.auth.web.RequiresPermissions;
 import com.posdesktop.pos.shared.api.ApiPaths;
 import com.posdesktop.pos.shared.api.ApiResponse;
 import com.posdesktop.pos.shared.api.ModuleStatusResponse;
@@ -34,6 +36,7 @@ public class ArticulosController {
     }
 
     @PostMapping
+    @RequiresPermissions(PermisosSistema.VENTAS_EDIT)
     public ApiResponse<Void> registrarArticulo(
             @Valid @RequestBody RegistrarArticuloRequest request,
             HttpServletRequest httpRequest

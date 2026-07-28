@@ -27,9 +27,11 @@ public final class PosApiClient {
 
     private static final Duration API_CONNECT_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration API_REQUEST_TIMEOUT = Duration.ofSeconds(4);
+    private static final String AUTH_HEADER = "X-Pos-Auth";
     private final String baseUrl;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private volatile String authToken;
 
     public PosApiClient(String baseUrl) {
         this.baseUrl = quitarSlashFinal(baseUrl);
@@ -41,6 +43,35 @@ public final class PosApiClient {
 
     public static PosApiClient createDefault() {
         return new PosApiClient(PosDesktopConfig.load().apiBaseUrl());
+    }
+
+    public AuthSessionResponse login(String username, String password) {
+        AuthSessionResponse session = post(
+                "/auth/login",
+                new LoginRequest(username, password),
+                new TypeReference<ApiResponseEnvelope<AuthSessionResponse>>() {
+                }
+        ).data();
+        this.authToken = session.token();
+        return session;
+    }
+
+    public AuthSessionResponse consultarSesionActual() {
+        return get("/auth/me", new TypeReference<ApiResponseEnvelope<AuthSessionResponse>>() {
+        }).data();
+    }
+
+    public void logout() {
+        try {
+            post("/auth/logout", new EmptyRequest(), new TypeReference<ApiResponseEnvelope<Void>>() {
+            });
+        } finally {
+            this.authToken = null;
+        }
+    }
+
+    public void clearSession() {
+        this.authToken = null;
     }
 
     public VentaRegistradaResponse registrarVenta(RegistrarVentaRequest request) {
@@ -89,6 +120,15 @@ public final class PosApiClient {
     public ProveedorResponse registrarProveedor(RegistrarProveedorRequest request) {
         return post("/proveedores", request, new TypeReference<ApiResponseEnvelope<ProveedorResponse>>() {
         }).data();
+    }
+
+    public ProveedorResponse actualizarProveedor(String proveedorId, ActualizarProveedorRequest request) {
+        return put(
+                "/proveedores/" + encode(proveedorId),
+                request,
+                new TypeReference<ApiResponseEnvelope<ProveedorResponse>>() {
+                }
+        ).data();
     }
 
     public List<FacturaProveedorListadoResponse> listarFacturas(String proveedorId, String estado) {
@@ -200,12 +240,13 @@ public final class PosApiClient {
     }
 
     private <T> ApiResponseEnvelope<T> get(String path, TypeReference<ApiResponseEnvelope<T>> typeReference) {
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + path))
                 .timeout(API_REQUEST_TIMEOUT)
                 .GET()
-                .header("Accept", "application/json")
-                .build();
+                .header("Accept", "application/json");
+        applyAuthHeader(builder);
+        HttpRequest request = builder.build();
         return execute(request, typeReference);
     }
 
@@ -215,11 +256,13 @@ public final class PosApiClient {
             TypeReference<ApiResponseEnvelope<T>> typeReference
     ) {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + path))
                     .timeout(API_REQUEST_TIMEOUT)
                     .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
+                    .header("Accept", "application/json");
+            applyAuthHeader(builder);
+            HttpRequest request = builder
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
                     .build();
             return execute(request, typeReference);
@@ -234,11 +277,13 @@ public final class PosApiClient {
             TypeReference<ApiResponseEnvelope<T>> typeReference
     ) {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + path))
                     .timeout(API_REQUEST_TIMEOUT)
                     .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
+                    .header("Accept", "application/json");
+            applyAuthHeader(builder);
+            HttpRequest request = builder
                     .PUT(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
                     .build();
             return execute(request, typeReference);
@@ -257,11 +302,13 @@ public final class PosApiClient {
     ) {
         String boundary = "----POSDesktopBoundary" + System.nanoTime();
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + path))
                     .timeout(API_REQUEST_TIMEOUT)
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                    .header("Accept", "application/json")
+                    .header("Accept", "application/json");
+            applyAuthHeader(builder);
+            HttpRequest request = builder
                     .POST(HttpRequest.BodyPublishers.ofByteArrays(buildMultipartPayload(
                             boundary,
                             jsonPartName,
@@ -273,6 +320,12 @@ public final class PosApiClient {
             return execute(request, typeReference);
         } catch (IOException exception) {
             throw new PosApiException("No fue posible construir la solicitud multipart hacia la API.", exception);
+        }
+    }
+
+    private void applyAuthHeader(HttpRequest.Builder builder) {
+        if (authToken != null && !authToken.isBlank()) {
+            builder.header(AUTH_HEADER, authToken);
         }
     }
 
@@ -391,6 +444,26 @@ public final class PosApiClient {
     ) {
     }
 
+    public record EmptyRequest() {
+    }
+
+    public record LoginRequest(
+            String username,
+            String password
+    ) {
+    }
+
+    public record AuthSessionResponse(
+            String token,
+            LocalDateTime expiraEn,
+            String usuarioId,
+            String username,
+            String nombreCompleto,
+            List<String> roles,
+            List<String> permisos
+    ) {
+    }
+
     public record RegistrarVentaRequest(
             List<RegistrarDetalleVentaRequest> detalles,
             BigDecimal montoRecibido,
@@ -446,6 +519,16 @@ public final class PosApiClient {
     }
 
     public record RegistrarProveedorRequest(
+            String nit,
+            String nombre,
+            String telefono,
+            String correo,
+            String direccion,
+            String observacion
+    ) {
+    }
+
+    public record ActualizarProveedorRequest(
             String nit,
             String nombre,
             String telefono,

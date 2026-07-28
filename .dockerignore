@@ -1,0 +1,9 @@
+.git
+.idea
+.agents
+docs
+posdesktop-ui-mock
+**/target
+**/.classpath
+**/.project
+**/.settings

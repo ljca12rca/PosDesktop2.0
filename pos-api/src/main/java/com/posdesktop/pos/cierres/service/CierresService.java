@@ -1,13 +1,16 @@
 package com.posdesktop.pos.cierres.service;
 
+import com.posdesktop.pos.auth.service.AuthSessionData;
 import com.posdesktop.pos.cierres.api.dto.CierreDiarioListadoResponse;
 import com.posdesktop.pos.cierres.api.dto.RegistrarCierreRequest;
 import com.posdesktop.pos.cierres.api.dto.ResumenCierreDiarioResponse;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoCierreDiario;
 import com.posdesktop.pos.modelo.relacional.CierreDiario;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoVenta;
+import com.posdesktop.pos.modelo.relacional.UsuarioSistema;
 import com.posdesktop.pos.modelo.relacional.Venta;
 import com.posdesktop.pos.repositorio.relacional.CierreDiarioRepositorio;
+import com.posdesktop.pos.repositorio.relacional.UsuarioSistemaRepositorio;
 import com.posdesktop.pos.ventas.service.VentasService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -25,6 +28,7 @@ public class CierresService {
     private final CierreDiarioValidationService cierreDiarioValidationService;
     private final CierreDiarioMapper cierreDiarioMapper;
     private final CierreDiarioAutoSyncService cierreDiarioAutoSyncService;
+    private final UsuarioSistemaRepositorio usuarioSistemaRepositorio;
 
     public CierresService(
             CierreDiarioRepositorio cierreDiarioRepositorio,
@@ -32,7 +36,8 @@ public class CierresService {
             CierreDiarioCalculoService cierreDiarioCalculoService,
             CierreDiarioValidationService cierreDiarioValidationService,
             CierreDiarioMapper cierreDiarioMapper,
-            CierreDiarioAutoSyncService cierreDiarioAutoSyncService
+            CierreDiarioAutoSyncService cierreDiarioAutoSyncService,
+            UsuarioSistemaRepositorio usuarioSistemaRepositorio
     ) {
         this.cierreDiarioRepositorio = cierreDiarioRepositorio;
         this.ventasService = ventasService;
@@ -40,6 +45,7 @@ public class CierresService {
         this.cierreDiarioValidationService = cierreDiarioValidationService;
         this.cierreDiarioMapper = cierreDiarioMapper;
         this.cierreDiarioAutoSyncService = cierreDiarioAutoSyncService;
+        this.usuarioSistemaRepositorio = usuarioSistemaRepositorio;
     }
 
     @Transactional
@@ -60,7 +66,7 @@ public class CierresService {
     }
 
     @Transactional
-    public ResumenCierreDiarioResponse registrarCierre(RegistrarCierreRequest request) {
+    public ResumenCierreDiarioResponse registrarCierre(RegistrarCierreRequest request, AuthSessionData session) {
         cierreDiarioValidationService.validarRegistro(request);
 
         CierreDiario cierre = cierreDiarioRepositorio.findByFechaOperacion(request.fechaOperacion())
@@ -73,6 +79,7 @@ public class CierresService {
         cierre.setAhorro(normalizar(request.ahorro()));
         cierre.setObservacion(request.observacion());
         cierre.setEstado(EstadoCierreDiario.CERRADO);
+        cierre.setResponsableUsuario(resolveResponsibleUser(session));
 
         List<Venta> ventasDelDia = ventasService.ventasDelDia(request.fechaOperacion());
         ventasDelDia.stream()
@@ -109,5 +116,18 @@ public class CierresService {
 
     private BigDecimal normalizar(BigDecimal valor) {
         return valor == null ? BigDecimal.ZERO : valor.setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private UsuarioSistema resolveResponsibleUser(AuthSessionData session) {
+        if (session != null && session.usuarioId() != null && !session.usuarioId().isBlank()) {
+            return usuarioSistemaRepositorio.findById(java.util.UUID.fromString(session.usuarioId()))
+                    .orElseGet(this::resolveDefaultResponsibleUser);
+        }
+        return resolveDefaultResponsibleUser();
+    }
+
+    private UsuarioSistema resolveDefaultResponsibleUser() {
+        return usuarioSistemaRepositorio.findByUsernameIgnoreCase("keli")
+                .orElseThrow(() -> new IllegalStateException("No fue posible resolver el usuario responsable por defecto."));
     }
 }

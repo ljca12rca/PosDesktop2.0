@@ -1,5 +1,7 @@
 package com.posdesktop.pos.separados.api;
 
+import com.posdesktop.pos.auth.service.PermisosSistema;
+import com.posdesktop.pos.auth.web.RequiresPermissions;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoSeparado;
 import com.posdesktop.pos.separados.api.dto.RegistrarAbonoSeparadoRequest;
 import com.posdesktop.pos.separados.api.dto.RegistrarSeparadoRequest;
@@ -44,6 +46,7 @@ public class SeparadosController {
     }
 
     @GetMapping
+    @RequiresPermissions(PermisosSistema.SEPARADOS_VIEW)
     public ApiResponse<List<SeparadoListadoResponse>> listarSeparados(
             @RequestParam(name = "estado", required = false) EstadoSeparado estado,
             @RequestParam(name = "articulo", required = false) String articulo,
@@ -57,6 +60,7 @@ public class SeparadosController {
     }
 
     @GetMapping("/{separadoId}")
+    @RequiresPermissions(PermisosSistema.SEPARADOS_VIEW)
     public ApiResponse<SeparadoDetalleResponse> consultarSeparado(
             @PathVariable UUID separadoId,
             HttpServletRequest request
@@ -69,6 +73,7 @@ public class SeparadosController {
     }
 
     @PostMapping
+    @RequiresPermissions(PermisosSistema.SEPARADOS_EDIT)
     public ApiResponse<SeparadoDetalleResponse> registrarSeparado(
             @Valid @RequestBody RegistrarSeparadoRequest request,
             HttpServletRequest httpRequest
@@ -81,6 +86,7 @@ public class SeparadosController {
     }
 
     @PostMapping("/{separadoId}/abonos")
+    @RequiresPermissions(PermisosSistema.SEPARADOS_EDIT)
     public ApiResponse<SeparadoDetalleResponse> registrarAbono(
             @PathVariable UUID separadoId,
             @Valid @RequestBody RegistrarAbonoSeparadoRequest request,

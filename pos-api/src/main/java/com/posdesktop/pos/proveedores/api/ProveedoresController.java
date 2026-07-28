@@ -1,5 +1,8 @@
 package com.posdesktop.pos.proveedores.api;
 
+import com.posdesktop.pos.auth.service.PermisosSistema;
+import com.posdesktop.pos.auth.web.RequiresPermissions;
+import com.posdesktop.pos.proveedores.api.dto.ActualizarProveedorRequest;
 import com.posdesktop.pos.proveedores.api.dto.ProveedorResponse;
 import com.posdesktop.pos.proveedores.api.dto.RegistrarProveedorRequest;
 import com.posdesktop.pos.proveedores.service.ProveedoresService;
@@ -9,9 +12,12 @@ import com.posdesktop.pos.shared.api.ModuleStatusResponse;
 import com.posdesktop.pos.shared.service.ModuleCatalogService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,6 +47,7 @@ public class ProveedoresController {
     }
 
     @GetMapping
+    @RequiresPermissions(PermisosSistema.PROVEEDORES_VIEW)
     public ApiResponse<List<ProveedorResponse>> listarProveedores(HttpServletRequest request) {
         return ApiResponse.success(
                 "Proveedores consultados correctamente.",
@@ -50,6 +57,7 @@ public class ProveedoresController {
     }
 
     @PostMapping
+    @RequiresPermissions(PermisosSistema.PROVEEDORES_EDIT)
     public ApiResponse<ProveedorResponse> registrarProveedor(
             @Valid @RequestBody RegistrarProveedorRequest request,
             HttpServletRequest httpRequest
@@ -58,6 +66,20 @@ public class ProveedoresController {
                 "Proveedor registrado correctamente.",
                 httpRequest.getRequestURI(),
                 proveedoresService.registrarProveedor(request)
+        );
+    }
+
+    @PutMapping("/{proveedorId}")
+    @RequiresPermissions(PermisosSistema.PROVEEDORES_EDIT)
+    public ApiResponse<ProveedorResponse> actualizarProveedor(
+            @PathVariable UUID proveedorId,
+            @Valid @RequestBody ActualizarProveedorRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return ApiResponse.success(
+                "Proveedor actualizado correctamente.",
+                httpRequest.getRequestURI(),
+                proveedoresService.actualizarProveedor(proveedorId, request)
         );
     }
 }

@@ -2,10 +2,12 @@ package com.posdesktop.pos.proveedores.service;
 
 import com.posdesktop.pos.modelo.relacional.FacturaProveedor;
 import com.posdesktop.pos.modelo.relacional.Proveedor;
+import com.posdesktop.pos.proveedores.api.dto.ActualizarProveedorRequest;
 import com.posdesktop.pos.proveedores.api.dto.ProveedorResponse;
 import com.posdesktop.pos.proveedores.api.dto.RegistrarProveedorRequest;
 import com.posdesktop.pos.repositorio.relacional.FacturaProveedorRepositorio;
 import com.posdesktop.pos.repositorio.relacional.ProveedorRepositorio;
+import com.posdesktop.pos.shared.exception.ResourceNotFoundException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -59,6 +61,32 @@ public class ProveedoresService {
 
         Proveedor guardado = proveedorRepositorio.saveAndFlush(proveedor);
         return mapearProveedor(guardado, List.of());
+    }
+
+    @Transactional
+    public ProveedorResponse actualizarProveedor(UUID proveedorId, ActualizarProveedorRequest request) {
+        Proveedor proveedor = proveedorRepositorio.findById(proveedorId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe un proveedor con id " + proveedorId + "."));
+
+        String nit = limpiarRequerido(request.nit());
+        proveedorRepositorio.findByNitIgnoreCase(nit)
+                .filter(existente -> !existente.getId().equals(proveedorId))
+                .ifPresent(existente -> {
+                    throw new IllegalArgumentException("Ya existe un proveedor registrado con NIT " + nit + ".");
+                });
+
+        proveedor.setNit(nit);
+        proveedor.setNombre(limpiarRequerido(request.nombre()));
+        proveedor.setTelefono(limpiarOpcional(request.telefono()));
+        proveedor.setEmail(limpiarOpcional(request.correo()));
+        proveedor.setDireccion(limpiarOpcional(request.direccion()));
+        proveedor.setObservacion(limpiarOpcional(request.observacion()));
+
+        Proveedor guardado = proveedorRepositorio.saveAndFlush(proveedor);
+        List<FacturaProveedor> facturas = facturaProveedorRepositorio.findByProveedorId(proveedorId).stream()
+                .peek(FacturaProveedor::recalcularSaldo)
+                .toList();
+        return mapearProveedor(guardado, facturas);
     }
 
     private ProveedorResponse mapearProveedor(Proveedor proveedor, List<FacturaProveedor> facturas) {

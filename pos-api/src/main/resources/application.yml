@@ -40,3 +40,5 @@ pos:
     desktop-mock-enabled: true
     documentos:
       storage-root: ${POS_DOCUMENT_STORAGE_ROOT:${user.home}/posdesktop-media}
+  auth:
+    session-hours: ${POS_AUTH_SESSION_HOURS:12}

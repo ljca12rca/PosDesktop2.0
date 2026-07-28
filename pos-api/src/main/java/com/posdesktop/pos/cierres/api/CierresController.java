@@ -1,5 +1,9 @@
 package com.posdesktop.pos.cierres.api;
 
+import com.posdesktop.pos.auth.service.AuthService;
+import com.posdesktop.pos.auth.service.AuthSessionData;
+import com.posdesktop.pos.auth.service.PermisosSistema;
+import com.posdesktop.pos.auth.web.RequiresPermissions;
 import com.posdesktop.pos.cierres.api.dto.CierreDiarioListadoResponse;
 import com.posdesktop.pos.cierres.api.dto.RegistrarCierreRequest;
 import com.posdesktop.pos.cierres.api.dto.ResumenCierreDiarioResponse;
@@ -41,6 +45,7 @@ public class CierresController {
     }
 
     @GetMapping("/resumen")
+    @RequiresPermissions(PermisosSistema.CIERRES_VIEW)
     public ApiResponse<ResumenCierreDiarioResponse> resumen(
             @RequestParam(name = "fecha", required = false) LocalDate fecha,
             HttpServletRequest request
@@ -53,6 +58,7 @@ public class CierresController {
     }
 
     @GetMapping
+    @RequiresPermissions(PermisosSistema.CIERRES_VIEW)
     public ApiResponse<List<CierreDiarioListadoResponse>> listar(
             @RequestParam(name = "fechaInicial", required = false) LocalDate fechaInicial,
             @RequestParam(name = "fechaFinal", required = false) LocalDate fechaFinal,
@@ -66,14 +72,16 @@ public class CierresController {
     }
 
     @PostMapping
+    @RequiresPermissions(PermisosSistema.CIERRES_EDIT)
     public ApiResponse<ResumenCierreDiarioResponse> registrarCierre(
             @Valid @RequestBody RegistrarCierreRequest request,
             HttpServletRequest httpRequest
     ) {
+        AuthSessionData session = (AuthSessionData) httpRequest.getAttribute(AuthService.REQUEST_CONTEXT);
         return ApiResponse.success(
                 "Cierre diario registrado correctamente.",
                 httpRequest.getRequestURI(),
-                cierresService.registrarCierre(request)
+                cierresService.registrarCierre(request, session)
         );
     }
 }

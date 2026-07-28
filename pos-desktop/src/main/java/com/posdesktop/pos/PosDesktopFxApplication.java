@@ -15,11 +15,13 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,6 +53,7 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.ScrollPane;
@@ -100,7 +103,19 @@ public class PosDesktopFxApplication extends Application {
     private static final String RECEIPT_ADDRESS = "CALLE 28 # 29-18";
     private static final String RECEIPT_NIT = "NIT. 1.035.830.505-7";
     private static final String RECEIPT_CASHIER = "Caja principal";
+    private static final String PERM_VENTAS_VIEW = "VENTAS_VIEW";
+    private static final String PERM_VENTAS_EDIT = "VENTAS_EDIT";
+    private static final String PERM_CIERRES_VIEW = "CIERRES_VIEW";
+    private static final String PERM_CIERRES_EDIT = "CIERRES_EDIT";
+    private static final String PERM_SEPARADOS_VIEW = "SEPARADOS_VIEW";
+    private static final String PERM_SEPARADOS_EDIT = "SEPARADOS_EDIT";
+    private static final String PERM_MOVIMIENTOS_VIEW = "MOVIMIENTOS_VIEW";
+    private static final String PERM_FACTURAS_VIEW = "FACTURAS_VIEW";
+    private static final String PERM_FACTURAS_EDIT = "FACTURAS_EDIT";
+    private static final String PERM_PROVEEDORES_VIEW = "PROVEEDORES_VIEW";
+    private static final String PERM_PROVEEDORES_EDIT = "PROVEEDORES_EDIT";
     private final Map<String, Supplier<Node>> screenFactories = new LinkedHashMap<>();
+    private final StackPane applicationRoot = new StackPane();
     private final StackPane contentHost = new StackPane();
     private final PosApiClient posApiClient = PosApiClient.createDefault();
     private final ObservableList<SaleDraftRow> saleDraftRows = FXCollections.observableArrayList();
@@ -113,37 +128,22 @@ public class PosDesktopFxApplication extends Application {
     private Label apiStartupStatusLabel;
     private ProgressBar apiStartupProgressBar;
     private int apiProbeAttempt;
+    private Stage primaryStage;
+    private PosApiClient.AuthSessionResponse authenticatedSession;
 
     @Override
     public void start(Stage stage) {
-        screenFactories.put("Ventas", this::createSalesScreen);
-        screenFactories.put("Cierre", this::createClosingScreen);
-        screenFactories.put("Separados", this::createLayawayScreen);
-        screenFactories.put("Movimientos", this::createMovementsScreen);
-        screenFactories.put("Facturas", this::createInvoicesScreen);
-
-        BorderPane shell = new BorderPane();
-        shell.getStyleClass().add("app-shell");
-        shell.disableProperty().bind(apiAvailable.not());
-        VBox sidebar = (VBox) createSidebar();
-        shell.setLeft(sidebar);
-        shell.setCenter(contentHost);
-
-        showScreen("Ventas");
+        this.primaryStage = stage;
 
         Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
         double initialWidth = Math.min(1360, visualBounds.getWidth() * 0.96);
         double initialHeight = Math.min(860, visualBounds.getHeight() * 0.94);
 
         apiStartupOverlay = createApiStartupOverlay();
-        StackPane root = new StackPane(shell, apiStartupOverlay);
+        applicationRoot.getChildren().setAll(createLoginView(), apiStartupOverlay);
 
-        Scene scene = new Scene(root, initialWidth, initialHeight);
+        Scene scene = new Scene(applicationRoot, initialWidth, initialHeight);
         scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
-        bindRegionWidthToScene(sidebar, 0.17, 172, 210);
-        updateResponsiveState(shell, scene);
-        scene.widthProperty().addListener((obs, oldValue, newValue) -> updateResponsiveState(shell, scene));
-        scene.heightProperty().addListener((obs, oldValue, newValue) -> updateResponsiveState(shell, scene));
 
         stage.setTitle(APP_TITLE);
         stage.setMinWidth(Math.min(920, visualBounds.getWidth() * 0.78));
@@ -159,6 +159,173 @@ public class PosDesktopFxApplication extends Application {
     @Override
     public void stop() {
         apiRetryPause.stop();
+    }
+
+    private Node createLoginView() {
+        StackPane shell = new StackPane();
+        shell.getStyleClass().add("app-shell");
+        shell.setPadding(new Insets(28));
+
+        HBox layout = new HBox(28);
+        layout.setAlignment(Pos.CENTER);
+
+        VBox hero = new VBox(16);
+        hero.getStyleClass().addAll("surface-card", "login-hero-card");
+        hero.setMaxWidth(420);
+
+        StackPane badge = createIconBadge("PD", "badge-xl");
+        Label heroTitle = new Label("Bienvenido al POS");
+        heroTitle.getStyleClass().add("login-hero-title");
+        Label heroCopy = new Label("Inicia sesion para acceder solo a los modulos y acciones permitidas para tu perfil.");
+        heroCopy.getStyleClass().add("login-hero-copy");
+        heroCopy.setWrapText(true);
+
+        VBox bullets = new VBox(10,
+                createLoginFeature("Ventas y separados con control por rol"),
+                createLoginFeature("Facturas, proveedores y cierres protegidos"),
+                createLoginFeature("Interfaz adaptada a los permisos del usuario")
+        );
+        hero.getChildren().addAll(badge, heroTitle, heroCopy, bullets);
+
+        VBox card = new VBox(16);
+        card.getStyleClass().addAll("surface-card", "login-card");
+        card.setMaxWidth(380);
+
+        Label overline = new Label("Acceso seguro");
+        overline.getStyleClass().add("login-overline");
+        Label title = new Label("Iniciar sesion");
+        title.getStyleClass().add("login-title");
+        Label subtitle = new Label("Usa tu usuario y clave registrados en la base de datos.");
+        subtitle.getStyleClass().add("card-subtitle");
+        subtitle.setWrapText(true);
+
+        TextField usernameField = createField("");
+        usernameField.setPromptText("Usuario");
+        PasswordField passwordField = new PasswordField();
+        passwordField.getStyleClass().add("soft-field");
+        passwordField.setPromptText("Clave");
+
+        Label statusLabel = new Label("Esperando disponibilidad de la API...");
+        statusLabel.getStyleClass().add("login-status");
+        statusLabel.setWrapText(true);
+        BooleanProperty loginInProgress = new SimpleBooleanProperty(false);
+        apiAvailable.addListener((obs, oldValue, available) -> {
+            if (available) {
+                statusLabel.getStyleClass().remove("status-error");
+                statusLabel.setText("API disponible. Ingresa tus credenciales para continuar.");
+            } else {
+                if (!statusLabel.getStyleClass().contains("status-error")) {
+                    statusLabel.getStyleClass().add("status-error");
+                }
+                statusLabel.setText("Conectando con la API. Espera unos segundos...");
+            }
+        });
+        if (apiAvailable.get()) {
+            statusLabel.getStyleClass().remove("status-error");
+            statusLabel.setText("API disponible. Ingresa tus credenciales para continuar.");
+        }
+
+        Button loginButton = createActionButton("Entrar al sistema", "primary-button");
+        loginButton.setMaxWidth(Double.MAX_VALUE);
+        loginButton.disableProperty().bind(apiAvailable.not().or(loginInProgress));
+        loginButton.setDefaultButton(true);
+        Runnable performLogin = () -> {
+            if (!apiAvailable.get()) {
+                if (!statusLabel.getStyleClass().contains("status-error")) {
+                    statusLabel.getStyleClass().add("status-error");
+                }
+                statusLabel.setText("La API aun no esta lista. Espera un momento e intenta de nuevo.");
+                return;
+            }
+            if (usernameField.getText() == null || usernameField.getText().isBlank()
+                    || passwordField.getText() == null || passwordField.getText().isBlank()) {
+                if (!statusLabel.getStyleClass().contains("status-error")) {
+                    statusLabel.getStyleClass().add("status-error");
+                }
+                statusLabel.setText("Debes ingresar usuario y clave.");
+                return;
+            }
+            loginInProgress.set(true);
+            statusLabel.getStyleClass().remove("status-error");
+            statusLabel.setText("Validando credenciales...");
+            runAsync(
+                    () -> posApiClient.login(usernameField.getText(), passwordField.getText()),
+                    session -> {
+                        authenticatedSession = session;
+                        loginInProgress.set(false);
+                        passwordField.clear();
+                        showAuthenticatedShell();
+                    },
+                    exception -> {
+                        loginInProgress.set(false);
+                        passwordField.clear();
+                        if (!statusLabel.getStyleClass().contains("status-error")) {
+                            statusLabel.getStyleClass().add("status-error");
+                        }
+                        statusLabel.setText(exception.getMessage());
+                    }
+            );
+        };
+        loginButton.setOnAction(event -> performLogin.run());
+        usernameField.setOnAction(event -> passwordField.requestFocus());
+        passwordField.setOnAction(event -> performLogin.run());
+
+        VBox form = new VBox(12,
+                createFieldGroup("Usuario", usernameField, 320),
+                createFieldGroup("Clave", passwordField, 320)
+        );
+        form.getStyleClass().add("login-form");
+
+        card.getChildren().addAll(overline, title, subtitle, form, statusLabel, loginButton);
+        layout.getChildren().addAll(hero, card);
+        shell.getChildren().add(layout);
+        Platform.runLater(usernameField::requestFocus);
+        return shell;
+    }
+
+    private Node createLoginFeature(String text) {
+        HBox row = new HBox(10);
+        row.getStyleClass().add("login-feature-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        Label marker = new Label("•");
+        marker.getStyleClass().add("login-feature-marker");
+        Label copy = new Label(text);
+        copy.getStyleClass().add("login-feature-copy");
+        row.getChildren().addAll(marker, copy);
+        return row;
+    }
+
+    private void showAuthenticatedShell() {
+        configureAuthorizedScreens();
+        BorderPane shell = new BorderPane();
+        shell.getStyleClass().add("app-shell");
+        shell.disableProperty().bind(apiAvailable.not());
+        VBox sidebar = (VBox) createSidebar();
+        shell.setLeft(sidebar);
+        shell.setCenter(contentHost);
+        bindRegionWidthToScene(sidebar, 0.17, 172, 210);
+
+        Scene scene = primaryStage.getScene();
+        if (scene != null) {
+            updateResponsiveState(shell, scene);
+            scene.widthProperty().addListener((obs, oldValue, newValue) -> updateResponsiveState(shell, scene));
+            scene.heightProperty().addListener((obs, oldValue, newValue) -> updateResponsiveState(shell, scene));
+        }
+
+        String firstScreen = screenFactories.keySet().stream().findFirst().orElse("Acceso");
+        showScreen(firstScreen);
+        applicationRoot.getChildren().set(0, shell);
+        primaryStage.setTitle(APP_TITLE + " | " + authenticatedSession.nombreCompleto());
+    }
+
+    private void returnToLoginView() {
+        saleDraftRows.clear();
+        screenFactories.clear();
+        contentHost.getChildren().clear();
+        authenticatedSession = null;
+        posApiClient.clearSession();
+        applicationRoot.getChildren().set(0, createLoginView());
+        primaryStage.setTitle(APP_TITLE);
     }
 
     private StackPane createApiStartupOverlay() {
@@ -261,8 +428,14 @@ public class PosDesktopFxApplication extends Application {
         StackPane avatar = createIconBadge("PD", "badge-xl");
         Label title = new Label("POS Desktop");
         title.getStyleClass().add("sidebar-title");
+        Label userLabel = new Label(authenticatedSession == null ? "" : authenticatedSession.nombreCompleto());
+        userLabel.getStyleClass().add("sidebar-subtitle");
+        userLabel.setWrapText(true);
+        Label rolesLabel = new Label(authenticatedSession == null ? "" : formatRoleSummary(authenticatedSession.roles()));
+        rolesLabel.getStyleClass().add("sidebar-helper");
+        rolesLabel.setWrapText(true);
         brand.setAlignment(Pos.CENTER);
-        brand.getChildren().addAll(avatar, title);
+        brand.getChildren().addAll(avatar, title, userLabel, rolesLabel);
 
         ToggleGroup navigation = new ToggleGroup();
         VBox navButtons = new VBox(10);
@@ -275,17 +448,58 @@ public class PosDesktopFxApplication extends Application {
             button.setOnAction(event -> showScreen(key));
             navButtons.getChildren().add(button);
         }
-        ((ToggleButton) navButtons.getChildren().get(0)).setSelected(true);
+        if (!navButtons.getChildren().isEmpty()) {
+            ((ToggleButton) navButtons.getChildren().get(0)).setSelected(true);
+        }
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
 
-        sidebar.getChildren().addAll(brand, navButtons, spacer);
+        Button logoutButton = new Button("Cerrar sesion");
+        logoutButton.setMaxWidth(Double.MAX_VALUE);
+        logoutButton.getStyleClass().add("nav-button");
+        logoutButton.setOnAction(event -> {
+            try {
+                posApiClient.logout();
+            } catch (RuntimeException ignored) {
+                posApiClient.clearSession();
+            }
+            returnToLoginView();
+        });
+
+        sidebar.getChildren().addAll(brand, navButtons, spacer, logoutButton);
         return sidebar;
     }
 
     private void showScreen(String key) {
-        contentHost.getChildren().setAll(wrapContent(screenFactories.get(key).get()));
+        Supplier<Node> screenFactory = screenFactories.get(key);
+        if (screenFactory == null) {
+            contentHost.getChildren().setAll(wrapContent(createNoAccessScreen()));
+            return;
+        }
+        contentHost.getChildren().setAll(wrapContent(screenFactory.get()));
+    }
+
+    private void configureAuthorizedScreens() {
+        screenFactories.clear();
+        if (hasPermission(PERM_VENTAS_VIEW)) {
+            screenFactories.put("Ventas", this::createSalesScreen);
+        }
+        if (hasPermission(PERM_CIERRES_VIEW)) {
+            screenFactories.put("Cierre", this::createClosingScreen);
+        }
+        if (hasPermission(PERM_SEPARADOS_VIEW)) {
+            screenFactories.put("Separados", this::createLayawayScreen);
+        }
+        if (hasPermission(PERM_MOVIMIENTOS_VIEW)) {
+            screenFactories.put("Movimientos", this::createMovementsScreen);
+        }
+        if (hasPermission(PERM_FACTURAS_VIEW) && hasPermission(PERM_PROVEEDORES_VIEW)) {
+            screenFactories.put("Facturas", this::createInvoicesScreen);
+        }
+        if (screenFactories.isEmpty()) {
+            screenFactories.put("Acceso", this::createNoAccessScreen);
+        }
     }
 
     private Node wrapContent(Node node) {
@@ -297,6 +511,45 @@ public class PosDesktopFxApplication extends Application {
         scrollPane.setPannable(false);
         scrollPane.getStyleClass().add("content-scroll");
         return scrollPane;
+    }
+
+    private Node createNoAccessScreen() {
+        VBox root = createScreenContainer("Acceso restringido", "Tu usuario no tiene modulos asignados en este momento.");
+        root.setAlignment(Pos.TOP_CENTER);
+        VBox card = createCard(
+                "Sin permisos operativos",
+                "Solicita a un administrador que te asigne al menos un rol con acceso a modulos del POS."
+        );
+        card.setMaxWidth(520);
+        card.getChildren().add(createProgressCard("Estado", 0.18, "La sesion esta activa, pero no hay secciones habilitadas."));
+        root.getChildren().add(card);
+        return root;
+    }
+
+    private boolean hasPermission(String permission) {
+        return authenticatedSession != null
+                && authenticatedSession.permisos() != null
+                && authenticatedSession.permisos().contains(permission);
+    }
+
+    private void setNodeAllowed(Node node, boolean allowed) {
+        if (node == null) {
+            return;
+        }
+        node.setVisible(allowed);
+        node.setManaged(allowed);
+        if (node instanceof Button button) {
+            if (!button.disableProperty().isBound()) {
+                button.setDisable(!allowed);
+            }
+        }
+    }
+
+    private String formatRoleSummary(List<String> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return "Sin roles";
+        }
+        return String.join(" · ", roles);
     }
 
     private Node createSalesScreen() {
@@ -325,6 +578,10 @@ public class PosDesktopFxApplication extends Application {
         Button payButton = createActionButton("Cobrar", "primary-button");
         payButton.setMaxWidth(Double.MAX_VALUE);
         payButton.setOnAction(event -> registerSale(montoRecibidoField, statusLabel, valorUnitarioField, printReceiptCheck));
+        if (!hasPermission(PERM_VENTAS_EDIT)) {
+            payButton.setDisable(true);
+            statusLabel.setText("Tu usuario puede consultar la venta en pantalla, pero no registrar comprobantes.");
+        }
 
         saleTotal.addListener((obs, oldValue, newValue) -> {
             totalLabel.setText(formatCurrency(newValue));
@@ -373,7 +630,7 @@ public class PosDesktopFxApplication extends Application {
 
         LocalDate today = LocalDate.now();
         DatePicker fechaOperacionPicker = new DatePicker(today);
-        DatePicker fechaInicialHistorialPicker = new DatePicker(today.minusDays(7));
+        DatePicker fechaInicialHistorialPicker = new DatePicker(today.withDayOfYear(1));
         DatePicker fechaFinalHistorialPicker = new DatePicker(today);
         ComboBox<String> estadoHistorialCombo = new ComboBox<>(FXCollections.observableArrayList(FILTER_ALL));
         estadoHistorialCombo.getSelectionModel().selectFirst();
@@ -439,6 +696,7 @@ public class PosDesktopFxApplication extends Application {
 
         HBox grid = createAdaptivePanelRow(
                 createClosingFormCard(
+                        hasPermission(PERM_CIERRES_EDIT),
                         fechaOperacionPicker,
                         baseField,
                         trabajadorasField,
@@ -615,6 +873,7 @@ public class PosDesktopFxApplication extends Application {
                         paymentProgressCaption
                 ),
                 createLayawayActionsCard(
+                        hasPermission(PERM_SEPARADOS_EDIT),
                         () -> showNewLayawayWindow(
                                 contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
                                 refreshLayaways,
@@ -810,7 +1069,18 @@ public class PosDesktopFxApplication extends Application {
 
         Button refreshButton = createActionButton("Actualizar", "ghost-button");
         refreshButton.setMaxWidth(Double.MAX_VALUE);
-        refreshButton.setOnAction(event -> refreshProviders.run());
+        refreshButton.disableProperty().bind(Bindings.isNull(providerTable.getSelectionModel().selectedItemProperty()));
+        refreshButton.setOnAction(event -> showUpdateProviderWindow(
+                contentHost.getScene() == null ? null : contentHost.getScene().getWindow(),
+                providerTable.getSelectionModel().getSelectedItem(),
+                null,
+                updatedId -> {
+                    selectedProviderId.set(updatedId);
+                    refreshProviders.run();
+                }
+        ));
+        setNodeAllowed(newProviderButton, hasPermission(PERM_PROVEEDORES_EDIT));
+        setNodeAllowed(refreshButton, hasPermission(PERM_PROVEEDORES_EDIT));
 
         selectedProviderValue.getStyleClass().add("invoice-provider-name");
         providerStatusValue.getStyleClass().add("invoice-provider-status");
@@ -1503,7 +1773,7 @@ public class PosDesktopFxApplication extends Application {
             FilteredList<PosApiClient.CierreDiarioListadoResponse> filteredHistory,
             Label historyFeedbackLabel
     ) {
-        LocalDate inicio = fechaInicial == null ? LocalDate.now().minusDays(7) : fechaInicial;
+        LocalDate inicio = fechaInicial == null ? LocalDate.now().withDayOfYear(1) : fechaInicial;
         LocalDate fin = fechaFinal == null ? LocalDate.now() : fechaFinal;
         if (fin.isBefore(inicio)) {
             showError("Historial de cierres", "La fecha final no puede ser menor a la fecha inicial.");
@@ -1630,6 +1900,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private Node createClosingFormCard(
+            boolean editAllowed,
             DatePicker fechaOperacionPicker,
             TextField baseField,
             TextField trabajadorasField,
@@ -1668,6 +1939,12 @@ public class PosDesktopFxApplication extends Application {
                 totalCaption,
                 refreshHistoryAction
         ));
+        save.setDisable(!editAllowed);
+        fechaOperacionPicker.setDisable(!editAllowed);
+        baseField.setDisable(!editAllowed);
+        trabajadorasField.setDisable(!editAllowed);
+        ahorroField.setDisable(!editAllowed);
+        observacionArea.setDisable(!editAllowed);
         configureClosingFocusFlow(baseField, trabajadorasField, ahorroField, save);
 
         fechaOperacionPicker.valueProperty().addListener((obs, oldValue, newValue) -> loadClosingSummary(
@@ -2010,6 +2287,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private Node createLayawayActionsCard(
+            boolean editAllowed,
             Runnable onNewLayaway,
             Runnable onPayment,
             Runnable onRefresh,
@@ -2039,6 +2317,8 @@ public class PosDesktopFxApplication extends Application {
         Button payments = createActionButton("Visualizar abonos", "ghost-button");
         payments.setMaxWidth(Double.MAX_VALUE);
         payments.setOnAction(event -> onShowPayments.run());
+        setNodeAllowed(newLayaway, editAllowed);
+        setNodeAllowed(payment, editAllowed);
 
         VBox stats = new VBox(8,
                 createKeyValue("Activos", activeValue),
@@ -2233,8 +2513,9 @@ public class PosDesktopFxApplication extends Application {
         }
 
         Stage stage = createDialogStage("Facturas | " + provider.nombre());
-        if (owner != null) {
-            stage.initOwner(owner);
+        Window effectiveOwner = owner != null ? owner : primaryStage;
+        if (effectiveOwner != null) {
+            stage.initOwner(effectiveOwner);
         }
 
         ObservableList<PosApiClient.FacturaProveedorListadoResponse> invoiceSource = FXCollections.observableArrayList();
@@ -2288,6 +2569,9 @@ public class PosDesktopFxApplication extends Application {
         Button refreshButton = createActionButton("Actualizar", "ghost-button");
         refreshButton.setPrefWidth(170);
         refreshButton.disableProperty().bind(Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty()));
+        setNodeAllowed(newInvoiceButton, hasPermission(PERM_FACTURAS_EDIT));
+        setNodeAllowed(registerPaymentButton, hasPermission(PERM_FACTURAS_EDIT));
+        setNodeAllowed(refreshButton, hasPermission(PERM_FACTURAS_EDIT));
 
         Runnable refreshInvoices = () -> runAsync(
                 () -> posApiClient.listarFacturas(provider.id(), null),
@@ -2571,6 +2855,11 @@ public class PosDesktopFxApplication extends Application {
         ));
         stage.setScene(scene);
         applyResponsiveStageSize(stage, 0.95, 0.88, 1060, 700);
+        stage.setOnShown(event -> {
+            stage.centerOnScreen();
+            stage.toFront();
+            stage.requestFocus();
+        });
         refreshInvoices.run();
         stage.show();
     }
@@ -2882,6 +3171,10 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void showProviderWindow(Window owner, Runnable afterSave, Consumer<String> onCreated) {
+        if (!hasPermission(PERM_PROVEEDORES_EDIT)) {
+            showError("Proveedores", "Tu usuario no tiene permiso para crear proveedores.");
+            return;
+        }
         Stage stage = createDialogStage("Nuevo proveedor");
         if (owner != null) {
             stage.initOwner(owner);
@@ -2990,12 +3283,142 @@ public class PosDesktopFxApplication extends Application {
         stage.show();
     }
 
+    private void showUpdateProviderWindow(
+            Window owner,
+            PosApiClient.ProveedorResponse provider,
+            Runnable afterSave,
+            Consumer<String> onUpdated
+    ) {
+        if (!hasPermission(PERM_PROVEEDORES_EDIT)) {
+            showError("Proveedores", "Tu usuario no tiene permiso para actualizar proveedores.");
+            return;
+        }
+        if (provider == null) {
+            showError("Proveedores", "Selecciona un proveedor para actualizar sus datos.");
+            return;
+        }
+
+        Stage stage = createDialogStage("Actualizar proveedor");
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                "Actualizar proveedor",
+                "Edita la informacion principal del proveedor seleccionado y guarda los cambios en la API."
+        );
+        root.getStyleClass().add("invoice-workspace");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+
+        TextField nitField = createField(safeText(provider.nit(), ""));
+        nitField.setPromptText("NIT o identificacion");
+        TextField nameField = createField(safeText(provider.nombre(), ""));
+        nameField.setPromptText("Nombre del proveedor");
+        TextField phoneField = createField(safeText(provider.telefono(), ""));
+        phoneField.setPromptText("Telefono");
+        TextField emailField = createField(safeText(provider.correo(), ""));
+        emailField.setPromptText("Correo");
+        TextField addressField = createField(safeText(provider.direccion(), ""));
+        addressField.setPromptText("Direccion");
+        TextArea notesArea = createArea(safeText(provider.observacion(), ""), 2);
+        notesArea.setPromptText("Observacion interna");
+
+        Label providerPreviewValue = createMetaValueLabel(safeText(provider.nombre(), "Proveedor"));
+        providerPreviewValue.textProperty().bind(Bindings.createStringBinding(
+                () -> safeText(nameField.getText(), "Proveedor"),
+                nameField.textProperty()
+        ));
+        Label nitPreviewValue = createMetaValueLabel(safeText(provider.nit(), "-"));
+        nitPreviewValue.textProperty().bind(Bindings.createStringBinding(
+                () -> safeText(nitField.getText(), "-"),
+                nitField.textProperty()
+        ));
+
+        Button save = createActionButton("Guardar cambios", "primary-button");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setOnAction(event -> {
+            save.setDisable(true);
+            runAsync(
+                    () -> posApiClient.actualizarProveedor(
+                            provider.id(),
+                            new PosApiClient.ActualizarProveedorRequest(
+                                    nitField.getText(),
+                                    nameField.getText(),
+                                    phoneField.getText(),
+                                    emailField.getText(),
+                                    addressField.getText(),
+                                    notesArea.getText()
+                            )
+                    ),
+                    updatedProvider -> {
+                        stage.close();
+                        if (afterSave != null) {
+                            afterSave.run();
+                        }
+                        if (onUpdated != null) {
+                            onUpdated.accept(updatedProvider.id());
+                        }
+                        showInfo(
+                                "Proveedor actualizado",
+                                "Se actualizo el proveedor " + updatedProvider.nombre() + " y los cambios ya quedaron disponibles en la bandeja."
+                        );
+                    },
+                    exception -> {
+                        save.setDisable(false);
+                        showError("Actualizar proveedor", exception.getMessage());
+                    }
+            );
+        });
+
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("NIT", nitField, 220),
+                createFieldGroup("Proveedor", nameField, 280),
+                createFieldGroup("Telefono", phoneField, 220),
+                createFieldGroup("Correo", emailField, 240),
+                createFieldGroup("Direccion", addressField, 280)
+        );
+        VBox formCard = createCard(
+                "Datos del proveedor",
+                "Ajusta la informacion base y conserva la relacion con sus facturas registradas."
+        );
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+        formCard.getChildren().addAll(fields, createFieldGroup("Observacion", notesArea, 520));
+
+        VBox summaryCard = createCard(
+                "Resumen",
+                "Confirma la identidad del proveedor antes de guardar."
+        );
+        bindRegionWidthToScene(summaryCard, 0.28, 260, 320);
+        summaryCard.setMaxWidth(Region.USE_PREF_SIZE);
+        summaryCard.getChildren().addAll(
+                createKeyValue("Proveedor", providerPreviewValue),
+                createKeyValue("NIT", nitPreviewValue),
+                createProgressCard("Actualizacion real", 0.72, "Los cambios impactan de inmediato la ficha del proveedor en el POS."),
+                save
+        );
+
+        HBox workspace = createAdaptivePanelRow(formCard, summaryCard);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        root.getChildren().add(workspace);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.8, 0.74, 920, 520);
+        stage.show();
+    }
+
     private void showInvoiceWindow(
             Window owner,
             PosApiClient.ProveedorResponse provider,
             Runnable afterSave,
             Consumer<String> onCreated
     ) {
+        if (!hasPermission(PERM_FACTURAS_EDIT)) {
+            showError("Facturas", "Tu usuario no tiene permiso para crear facturas.");
+            return;
+        }
         if (provider == null) {
             showError("Facturas", "Selecciona un proveedor para crear una factura.");
             return;
@@ -3156,6 +3579,10 @@ public class PosDesktopFxApplication extends Application {
             PosApiClient.FacturaProveedorDetalleResponse invoiceDetail,
             Runnable afterSave
     ) {
+        if (!hasPermission(PERM_FACTURAS_EDIT)) {
+            showError("Facturas", "Tu usuario no tiene permiso para actualizar facturas.");
+            return;
+        }
         if (provider == null || invoice == null) {
             showError("Facturas", "Selecciona una factura para actualizar sus datos.");
             return;
@@ -3299,6 +3726,10 @@ public class PosDesktopFxApplication extends Application {
             PosApiClient.FacturaProveedorListadoResponse invoice,
             Runnable afterSave
     ) {
+        if (!hasPermission(PERM_FACTURAS_EDIT)) {
+            showError("Facturas", "Tu usuario no tiene permiso para registrar abonos.");
+            return;
+        }
         if (provider == null || invoice == null) {
             showError("Facturas", "Selecciona una factura para registrar un abono.");
             return;
@@ -3912,7 +4343,7 @@ public class PosDesktopFxApplication extends Application {
             Label devueltoValue,
             Label devueltoCaption
     ) {
-        VBox card = createCard("Filtros", "Bandeja mock de consulta por rango y tipo.");
+        VBox card = createCard("Filtros", "Consulta por rango de fechas y origen del movimiento.");
         card.getStyleClass().add("movements-filter-card");
         bindRegionWidthToScene(card, 0.17, 182, 218);
         card.setMaxWidth(Region.USE_PREF_SIZE);
@@ -3947,7 +4378,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private Node createMovementsTableCard(TableView<PosApiClient.MovimientoVentaResponse> table) {
-        VBox card = createCard("Movimientos encontrados", "Tabla mock con ingresos del dia, recibidos y cambio.");
+        VBox card = createCard("Movimientos encontrados", "Tabla consolidada con ingresos del dia, recibido y cambio.");
         card.getStyleClass().add("movements-table-card");
         HBox.setHgrow(card, Priority.ALWAYS);
         card.getChildren().add(table);
@@ -3962,7 +4393,7 @@ public class PosDesktopFxApplication extends Application {
             Label devueltoValue,
             Label devueltoCaption
     ) {
-        VBox card = createCard("Lectura rapida", "Mini resumen visual de la jornada.");
+        VBox card = createCard("Lectura rapida", "Resumen visual de la jornada.");
         card.getStyleClass().add("movements-insights-card");
         bindRegionWidthToScene(card, 0.17, 176, 224);
         card.setMaxWidth(Region.USE_PREF_SIZE);

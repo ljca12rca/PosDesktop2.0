@@ -32,6 +32,13 @@
     -fx-line-spacing: 4px;
 }
 
+.sidebar-helper {
+    -fx-text-fill: rgba(255, 255, 255, 0.68);
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-alignment: center;
+}
+
 .nav-button {
     -fx-background-color: rgba(255, 255, 255, 0.08);
     -fx-background-radius: 18;
@@ -119,6 +126,76 @@
 .card-subtitle {
     -fx-font-size: 12px;
     -fx-text-fill: #7a8178;
+}
+
+.login-hero-card {
+    -fx-background-color:
+        linear-gradient(to bottom right, rgba(21, 70, 73, 0.94), rgba(11, 109, 108, 0.92)),
+        radial-gradient(center 18% 12%, radius 72%, rgba(244, 190, 100, 0.16), transparent 58%);
+    -fx-background-radius: 34;
+    -fx-padding: 26;
+    -fx-spacing: 14;
+}
+
+.login-card {
+    -fx-background-color:
+        linear-gradient(to bottom right, rgba(255, 253, 248, 0.98), rgba(247, 242, 233, 0.96)),
+        radial-gradient(center 15% 8%, radius 74%, rgba(244, 190, 100, 0.14), transparent 56%);
+    -fx-background-radius: 34;
+    -fx-padding: 24;
+    -fx-spacing: 14;
+}
+
+.login-overline {
+    -fx-text-fill: #7a8178;
+    -fx-font-size: 11px;
+    -fx-font-weight: 800;
+}
+
+.login-title {
+    -fx-text-fill: #173746;
+    -fx-font-size: 28px;
+    -fx-font-weight: 900;
+}
+
+.login-status {
+    -fx-text-fill: #4c605e;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+
+.login-hero-title {
+    -fx-text-fill: #fff7ea;
+    -fx-font-size: 30px;
+    -fx-font-weight: 900;
+}
+
+.login-hero-copy {
+    -fx-text-fill: rgba(255, 249, 238, 0.9);
+    -fx-font-size: 14px;
+    -fx-line-spacing: 2px;
+}
+
+.login-form {
+    -fx-spacing: 12;
+}
+
+.login-feature-row {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 18;
+    -fx-padding: 10 12 10 12;
+}
+
+.login-feature-marker {
+    -fx-text-fill: #f6c36f;
+    -fx-font-size: 18px;
+    -fx-font-weight: 900;
+}
+
+.login-feature-copy {
+    -fx-text-fill: rgba(255, 250, 242, 0.92);
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
 }
 
 .startup-overlay {
@@ -668,7 +745,7 @@
 }
 
 .feedback-overlay {
-    -fx-background-color: rgba(18, 26, 33, 0.28);
+    -fx-background-color: transparent;
 }
 
 .feedback-dialog {
