@@ -33,6 +33,7 @@ management:
         include: health,info
 
 pos:
+  timezone: ${POS_TIMEZONE:America/Bogota}
   api:
     application-name: POS Desktop API
     version: v1

@@ -7,6 +7,8 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     environment:
+      TZ: ${POS_TIMEZONE:-America/Bogota}
+      POS_TIMEZONE: ${POS_TIMEZONE:-America/Bogota}
       POS_API_PORT: 8083
       POS_PG_URL: jdbc:postgresql://postgres:5432/posdesktop
       POS_PG_USERNAME: pos
@@ -18,7 +20,7 @@ services:
       POS_MONGO_PASSWORD: pos123
       POS_MONGO_AUTH_DB: admin
       POS_DOCUMENT_STORAGE_ROOT: /var/posdesktop-media
-      JAVA_OPTS: -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom
+      JAVA_OPTS: -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom -Duser.timezone=${POS_TIMEZONE:-America/Bogota}
     ports:
       - "8083:8083"
     volumes:
@@ -53,6 +55,7 @@ services:
     container_name: posdesktop-postgres
     restart: unless-stopped
     environment:
+      TZ: ${POS_TIMEZONE:-America/Bogota}
       POSTGRES_DB: posdesktop
       POSTGRES_USER: pos
       POSTGRES_PASSWORD: pos123
@@ -74,6 +77,7 @@ services:
     container_name: posdesktop-mongo
     restart: unless-stopped
     environment:
+      TZ: ${POS_TIMEZONE:-America/Bogota}
       MONGO_INITDB_ROOT_USERNAME: pos
       MONGO_INITDB_ROOT_PASSWORD: pos123
       MONGO_INITDB_DATABASE: posdesktop_media

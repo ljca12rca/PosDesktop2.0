@@ -2341,6 +2341,7 @@ public class PosDesktopFxApplication extends Application {
                 tableColumn("Cliente", PosApiClient.SeparadoListadoResponse::cliente),
                 tableColumn("Articulos", PosApiClient.SeparadoListadoResponse::descripcionArticulos),
                 tableColumn("Estado", separado -> formatLayawayStatus(separado.estado())),
+                tableColumn("Total", separado -> formatCurrency(separado.valorTotal())),
                 tableColumn("Abonado", separado -> formatCurrency(separado.totalAbonado())),
                 tableColumn("Restante", separado -> formatCurrency(separado.saldoPendiente())),
                 tableColumn("Fecha", separado -> formatShortDate(separado.fechaSeparacion()))

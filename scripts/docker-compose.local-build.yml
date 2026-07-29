@@ -5,6 +5,10 @@ services:
       dockerfile: pos-api/Dockerfile
     image: posdesktop-api:local
     pull_policy: never
+    environment:
+      TZ: ${POS_TIMEZONE:-America/Bogota}
+      POS_TIMEZONE: ${POS_TIMEZONE:-America/Bogota}
+      JAVA_OPTS: -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom -Duser.timezone=${POS_TIMEZONE:-America/Bogota}
 
   watchtower:
     profiles:

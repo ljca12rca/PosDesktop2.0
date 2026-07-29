@@ -3,5 +3,6 @@
   <component name="SqlDialectMappings">
     <file url="file://$PROJECT_DIR$/pos-api/src/main/resources/db/migration/V1__modelo_inicial.sql" dialect="PostgreSQL" />
     <file url="file://$PROJECT_DIR$/pos-api/src/main/resources/db/migration/V3__ventas_operativas_y_cierres.sql" dialect="PostgreSQL" />
+    <file url="file://$PROJECT_DIR$/scripts/sql/migracion_legacy_cierres_separados_abonos.sql" dialect="PostgreSQL" />
   </component>
 </project>
