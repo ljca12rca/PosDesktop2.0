@@ -107,6 +107,7 @@ public class PosDesktopFxApplication extends Application {
     private static final double RECEIPT_PREVIEW_WIDTH = 230;
     private static final double RECEIPT_PAPER_WIDTH_POINTS = 226.8;
     private static final double RECEIPT_MIN_PAPER_HEIGHT_POINTS = 260;
+    private static final int RECEIPT_RIGHT_SAFETY_MARGIN_POINTS = 26;
     private static final String PERM_VENTAS_VIEW = "VENTAS_VIEW";
     private static final String PERM_VENTAS_EDIT = "VENTAS_EDIT";
     private static final String PERM_CIERRES_VIEW = "CIERRES_VIEW";
@@ -1662,7 +1663,7 @@ public class PosDesktopFxApplication extends Application {
 
         VBox metaBlock = new VBox(2,
                 createReceiptMetaRow("Factura N", response.numeroVenta()),
-                createReceiptMetaRow("Cajero", RECEIPT_CASHIER),
+                createReceiptMetaRow("Cajero", resolveReceiptCashier()),
                 createReceiptMetaRow(
                         "Fecha",
                         RECEIPT_DATE_FORMATTER.format(response.fechaVenta()) + "   Hora: "
@@ -1813,7 +1814,7 @@ public class PosDesktopFxApplication extends Application {
         java.awt.Font strongFont = new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.BOLD, 8);
         java.awt.Font titleFont = new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.BOLD, 10);
         int left = 6;
-        int right = paperWidth - 6;
+        int right = paperWidth - RECEIPT_RIGHT_SAFETY_MARGIN_POINTS;
         int priceColumn = right - 56;
         int descriptionColumn = left + 28;
         int descriptionWidth = priceColumn - descriptionColumn - 4;
@@ -1830,7 +1831,7 @@ public class PosDesktopFxApplication extends Application {
 
         drawReceiptText(graphics, "Factura N: " + response.numeroVenta(), bodyFont, left, y);
         y += 11;
-        drawReceiptText(graphics, "Cajero: " + RECEIPT_CASHIER, bodyFont, left, y);
+        drawReceiptText(graphics, "Cajero: " + resolveReceiptCashier(), bodyFont, left, y);
         y += 11;
         drawReceiptText(
                 graphics,
@@ -1919,6 +1920,13 @@ public class PosDesktopFxApplication extends Application {
             return "Item" + detail.orden();
         }
         return detail.descripcion();
+    }
+
+    private String resolveReceiptCashier() {
+        if (authenticatedSession == null) {
+            return RECEIPT_CASHIER;
+        }
+        return safeText(authenticatedSession.nombreCompleto(), RECEIPT_CASHIER);
     }
 
     private TableView<PosApiClient.CierreDiarioListadoResponse> createClosingHistoryTable() {
