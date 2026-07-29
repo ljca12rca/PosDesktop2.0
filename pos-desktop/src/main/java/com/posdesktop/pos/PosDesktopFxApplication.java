@@ -105,7 +105,7 @@ public class PosDesktopFxApplication extends Application {
     private static final String RECEIPT_NIT = "NIT. 1.035.833.243-6";
     private static final String RECEIPT_CASHIER = "Caja principal";
     private static final double RECEIPT_PREVIEW_WIDTH = 230;
-    private static final double RECEIPT_PAPER_WIDTH_POINTS = 164.4;
+    private static final double RECEIPT_PAPER_WIDTH_POINTS = 226.8;
     private static final double RECEIPT_MIN_PAPER_HEIGHT_POINTS = 260;
     private static final String PERM_VENTAS_VIEW = "VENTAS_VIEW";
     private static final String PERM_VENTAS_EDIT = "VENTAS_EDIT";
@@ -1809,15 +1809,15 @@ public class PosDesktopFxApplication extends Application {
             PosApiClient.VentaRegistradaResponse response,
             int paperWidth
     ) {
-        java.awt.Font bodyFont = new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 8);
+        java.awt.Font bodyFont = new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.BOLD, 8);
         java.awt.Font strongFont = new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.BOLD, 8);
         java.awt.Font titleFont = new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.BOLD, 10);
-        int left = 4;
-        int right = paperWidth - 4;
-        int priceColumn = right - 46;
-        int descriptionColumn = 23;
+        int left = 6;
+        int right = paperWidth - 6;
+        int priceColumn = right - 56;
+        int descriptionColumn = left + 28;
         int descriptionWidth = priceColumn - descriptionColumn - 4;
-        int y = 12;
+        int y = 8;
 
         drawReceiptCentered(graphics, RECEIPT_BUSINESS_NAME.toUpperCase(Locale.ROOT), titleFont, paperWidth / 2, y);
         y += 13;

@@ -6,7 +6,7 @@
 
     <groupId>com.posdesktop</groupId>
     <artifactId>pos-root</artifactId>
-    <version>0.0.16-SNAPSHOT</version>
+    <version>0.0.18-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>pos-root</name>
