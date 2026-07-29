@@ -881,23 +881,21 @@
 
 .receipt-paper {
     -fx-background-color: white;
-    -fx-background-radius: 18;
-    -fx-padding: 26 18 24 18;
-    -fx-spacing: 8;
-    -fx-max-width: 290;
-    -fx-pref-width: 290;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.12), 16, 0.18, 0, 4);
+    -fx-background-radius: 4;
+    -fx-padding: 8 6 10 6;
+    -fx-spacing: 3;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.12), 8, 0.12, 0, 2);
 }
 
 .receipt-brand {
     -fx-text-fill: #1a1a1a;
-    -fx-font-size: 24px;
+    -fx-font-size: 11px;
     -fx-font-weight: 900;
 }
 
 .receipt-owner {
     -fx-text-fill: #2b2b2b;
-    -fx-font-size: 12px;
+    -fx-font-size: 9px;
     -fx-font-weight: 800;
 }
 
@@ -914,7 +912,7 @@
 
 .receipt-meta {
     -fx-text-fill: #2a2a2a;
-    -fx-font-size: 12px;
+    -fx-font-size: 8px;
     -fx-font-weight: 700;
     -fx-alignment: center;
 }
@@ -929,50 +927,53 @@
 .receipt-meta-key,
 .receipt-meta-value {
     -fx-text-fill: #2d2d2d;
-    -fx-font-size: 12px;
+    -fx-font-size: 8px;
 }
 
 .receipt-text {
     -fx-text-fill: #222;
-    -fx-font-size: 12px;
+    -fx-font-size: 8px;
 }
 
 .receipt-divider {
     -fx-text-fill: #383838;
-    -fx-font-size: 12px;
+    -fx-font-size: 8px;
 }
 
 .receipt-col-qty {
-    -fx-min-width: 34;
-    -fx-pref-width: 34;
+    -fx-min-width: 22;
+    -fx-pref-width: 22;
+    -fx-max-width: 22;
 }
 
 .receipt-col-desc {
-    -fx-min-width: 96;
-    -fx-pref-width: 96;
+    -fx-min-width: 64;
+    -fx-pref-width: 64;
+    -fx-max-width: 64;
 }
 
 .receipt-col-money {
-    -fx-min-width: 56;
-    -fx-pref-width: 56;
+    -fx-min-width: 42;
+    -fx-pref-width: 42;
+    -fx-max-width: 42;
     -fx-alignment: center-right;
 }
 
 .receipt-total-row {
-    -fx-padding: 6 0 0 0;
+    -fx-padding: 3 0 0 0;
 }
 
 .receipt-total-label,
 .receipt-total-amount {
     -fx-text-fill: #1c1c1c;
-    -fx-font-size: 15px;
+    -fx-font-size: 10px;
     -fx-font-weight: 900;
 }
 
 .receipt-thanks {
-    -fx-padding: 16 0 0 0;
+    -fx-padding: 8 0 0 0;
     -fx-text-fill: #232323;
-    -fx-font-size: 13px;
+    -fx-font-size: 9px;
     -fx-font-weight: 900;
     -fx-alignment: center;
 }
@@ -1098,6 +1099,75 @@
 
 .sales-summary-card {
     -fx-padding: 14;
+}
+
+/* Fuente ampliada exclusivamente para el punto de venta. */
+.sales-screen .screen-title {
+    -fx-font-size: 38px;
+}
+
+.sales-screen .badge-text {
+    -fx-font-size: 22px;
+}
+
+.sales-screen .card-subtitle {
+    -fx-font-size: 15px;
+}
+
+.sales-screen .amount-overline,
+.sales-screen .field-label {
+    -fx-font-size: 16px;
+}
+
+.sales-screen .soft-check {
+    -fx-font-size: 16px;
+}
+
+.sales-screen .amount-helper {
+    -fx-font-size: 15px;
+}
+
+.sales-screen .soft-field {
+    -fx-font-size: 18px;
+}
+
+.sales-screen .primary-button,
+.sales-screen .ghost-button {
+    -fx-font-size: 18px;
+}
+
+.sales-screen .amount-main {
+    -fx-font-size: 38px;
+}
+
+.sales-screen .data-table .column-header,
+.sales-screen .data-table .filler {
+    -fx-size: 42;
+}
+
+.sales-screen .data-table .column-header .label {
+    -fx-font-size: 16px;
+}
+
+.sales-screen .data-table .table-cell {
+    -fx-font-size: 14px;
+}
+
+.sales-screen .data-table .table-cell {
+    -fx-padding: 9 10 9 10;
+}
+
+/* Solo los campos monetarios y el contenido de la tabla de cierres se amplian dos puntos. */
+.closing-screen .soft-field {
+    -fx-font-size: 15px;
+}
+
+.closing-screen .closing-history-table .table-cell {
+    -fx-font-size: 14px;
+}
+
+.closing-screen .closing-history-table .table-cell {
+    -fx-padding: 8 8 8 8;
 }
 
 .layaway-list-card {
@@ -1250,4 +1320,53 @@
 .app-shell:compact .invoice-workspace {
     -fx-spacing: 10;
     -fx-padding: 12;
+}
+
+/* Ventas conserva una escala estable, incluso cuando la ventana cambia de modo compacto. */
+.app-shell .sales-screen .screen-title {
+    -fx-font-size: 38px;
+}
+
+.app-shell .sales-screen .badge-text {
+    -fx-font-size: 22px;
+}
+
+.app-shell .sales-screen .card-subtitle,
+.app-shell .sales-screen .amount-helper {
+    -fx-font-size: 15px;
+}
+
+.app-shell .sales-screen .amount-overline,
+.app-shell .sales-screen .field-label,
+.app-shell .sales-screen .soft-check {
+    -fx-font-size: 16px;
+}
+
+.app-shell .sales-screen .soft-field {
+    -fx-font-size: 18px;
+    -fx-padding: 8 12 8 12;
+}
+
+.app-shell .sales-screen .primary-button,
+.app-shell .sales-screen .ghost-button {
+    -fx-font-size: 18px;
+    -fx-padding: 10 16 10 16;
+}
+
+.app-shell .sales-screen .amount-main {
+    -fx-font-size: 38px;
+}
+
+.app-shell .sales-screen .data-table .column-header,
+.app-shell .sales-screen .data-table .filler {
+    -fx-size: 42;
+}
+
+.app-shell .sales-screen .data-table .column-header .label {
+    -fx-font-size: 16px;
+}
+
+.app-shell .sales-screen .data-table .table-cell {
+    -fx-font-size: 14px;
+    -fx-padding: 9 10 9 10;
 }

@@ -46,6 +46,7 @@ import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.print.PrinterJob;
+import javafx.print.PageLayout;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -54,6 +55,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.ScrollPane;
@@ -65,6 +67,7 @@ import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextFormatter;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -103,6 +106,7 @@ public class PosDesktopFxApplication extends Application {
     private static final String RECEIPT_ADDRESS = "CALLE 28 # 29-18";
     private static final String RECEIPT_NIT = "NIT. 1.035.833.243-6";
     private static final String RECEIPT_CASHIER = "Caja principal";
+    private static final double RECEIPT_PREVIEW_WIDTH = 230;
     private static final String PERM_VENTAS_VIEW = "VENTAS_VIEW";
     private static final String PERM_VENTAS_EDIT = "VENTAS_EDIT";
     private static final String PERM_CIERRES_VIEW = "CIERRES_VIEW";
@@ -554,14 +558,17 @@ public class PosDesktopFxApplication extends Application {
 
     private Node createSalesScreen() {
         VBox root = createScreenContainer("Sistema de Ventas", "");
+        root.getStyleClass().add("sales-screen");
         root.setSpacing(14);
         root.setPadding(new Insets(18, 22, 18, 22));
 
         TextField valorUnitarioField = createField("");
         valorUnitarioField.setPromptText("Valor unitario");
+        configureCurrencyFormatOnInput(valorUnitarioField);
         TextField cantidadField = createField("1");
         TextField montoRecibidoField = createField("");
         montoRecibidoField.setPromptText("Monto recibido opcional");
+        configureCurrencyFormatOnInput(montoRecibidoField);
         Label statusLabel = new Label("API configurada en 8083. Agrega articulos a la tabla para registrar la venta.");
         statusLabel.getStyleClass().add("card-subtitle");
         Label totalLabel = new Label(formatCurrency(saleTotal.get()));
@@ -570,6 +577,7 @@ public class PosDesktopFxApplication extends Application {
         changeLabel.getStyleClass().add("amount-helper");
         CheckBox printReceiptCheck = new CheckBox("Imprimir comprobante");
         printReceiptCheck.getStyleClass().add("soft-check");
+        printReceiptCheck.setWrapText(true);
 
         TableView<SaleDraftRow> table = createSalesDraftTable();
         table.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
@@ -592,7 +600,10 @@ public class PosDesktopFxApplication extends Application {
         });
 
         configureSalesFocusFlow(valorUnitarioField, cantidadField, statusLabel);
-        montoRecibidoField.setOnAction(event -> registerSale(montoRecibidoField, statusLabel, valorUnitarioField, printReceiptCheck));
+        montoRecibidoField.setOnAction(event -> {
+            formatCurrencyField(montoRecibidoField);
+            registerSale(montoRecibidoField, statusLabel, valorUnitarioField, printReceiptCheck);
+        });
         root.addEventFilter(KeyEvent.KEY_TYPED, event -> {
             if ("+".equals(event.getCharacter())) {
                 if (saleDraftRows.isEmpty()) {
@@ -617,7 +628,7 @@ public class PosDesktopFxApplication extends Application {
         HBox.setHgrow(left, Priority.ALWAYS);
 
         VBox right = new VBox(14, createSummaryCard(montoRecibidoField, totalLabel, changeLabel, printReceiptCheck, payButton));
-        bindRegionWidthToScene(right, 0.22, 220, 280);
+        bindRegionWidthToScene(right, 0.28, 290, 350);
 
         layout.getChildren().addAll(left, right);
         root.getChildren().add(layout);
@@ -626,6 +637,7 @@ public class PosDesktopFxApplication extends Application {
 
     private Node createClosingScreen() {
         VBox root = createScreenContainer("Cierre de caja", "Resumen diario elegante para validar ventas, base y consolidado.");
+        root.getStyleClass().add("closing-screen");
         tuneCompactScreen(root);
 
         LocalDate today = LocalDate.now();
@@ -637,6 +649,12 @@ public class PosDesktopFxApplication extends Application {
         TextField baseField = createField("0");
         TextField trabajadorasField = createField("0");
         TextField ahorroField = createField("0");
+        configureCurrencyFormatOnInput(baseField);
+        configureCurrencyFormatOnInput(trabajadorasField);
+        configureCurrencyFormatOnInput(ahorroField);
+        baseField.setText(formatCurrency(BigDecimal.ZERO));
+        trabajadorasField.setText(formatCurrency(BigDecimal.ZERO));
+        ahorroField.setText(formatCurrency(BigDecimal.ZERO));
         configureSelectAllOnFocus(baseField);
         configureSelectAllOnFocus(trabajadorasField);
         configureSelectAllOnFocus(ahorroField);
@@ -721,6 +739,8 @@ public class PosDesktopFxApplication extends Application {
         VBox.setVgrow(grid, Priority.ALWAYS);
 
         root.getChildren().addAll(cards, grid);
+        applyClosingInputAndTableScale(root);
+        Platform.runLater(() -> applyClosingInputAndTableScale(root));
         loadClosingSummary(
                 fechaOperacionPicker.getValue(),
                 baseField,
@@ -1291,6 +1311,17 @@ public class PosDesktopFxApplication extends Application {
         return table;
     }
 
+    private void applyClosingInputAndTableScale(Node closingRoot) {
+        setFontSize(closingRoot.lookupAll(".soft-field"), 15);
+        setFontSize(closingRoot.lookupAll(".closing-history-table .table-cell"), 14);
+    }
+
+    private void setFontSize(Set<Node> nodes, int fontSize) {
+        for (Node node : nodes) {
+            node.setStyle("-fx-font-size: " + fontSize + "px;");
+        }
+    }
+
     private void addSaleDetail(
             TextField cantidadField,
             TextField valorUnitarioField,
@@ -1399,6 +1430,49 @@ public class PosDesktopFxApplication extends Application {
         cantidadField.setOnAction(event -> addSaleDetail(cantidadField, valorUnitarioField, statusLabel));
     }
 
+    private void configureCurrencyFormatOnInput(TextField field) {
+        field.setTextFormatter(new TextFormatter<String>(change -> {
+            String newValue = change.getControlNewText();
+            if (newValue == null || newValue.isBlank()) {
+                return change;
+            }
+
+            String digits = newValue.replaceAll("\\D", "");
+            if (digits.isEmpty()) {
+                change.setRange(0, change.getControlText().length());
+                change.setText("");
+                change.setCaretPosition(0);
+                change.setAnchor(0);
+                return change;
+            }
+
+            String formattedValue = formatCurrency(new BigDecimal(digits));
+            if (formattedValue.equals(newValue)) {
+                return change;
+            }
+
+            change.setRange(0, change.getControlText().length());
+            change.setText(formattedValue);
+            change.setCaretPosition(formattedValue.length());
+            change.setAnchor(formattedValue.length());
+            return change;
+        }));
+    }
+
+    private void formatCurrencyField(TextField field) {
+        String value = field.getText();
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        field.setText(formatCurrency(parseCurrencyOrZero(value)));
+    }
+
+    private void applyLayawayCurrencyInputStyle(TextField... fields) {
+        for (TextField field : fields) {
+            field.setStyle("-fx-font-size: 15px;");
+        }
+    }
+
     private void updateReceivedLabel(String inputValue, BigDecimal totalVenta, Label changeLabel) {
         if (inputValue == null || inputValue.isBlank()) {
             changeLabel.setText("Monto recibido opcional");
@@ -1435,6 +1509,7 @@ public class PosDesktopFxApplication extends Application {
     ) {
         AtomicBoolean confirmed = new AtomicBoolean(false);
         Stage stage = new Stage();
+        configurePopupEscapeClose(stage);
         if (owner != null) {
             stage.initOwner(owner);
         }
@@ -1511,6 +1586,7 @@ public class PosDesktopFxApplication extends Application {
 
     private void showReceiptPreviewAndPrint(Window owner, PosApiClient.VentaRegistradaResponse response) {
         Stage stage = new Stage();
+        configurePopupEscapeClose(stage);
         if (owner != null) {
             stage.initOwner(owner);
         }
@@ -1560,8 +1636,14 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private VBox buildReceiptPaper(PosApiClient.VentaRegistradaResponse response) {
+        return buildReceiptPaper(response, RECEIPT_PREVIEW_WIDTH);
+    }
+
+    private VBox buildReceiptPaper(PosApiClient.VentaRegistradaResponse response, double paperWidth) {
         VBox paper = new VBox(8);
         paper.getStyleClass().add("receipt-paper");
+        paper.setPrefWidth(paperWidth);
+        paper.setMaxWidth(paperWidth);
 
         Label business = new Label(RECEIPT_BUSINESS_NAME);
         business.getStyleClass().add("receipt-brand");
@@ -1625,7 +1707,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private HBox createReceiptMetaRow(String label, String value) {
-        HBox row = new HBox(8);
+        HBox row = new HBox(4);
         row.getStyleClass().add("receipt-meta-row");
         Label left = new Label(label + ":");
         left.getStyleClass().add("receipt-meta-key");
@@ -1638,7 +1720,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private HBox createReceiptHeaderRow() {
-        HBox row = new HBox(8);
+        HBox row = new HBox(4);
         row.getStyleClass().add("receipt-header-row");
         row.getChildren().addAll(
                 createReceiptColumnLabel("Cant.", "receipt-col-qty"),
@@ -1656,7 +1738,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private HBox createReceiptItemRow(PosApiClient.DetalleVentaResponse detail) {
-        HBox row = new HBox(8);
+        HBox row = new HBox(4);
         row.getStyleClass().add("receipt-item-row");
         row.getChildren().addAll(
                 createReceiptColumnLabel(formatReceiptQuantity(detail.cantidad()), "receipt-col-qty"),
@@ -1670,6 +1752,10 @@ public class PosDesktopFxApplication extends Application {
     private Label createReceiptColumnLabel(String text, String styleClass) {
         Label label = new Label(text);
         label.getStyleClass().addAll("receipt-text", styleClass);
+        if ("receipt-col-desc".equals(styleClass)) {
+            label.setWrapText(false);
+            label.setTextOverrun(OverrunStyle.ELLIPSIS);
+        }
         return label;
     }
 
@@ -1679,16 +1765,20 @@ public class PosDesktopFxApplication extends Application {
             return false;
         }
 
-        VBox printNode = buildReceiptPaper(response);
+        PageLayout pageLayout = job.getJobSettings().getPageLayout();
+        double printableWidth = Math.max(140, pageLayout.getPrintableWidth() - 4);
+        VBox printNode = buildReceiptPaper(response, printableWidth);
         StackPane printRoot = new StackPane(printNode);
-        printRoot.setPadding(new Insets(12));
-        Scene printScene = new Scene(printRoot);
+        printRoot.setAlignment(Pos.TOP_LEFT);
+        printRoot.setPadding(new Insets(2));
+        Scene printScene = new Scene(printRoot, printableWidth + 4, 1);
         printScene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
         printRoot.applyCss();
+        printRoot.resize(printableWidth + 4, printNode.prefHeight(printableWidth));
         printRoot.layout();
 
         job.getJobSettings().setJobName("Recibo " + response.numeroVenta());
-        boolean printed = job.printPage(printNode);
+        boolean printed = job.printPage(printRoot);
         if (printed) {
             job.endJob();
         }
@@ -1704,7 +1794,7 @@ public class PosDesktopFxApplication extends Application {
 
     private TableView<PosApiClient.CierreDiarioListadoResponse> createClosingHistoryTable() {
         TableView<PosApiClient.CierreDiarioListadoResponse> table = new TableView<>();
-        table.getStyleClass().add("data-table");
+        table.getStyleClass().addAll("data-table", "closing-history-table");
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         bindTableHeightToScene(table, 0.24, 138, 205);
         table.getColumns().addAll(
@@ -1756,9 +1846,9 @@ public class PosDesktopFxApplication extends Application {
                     baseValue.setText(formatCurrency(resumen.baseCaja()));
                     totalValue.setText(formatCurrency(resumen.totalFinal()));
                     totalCaption.setText(resumen.cierreGuardado() ? "Cierre guardado: " + resumen.estado() : "Pendiente por guardar");
-                    baseField.setText(formatPlainNumber(resumen.baseCaja()));
-                    trabajadorasField.setText(formatPlainNumber(resumen.trabajadoras()));
-                    ahorroField.setText(formatPlainNumber(resumen.ahorro()));
+                    baseField.setText(formatCurrency(resumen.baseCaja()));
+                    trabajadorasField.setText(formatCurrency(resumen.trabajadoras()));
+                    ahorroField.setText(formatCurrency(resumen.ahorro()));
                     observacionArea.setText(resumen.observacion() == null ? "" : resumen.observacion());
                 },
                 exception -> showError("Cierre de caja", exception.getMessage())
@@ -2065,6 +2155,7 @@ public class PosDesktopFxApplication extends Application {
         double contentWidth = Math.min(900, dialogWidth - 12);
 
         Stage stage = new Stage();
+        configurePopupEscapeClose(stage);
         if (owner != null) {
             stage.initOwner(owner);
         }
@@ -2557,7 +2648,11 @@ public class PosDesktopFxApplication extends Application {
 
         Button registerPaymentButton = createActionButton("Registrar abono", "ghost-button");
         registerPaymentButton.setPrefWidth(170);
-        registerPaymentButton.disableProperty().bind(Bindings.isNull(invoiceTable.getSelectionModel().selectedItemProperty()));
+        registerPaymentButton.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> invoiceTable.getSelectionModel().getSelectedItem() == null
+                        || isPaidInvoice(invoiceTable.getSelectionModel().getSelectedItem()),
+                invoiceTable.getSelectionModel().selectedItemProperty()
+        ));
 
         Button viewPaymentsButton = createActionButton("Ver abonos", "ghost-button");
         viewPaymentsButton.setPrefWidth(170);
@@ -3245,6 +3340,7 @@ public class PosDesktopFxApplication extends Application {
                     }
             );
         });
+        configureProviderFocusFlow(nitField, nameField, phoneField, emailField, addressField, save);
 
         FlowPane fields = createResponsiveRow(
                 createFieldGroup("NIT", nitField, 220),
@@ -3446,6 +3542,10 @@ public class PosDesktopFxApplication extends Application {
         amountField.setPromptText("Valor total de la factura");
         TextField initialPaymentField = createField("0");
         initialPaymentField.setPromptText("Abono inicial");
+        configureCurrencyFormatOnInput(amountField);
+        configureCurrencyFormatOnInput(initialPaymentField);
+        amountField.setText(formatCurrency(BigDecimal.ZERO));
+        initialPaymentField.setText(formatCurrency(BigDecimal.ZERO));
         configureSelectAllOnFocus(amountField);
         configureSelectAllOnFocus(initialPaymentField);
         TextField remainingField = createField("$ 0");
@@ -3525,6 +3625,14 @@ public class PosDesktopFxApplication extends Application {
                 showError("Nueva factura", exception.getMessage());
             }
         });
+        configureInvoiceCreationFocusFlow(
+                numberField,
+                issueDatePicker,
+                dueDatePicker,
+                amountField,
+                initialPaymentField,
+                save
+        );
 
         FlowPane fields = createResponsiveRow(
                 createFieldGroup("Proveedor", providerField, 280),
@@ -3673,6 +3781,7 @@ public class PosDesktopFxApplication extends Application {
                 showError("Actualizar factura", exception.getMessage());
             }
         });
+        configureInvoiceUpdateFocusFlow(numberField, issueDatePicker, dueDatePicker, amountField, save);
 
         FlowPane fields = createResponsiveRow(
                 createFieldGroup("Proveedor", providerField, 260),
@@ -3735,6 +3844,13 @@ public class PosDesktopFxApplication extends Application {
             showError("Facturas", "Selecciona una factura para registrar un abono.");
             return;
         }
+        if (isPaidInvoice(invoice)) {
+            showError(
+                    "Factura pagada",
+                    "Esta factura ya esta pagada. Solo puedes consultar sus abonos y soportes registrados."
+            );
+            return;
+        }
 
         Stage stage = createDialogStage("Registrar abono");
         if (owner != null) {
@@ -3757,6 +3873,8 @@ public class PosDesktopFxApplication extends Application {
         currentBalanceField.setDisable(true);
         TextField amountField = createField("0");
         amountField.setPromptText("Valor del abono");
+        configureCurrencyFormatOnInput(amountField);
+        amountField.setText(formatCurrency(BigDecimal.ZERO));
         configureSelectAllOnFocus(amountField);
         TextField projectedBalanceField = createField(formatCurrency(invoice.saldoPendiente()));
         projectedBalanceField.setDisable(true);
@@ -3833,6 +3951,7 @@ public class PosDesktopFxApplication extends Application {
                 showError("Registrar abono", exception.getMessage());
             }
         });
+        configureInvoicePaymentFocusFlow(paymentDatePicker, amountField, paymentMethod, referenceField, save);
 
         FlowPane fields = createResponsiveRow(
                 createFieldGroup("Proveedor", providerField, 260),
@@ -3909,6 +4028,10 @@ public class PosDesktopFxApplication extends Application {
             return files.get(0).getName();
         }
         return files.size() + " archivos seleccionados";
+    }
+
+    private boolean isPaidInvoice(PosApiClient.FacturaProveedorListadoResponse invoice) {
+        return invoice != null && "PAGADA".equalsIgnoreCase(invoice.estado());
     }
 
     private String formatInvoiceStatus(String status) {
@@ -5012,6 +5135,8 @@ public class PosDesktopFxApplication extends Application {
         numberField.setPromptText("Numero de factura");
         TextField amountField = createField("0");
         amountField.setPromptText("Valor total adeudado");
+        configureCurrencyFormatOnInput(amountField);
+        amountField.setText(formatCurrency(BigDecimal.ZERO));
         configureSelectAllOnFocus(amountField);
         DatePicker dueDatePicker = new DatePicker(LocalDate.now().plusDays(15));
         ComboBox<String> supportFormat = new ComboBox<>(FXCollections.observableArrayList(MockData.supportFormats()));
@@ -5168,6 +5293,8 @@ public class PosDesktopFxApplication extends Application {
         currentBalanceField.setDisable(true);
         TextField amountField = createField("0");
         amountField.setPromptText("Valor del abono");
+        configureCurrencyFormatOnInput(amountField);
+        amountField.setText(formatCurrency(BigDecimal.ZERO));
         configureSelectAllOnFocus(amountField);
         TextField projectedBalanceField = createField(invoice.saldo());
         projectedBalanceField.setDisable(true);
@@ -5433,6 +5560,11 @@ public class PosDesktopFxApplication extends Application {
         TextField totalField = createField("0");
         TextField abonoInicialField = createField("20000");
         TextField remaining = createField("0");
+        configureCurrencyFormatOnInput(totalField);
+        configureCurrencyFormatOnInput(abonoInicialField);
+        totalField.setText(formatCurrency(BigDecimal.ZERO));
+        abonoInicialField.setText(formatCurrency(new BigDecimal("20000")));
+        applyLayawayCurrencyInputStyle(totalField, abonoInicialField, remaining);
         remaining.setDisable(true);
         TextArea observacionArea = createArea("", 2);
         observacionArea.setPromptText("Observacion opcional");
@@ -5512,6 +5644,7 @@ public class PosDesktopFxApplication extends Application {
                 showError("Nuevo separado", exception.getMessage());
             }
         });
+        configureNewLayawayFocusFlow(clienteField, telefonoField, totalField, abonoInicialField, save);
 
         root.getChildren().addAll(fields, createFieldGroup("Observacion", observacionArea, 520), progress, save);
 
@@ -5519,6 +5652,19 @@ public class PosDesktopFxApplication extends Application {
         scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
         stage.setScene(scene);
         stage.show();
+    }
+
+    private void configureNewLayawayFocusFlow(
+            TextField clienteField,
+            TextField telefonoField,
+            TextField totalField,
+            TextField abonoInicialField,
+            Button saveButton
+    ) {
+        clienteField.setOnAction(event -> telefonoField.requestFocus());
+        telefonoField.setOnAction(event -> totalField.requestFocus());
+        totalField.setOnAction(event -> abonoInicialField.requestFocus());
+        abonoInicialField.setOnAction(event -> saveButton.requestFocus());
     }
 
     private void openLayawayPaymentWindow(
@@ -5576,9 +5722,11 @@ public class PosDesktopFxApplication extends Application {
         currentBalanceField.setDisable(true);
         TextField amountField = createField("");
         amountField.setPromptText("Valor a abonar");
+        configureCurrencyFormatOnInput(amountField);
         configureSelectAllOnFocus(amountField);
         TextField projectedBalanceField = createField(formatCurrency(initialDetail.saldoPendiente()));
         projectedBalanceField.setDisable(true);
+        applyLayawayCurrencyInputStyle(totalField, currentBalanceField, amountField, projectedBalanceField);
         TextArea observationArea = createArea("", 2);
         observationArea.setPromptText("Observacion opcional del abono");
         Button save = createActionButton("Guardar abono", "primary-button");
@@ -5761,11 +5909,91 @@ public class PosDesktopFxApplication extends Application {
 
     private Stage createDialogStage(String title) {
         Stage stage = new Stage();
+        configurePopupEscapeClose(stage);
         stage.initModality(Modality.NONE);
         stage.setTitle(title);
         stage.setMinWidth(460);
         stage.setMinHeight(360);
         return stage;
+    }
+
+    private void configurePopupEscapeClose(Stage stage) {
+        stage.sceneProperty().addListener((observable, oldScene, scene) -> {
+            if (scene == null) {
+                return;
+            }
+            scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+                if (event.getCode() == KeyCode.ESCAPE) {
+                    stage.close();
+                    event.consume();
+                }
+            });
+        });
+    }
+
+    private void configureProviderFocusFlow(
+            TextField nitField,
+            TextField nameField,
+            TextField phoneField,
+            TextField emailField,
+            TextField addressField,
+            Button saveButton
+    ) {
+        moveFocusOnEnter(nitField, nameField);
+        moveFocusOnEnter(nameField, phoneField);
+        moveFocusOnEnter(phoneField, emailField);
+        moveFocusOnEnter(emailField, addressField);
+        moveFocusOnEnter(addressField, saveButton);
+    }
+
+    private void configureInvoiceUpdateFocusFlow(
+            TextField numberField,
+            DatePicker issueDatePicker,
+            DatePicker dueDatePicker,
+            TextField amountField,
+            Button saveButton
+    ) {
+        moveFocusOnEnter(numberField, issueDatePicker);
+        moveFocusOnEnter(issueDatePicker, dueDatePicker);
+        moveFocusOnEnter(dueDatePicker, amountField);
+        moveFocusOnEnter(amountField, saveButton);
+    }
+
+    private void configureInvoiceCreationFocusFlow(
+            TextField numberField,
+            DatePicker issueDatePicker,
+            DatePicker dueDatePicker,
+            TextField amountField,
+            TextField initialPaymentField,
+            Button saveButton
+    ) {
+        moveFocusOnEnter(numberField, issueDatePicker);
+        moveFocusOnEnter(issueDatePicker, dueDatePicker);
+        moveFocusOnEnter(dueDatePicker, amountField);
+        moveFocusOnEnter(amountField, initialPaymentField);
+        moveFocusOnEnter(initialPaymentField, saveButton);
+    }
+
+    private void configureInvoicePaymentFocusFlow(
+            DatePicker paymentDatePicker,
+            TextField amountField,
+            ComboBox<String> paymentMethod,
+            TextField referenceField,
+            Button saveButton
+    ) {
+        moveFocusOnEnter(paymentDatePicker, amountField);
+        moveFocusOnEnter(amountField, paymentMethod);
+        moveFocusOnEnter(paymentMethod, referenceField);
+        moveFocusOnEnter(referenceField, saveButton);
+    }
+
+    private void moveFocusOnEnter(Node source, Node target) {
+        source.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                target.requestFocus();
+                event.consume();
+            }
+        });
     }
 
     private VBox createDialogRoot(String title, String subtitle) {
@@ -6141,6 +6369,7 @@ public class PosDesktopFxApplication extends Application {
 
     private void showFeedbackDialog(String title, String message, boolean error) {
         Stage stage = new Stage();
+        configurePopupEscapeClose(stage);
         Window owner = resolveActiveWindow();
         if (owner != null) {
             stage.initOwner(owner);
@@ -6245,7 +6474,10 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void updateResponsiveState(BorderPane shell, Scene scene) {
-        boolean compact = scene.getWidth() < 1180 || scene.getHeight() < 760;
+        boolean compactActive = shell.getPseudoClassStates().contains(COMPACT);
+        boolean compact = compactActive
+                ? scene.getWidth() < 1210 || scene.getHeight() < 780
+                : scene.getWidth() < 1160 || scene.getHeight() < 740;
         shell.pseudoClassStateChanged(COMPACT, compact);
     }
 
