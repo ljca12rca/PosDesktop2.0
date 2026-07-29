@@ -12,7 +12,8 @@ RUN mvn -B -pl pos-api -am dependency:go-offline
 COPY pos-domain/src pos-domain/src
 COPY pos-api/src pos-api/src
 
-RUN mvn -B -pl pos-api -am clean package -DskipTests
+RUN mvn -B -pl pos-api -am clean package -DskipTests \
+    && cp /workspace/pos-api/target/pos-api-*.jar /workspace/pos-api/target/app.jar
 
 FROM eclipse-temurin:21-jre-jammy
 
@@ -22,7 +23,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /workspace/pos-api/target/pos-api-0.0.1-SNAPSHOT.jar /app/app.jar
+COPY --from=build /workspace/pos-api/target/app.jar /app/app.jar
 
 RUN mkdir -p /var/posdesktop-media
 
