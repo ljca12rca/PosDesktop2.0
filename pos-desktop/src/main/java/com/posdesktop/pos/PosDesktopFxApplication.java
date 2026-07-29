@@ -45,8 +45,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
-import javafx.print.PrinterJob;
-import javafx.print.PageLayout;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -107,6 +105,8 @@ public class PosDesktopFxApplication extends Application {
     private static final String RECEIPT_NIT = "NIT. 1.035.833.243-6";
     private static final String RECEIPT_CASHIER = "Caja principal";
     private static final double RECEIPT_PREVIEW_WIDTH = 230;
+    private static final double RECEIPT_PAPER_WIDTH_POINTS = 164.4;
+    private static final double RECEIPT_MIN_PAPER_HEIGHT_POINTS = 260;
     private static final String PERM_VENTAS_VIEW = "VENTAS_VIEW";
     private static final String PERM_VENTAS_EDIT = "VENTAS_EDIT";
     private static final String PERM_CIERRES_VIEW = "CIERRES_VIEW";
@@ -1760,29 +1760,158 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private boolean printReceipt(PosApiClient.VentaRegistradaResponse response) {
-        PrinterJob job = PrinterJob.createPrinterJob();
-        if (job == null) {
+        try {
+            java.awt.print.PrinterJob job = java.awt.print.PrinterJob.getPrinterJob();
+            java.awt.print.PageFormat pageFormat = job.defaultPage();
+            java.awt.print.Paper paper = new java.awt.print.Paper();
+            double paperHeight = calculateReceiptPaperHeight(response.detalles().size());
+            paper.setSize(RECEIPT_PAPER_WIDTH_POINTS, paperHeight);
+            paper.setImageableArea(0, 0, RECEIPT_PAPER_WIDTH_POINTS, paperHeight);
+            pageFormat.setPaper(paper);
+
+            job.setJobName("Recibo " + response.numeroVenta());
+            job.setPrintable((graphics, format, pageIndex) -> {
+                if (pageIndex > 0) {
+                    return java.awt.print.Printable.NO_SUCH_PAGE;
+                }
+
+                java.awt.Graphics2D receiptGraphics = (java.awt.Graphics2D) graphics.create();
+                try {
+                    receiptGraphics.translate(format.getImageableX(), format.getImageableY());
+                    receiptGraphics.setColor(java.awt.Color.BLACK);
+                    receiptGraphics.setRenderingHint(
+                            java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+                            java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_OFF
+                    );
+                    receiptGraphics.setRenderingHint(
+                            java.awt.RenderingHints.KEY_FRACTIONALMETRICS,
+                            java.awt.RenderingHints.VALUE_FRACTIONALMETRICS_OFF
+                    );
+                    renderThermalReceipt(receiptGraphics, response, (int) Math.round(RECEIPT_PAPER_WIDTH_POINTS));
+                } finally {
+                    receiptGraphics.dispose();
+                }
+                return java.awt.print.Printable.PAGE_EXISTS;
+            }, pageFormat);
+            job.print();
+            return true;
+        } catch (java.awt.print.PrinterException exception) {
             return false;
         }
+    }
 
-        PageLayout pageLayout = job.getJobSettings().getPageLayout();
-        double printableWidth = Math.max(140, pageLayout.getPrintableWidth() - 4);
-        VBox printNode = buildReceiptPaper(response, printableWidth);
-        StackPane printRoot = new StackPane(printNode);
-        printRoot.setAlignment(Pos.TOP_LEFT);
-        printRoot.setPadding(new Insets(2));
-        Scene printScene = new Scene(printRoot, printableWidth + 4, 1);
-        printScene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
-        printRoot.applyCss();
-        printRoot.resize(printableWidth + 4, printNode.prefHeight(printableWidth));
-        printRoot.layout();
+    private double calculateReceiptPaperHeight(int rowCount) {
+        return Math.max(RECEIPT_MIN_PAPER_HEIGHT_POINTS, 190 + Math.max(0, rowCount) * 12);
+    }
 
-        job.getJobSettings().setJobName("Recibo " + response.numeroVenta());
-        boolean printed = job.printPage(printRoot);
-        if (printed) {
-            job.endJob();
+    private void renderThermalReceipt(
+            java.awt.Graphics2D graphics,
+            PosApiClient.VentaRegistradaResponse response,
+            int paperWidth
+    ) {
+        java.awt.Font bodyFont = new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 8);
+        java.awt.Font strongFont = new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.BOLD, 8);
+        java.awt.Font titleFont = new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.BOLD, 10);
+        int left = 4;
+        int right = paperWidth - 4;
+        int priceColumn = right - 46;
+        int descriptionColumn = 23;
+        int descriptionWidth = priceColumn - descriptionColumn - 4;
+        int y = 12;
+
+        drawReceiptCentered(graphics, RECEIPT_BUSINESS_NAME.toUpperCase(Locale.ROOT), titleFont, paperWidth / 2, y);
+        y += 13;
+        drawReceiptCentered(graphics, RECEIPT_OWNER_NAME, strongFont, paperWidth / 2, y);
+        y += 11;
+        drawReceiptCentered(graphics, RECEIPT_ADDRESS, bodyFont, paperWidth / 2, y);
+        y += 11;
+        drawReceiptCentered(graphics, RECEIPT_NIT, bodyFont, paperWidth / 2, y);
+        y += 15;
+
+        drawReceiptText(graphics, "Factura N: " + response.numeroVenta(), bodyFont, left, y);
+        y += 11;
+        drawReceiptText(graphics, "Cajero: " + RECEIPT_CASHIER, bodyFont, left, y);
+        y += 11;
+        drawReceiptText(
+                graphics,
+                "Fecha: " + RECEIPT_DATE_FORMATTER.format(response.fechaVenta()) + " "
+                        + formatReceiptTime(response.fechaVenta()),
+                bodyFont,
+                left,
+                y
+        );
+        y += 13;
+
+        drawReceiptText(graphics, "Cant.", strongFont, left, y);
+        drawReceiptText(graphics, "Descripcion", strongFont, descriptionColumn, y);
+        drawReceiptRight(graphics, "Valor", strongFont, priceColumn, y);
+        drawReceiptRight(graphics, "Total", strongFont, right, y);
+        y += 4;
+        graphics.drawLine(left, y, right, y);
+
+        for (PosApiClient.DetalleVentaResponse detail : response.detalles()) {
+            y += 11;
+            drawReceiptText(graphics, formatReceiptQuantity(detail.cantidad()), bodyFont, left, y);
+            drawReceiptText(
+                    graphics,
+                    fitReceiptText(graphics, resolveReceiptDescription(detail), bodyFont, descriptionWidth),
+                    bodyFont,
+                    descriptionColumn,
+                    y
+            );
+            drawReceiptRight(graphics, formatReceiptAmount(detail.valorUnitario()), bodyFont, priceColumn, y);
+            drawReceiptRight(graphics, formatReceiptAmount(detail.total()), bodyFont, right, y);
         }
-        return printed;
+
+        y += 5;
+        graphics.drawLine(left, y, right, y);
+        y += 12;
+        BigDecimal totalItems = response.detalles().stream()
+                .map(PosApiClient.DetalleVentaResponse::cantidad)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        drawReceiptText(graphics, "Items: " + formatReceiptQuantity(totalItems), strongFont, left, y);
+        drawReceiptRight(graphics, "Total: " + formatReceiptAmount(response.total()), strongFont, right, y);
+        y += 12;
+        drawReceiptText(graphics, "Recibido: " + formatReceiptAmount(response.montoRecibido()), bodyFont, left, y);
+        y += 11;
+        drawReceiptText(
+                graphics,
+                "Devuelto: " + formatReceiptAmount(response.cambioEntregado().max(BigDecimal.ZERO)),
+                bodyFont,
+                left,
+                y
+        );
+        y += 20;
+        drawReceiptCentered(graphics, "GRACIAS POR PREFERIRNOS", strongFont, paperWidth / 2, y);
+    }
+
+    private void drawReceiptText(java.awt.Graphics2D graphics, String text, java.awt.Font font, int x, int y) {
+        graphics.setFont(font);
+        graphics.drawString(text, x, y);
+    }
+
+    private void drawReceiptRight(java.awt.Graphics2D graphics, String text, java.awt.Font font, int x, int y) {
+        graphics.setFont(font);
+        int width = graphics.getFontMetrics(font).stringWidth(text);
+        graphics.drawString(text, x - width, y);
+    }
+
+    private void drawReceiptCentered(java.awt.Graphics2D graphics, String text, java.awt.Font font, int x, int y) {
+        graphics.setFont(font);
+        int width = graphics.getFontMetrics(font).stringWidth(text);
+        graphics.drawString(text, x - width / 2, y);
+    }
+
+    private String fitReceiptText(java.awt.Graphics2D graphics, String text, java.awt.Font font, int maximumWidth) {
+        if (graphics.getFontMetrics(font).stringWidth(text) <= maximumWidth) {
+            return text;
+        }
+        String suffix = "...";
+        int length = text.length();
+        while (length > 0 && graphics.getFontMetrics(font).stringWidth(text.substring(0, length) + suffix) > maximumWidth) {
+            length--;
+        }
+        return text.substring(0, length) + suffix;
     }
 
     private String resolveReceiptDescription(PosApiClient.DetalleVentaResponse detail) {
