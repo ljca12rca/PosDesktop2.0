@@ -61,8 +61,11 @@ import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.control.Separator;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextFormatter;
@@ -72,6 +75,7 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -104,6 +108,8 @@ public class PosDesktopFxApplication extends Application {
     private static final String RECEIPT_ADDRESS = "CALLE 28 # 29-18";
     private static final String RECEIPT_NIT = "NIT. 1.035.833.243-6";
     private static final String RECEIPT_CASHIER = "Caja principal";
+    private static final String SALES_PAYMENT_CASH = "EFECTIVO";
+    private static final String SALES_PAYMENT_TRANSFER_QR = "TRANSFERENCIA (QR)";
     private static final double RECEIPT_PREVIEW_WIDTH = 230;
     private static final double RECEIPT_PAPER_WIDTH_POINTS = 226.8;
     private static final double RECEIPT_MIN_PAPER_HEIGHT_POINTS = 260;
@@ -123,9 +129,7 @@ public class PosDesktopFxApplication extends Application {
     private final StackPane applicationRoot = new StackPane();
     private final StackPane contentHost = new StackPane();
     private final PosApiClient posApiClient = PosApiClient.createDefault();
-    private final ObservableList<SaleDraftRow> saleDraftRows = FXCollections.observableArrayList();
     private final NumberFormat currencyFormat = createCurrencyFormat();
-    private final SimpleObjectProperty<BigDecimal> saleTotal = new SimpleObjectProperty<>(BigDecimal.ZERO);
     private final BooleanProperty apiAvailable = new SimpleBooleanProperty(false);
     private final BooleanProperty apiProbeInProgress = new SimpleBooleanProperty(false);
     private final PauseTransition apiRetryPause = new PauseTransition(API_RETRY_DELAY);
@@ -145,10 +149,15 @@ public class PosDesktopFxApplication extends Application {
         double initialHeight = Math.min(860, visualBounds.getHeight() * 0.94);
 
         apiStartupOverlay = createApiStartupOverlay();
-        applicationRoot.getChildren().setAll(createLoginView(), apiStartupOverlay);
+        Node loginView = createLoginView();
+        loginView.disableProperty().bind(apiAvailable.not());
+        applicationRoot.getChildren().setAll(loginView, apiStartupOverlay);
 
         Scene scene = new Scene(applicationRoot, initialWidth, initialHeight);
         scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        scene.addEventFilter(MouseEvent.ANY, event -> blockStartupInput(event));
+        scene.addEventFilter(KeyEvent.ANY, event -> blockStartupInput(event));
+        scene.addEventFilter(ScrollEvent.ANY, event -> blockStartupInput(event));
 
         stage.setTitle(APP_TITLE);
         stage.setMinWidth(Math.min(920, visualBounds.getWidth() * 0.78));
@@ -324,7 +333,6 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void returnToLoginView() {
-        saleDraftRows.clear();
         screenFactories.clear();
         contentHost.getChildren().clear();
         authenticatedSession = null;
@@ -355,8 +363,16 @@ public class PosDesktopFxApplication extends Application {
 
         StackPane overlay = new StackPane(card);
         overlay.getStyleClass().add("startup-overlay");
+        overlay.setMouseTransparent(false);
         overlay.setPickOnBounds(true);
+        overlay.setFocusTraversable(true);
         return overlay;
+    }
+
+    private void blockStartupInput(javafx.event.Event event) {
+        if (apiStartupOverlay != null && apiStartupOverlay.isVisible()) {
+            event.consume();
+        }
     }
 
     private void beginApiAvailabilityCheck(boolean manualTrigger) {
@@ -563,6 +579,50 @@ public class PosDesktopFxApplication extends Application {
         root.setSpacing(14);
         root.setPadding(new Insets(18, 22, 18, 22));
 
+        TabPane salesTabs = new TabPane();
+        salesTabs.getStyleClass().add("sales-tab-pane");
+        salesTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
+        salesTabs.setMaxWidth(Double.MAX_VALUE);
+        salesTabs.setMaxHeight(Double.MAX_VALUE);
+
+        Button addSaleTab = createActionButton("+", "sales-new-tab-button");
+        addSaleTab.setAccessibleText("Nueva venta");
+        addSaleTab.setOnAction(event -> addSalesTab(salesTabs));
+
+        HBox tabsToolbar = new HBox(10, salesTabs, addSaleTab);
+        tabsToolbar.getStyleClass().add("sales-tabs-toolbar");
+        tabsToolbar.setAlignment(Pos.TOP_LEFT);
+        HBox.setHgrow(salesTabs, Priority.ALWAYS);
+        VBox.setVgrow(tabsToolbar, Priority.ALWAYS);
+
+        addSalesTab(salesTabs);
+        root.getChildren().add(tabsToolbar);
+        return root;
+    }
+
+    private void addSalesTab(TabPane salesTabs) {
+        int saleNumber = salesTabs.getTabs().size() + 1;
+        SaleTabContext context = new SaleTabContext(
+                FXCollections.observableArrayList(),
+                new SimpleObjectProperty<>(BigDecimal.ZERO)
+        );
+        Tab tab = new Tab("Venta " + saleNumber);
+        tab.setClosable(saleNumber > 1);
+        tab.setContent(createSalesInstance(context));
+        tab.setOnClosed(event -> renumberSalesTabs(salesTabs));
+        salesTabs.getTabs().add(tab);
+        salesTabs.getSelectionModel().select(tab);
+    }
+
+    private void renumberSalesTabs(TabPane salesTabs) {
+        for (int index = 0; index < salesTabs.getTabs().size(); index++) {
+            Tab tab = salesTabs.getTabs().get(index);
+            tab.setText("Venta " + (index + 1));
+            tab.setClosable(index > 0);
+        }
+    }
+
+    private Node createSalesInstance(SaleTabContext context) {
         TextField valorUnitarioField = createField("");
         valorUnitarioField.setPromptText("Valor unitario");
         configureCurrencyFormatOnInput(valorUnitarioField);
@@ -570,9 +630,10 @@ public class PosDesktopFxApplication extends Application {
         TextField montoRecibidoField = createField("");
         montoRecibidoField.setPromptText("Monto recibido opcional");
         configureCurrencyFormatOnInput(montoRecibidoField);
+        ComboBox<String> paymentMethod = createPaymentMethodCombo();
         Label statusLabel = new Label("API configurada en 8083. Agrega articulos a la tabla para registrar la venta.");
         statusLabel.getStyleClass().add("card-subtitle");
-        Label totalLabel = new Label(formatCurrency(saleTotal.get()));
+        Label totalLabel = new Label(formatCurrency(context.total().get()));
         totalLabel.getStyleClass().add("amount-main");
         Label changeLabel = new Label("Monto recibido opcional");
         changeLabel.getStyleClass().add("amount-helper");
@@ -582,33 +643,60 @@ public class PosDesktopFxApplication extends Application {
 
         TableView<SaleDraftRow> table = createSalesDraftTable();
         table.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
-        table.setItems(saleDraftRows);
+        table.setItems(context.rows());
 
         Button payButton = createActionButton("Cobrar", "primary-button");
         payButton.setMaxWidth(Double.MAX_VALUE);
-        payButton.setOnAction(event -> registerSale(montoRecibidoField, statusLabel, valorUnitarioField, printReceiptCheck));
+        payButton.setOnAction(event -> registerSale(
+                context,
+                montoRecibidoField,
+                paymentMethod,
+                statusLabel,
+                valorUnitarioField,
+                printReceiptCheck
+        ));
         if (!hasPermission(PERM_VENTAS_EDIT)) {
             payButton.setDisable(true);
             statusLabel.setText("Tu usuario puede consultar la venta en pantalla, pero no registrar comprobantes.");
         }
 
-        saleTotal.addListener((obs, oldValue, newValue) -> {
+        context.total().addListener((obs, oldValue, newValue) -> {
             totalLabel.setText(formatCurrency(newValue));
-            updateReceivedLabel(montoRecibidoField.getText(), newValue, changeLabel);
+            if (isQrTransfer(paymentMethod)) {
+                montoRecibidoField.setText(formatCurrency(newValue));
+            } else {
+                updateReceivedLabel(montoRecibidoField.getText(), newValue, changeLabel);
+            }
         });
         montoRecibidoField.textProperty().addListener((obs, oldValue, newValue) -> {
-            updateReceivedLabel(newValue, saleTotal.get(), changeLabel);
+            if (!isQrTransfer(paymentMethod)) {
+                updateReceivedLabel(newValue, context.total().get(), changeLabel);
+            }
         });
+        paymentMethod.valueProperty().addListener((obs, oldValue, newValue) ->
+                syncSalePaymentMethod(paymentMethod, montoRecibidoField, changeLabel, context.total())
+        );
+        syncSalePaymentMethod(paymentMethod, montoRecibidoField, changeLabel, context.total());
 
-        configureSalesFocusFlow(valorUnitarioField, cantidadField, statusLabel);
+        configureSalesFocusFlow(context, valorUnitarioField, cantidadField, statusLabel);
         montoRecibidoField.setOnAction(event -> {
             formatCurrencyField(montoRecibidoField);
-            registerSale(montoRecibidoField, statusLabel, valorUnitarioField, printReceiptCheck);
+            registerSale(context, montoRecibidoField, paymentMethod, statusLabel, valorUnitarioField, printReceiptCheck);
         });
-        root.addEventFilter(KeyEvent.KEY_TYPED, event -> {
+
+        VBox instance = new VBox();
+        instance.getStyleClass().add("sales-tab-content");
+        instance.addEventFilter(KeyEvent.KEY_TYPED, event -> {
+            if ("*".equals(event.getCharacter())) {
+                toggleSalePaymentMethod(paymentMethod);
+                event.consume();
+                return;
+            }
             if ("+".equals(event.getCharacter())) {
-                if (saleDraftRows.isEmpty()) {
+                if (context.rows().isEmpty()) {
                     setSalesStatusError(statusLabel, "Debe existir al menos un articulo en la tabla antes de cobrar.");
+                } else if (isQrTransfer(paymentMethod)) {
+                    payButton.fire();
                 } else {
                     montoRecibidoField.requestFocus();
                     montoRecibidoField.selectAll();
@@ -622,18 +710,25 @@ public class PosDesktopFxApplication extends Application {
         layout.setAlignment(Pos.TOP_LEFT);
 
         VBox left = new VBox(12,
-                createSalesEntryCard(cantidadField, valorUnitarioField, table, statusLabel),
+                createSalesEntryCard(context, cantidadField, valorUnitarioField, table, statusLabel),
                 createSalesTableCard(table)
         );
         left.setMinWidth(0);
         HBox.setHgrow(left, Priority.ALWAYS);
 
-        VBox right = new VBox(14, createSummaryCard(montoRecibidoField, totalLabel, changeLabel, printReceiptCheck, payButton));
+        VBox right = new VBox(14, createSummaryCard(
+                paymentMethod,
+                montoRecibidoField,
+                totalLabel,
+                changeLabel,
+                printReceiptCheck,
+                payButton
+        ));
         bindRegionWidthToScene(right, 0.28, 290, 350);
 
         layout.getChildren().addAll(left, right);
-        root.getChildren().add(layout);
-        return root;
+        instance.getChildren().add(layout);
+        return instance;
     }
 
     private Node createClosingScreen() {
@@ -734,7 +829,8 @@ public class PosDesktopFxApplication extends Application {
                         fechaFinalHistorialPicker,
                         estadoHistorialCombo,
                         historyFeedbackLabel,
-                        refreshHistory
+                        refreshHistory,
+                        hasPermission(PERM_MOVIMIENTOS_VIEW)
                 )
         );
         VBox.setVgrow(grid, Priority.ALWAYS);
@@ -1239,6 +1335,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private Node createSalesEntryCard(
+            SaleTabContext context,
             TextField cantidadField,
             TextField valorUnitarioField,
             TableView<SaleDraftRow> table,
@@ -1255,13 +1352,20 @@ public class PosDesktopFxApplication extends Application {
 
         HBox actions = new HBox(12,
                 createActionButton("Agregar", "primary-button"),
-                createActionButton("Quitar", "ghost-button")
+                createActionButton("Quitar", "ghost-button"),
+                createActionButton("X", "ghost-button")
         );
         actions.setAlignment(Pos.BOTTOM_LEFT);
         Button addButton = (Button) actions.getChildren().get(0);
         Button removeButton = (Button) actions.getChildren().get(1);
-        addButton.setOnAction(event -> addSaleDetail(cantidadField, valorUnitarioField, statusLabel));
-        removeButton.setOnAction(event -> removeSelectedSaleDetail(table, statusLabel));
+        Button clearButton = (Button) actions.getChildren().get(2);
+        clearButton.getStyleClass().add("sales-clear-button");
+        clearButton.setTextOverrun(OverrunStyle.CLIP);
+        clearButton.setAccessibleText("Borrar todos los artículos de la venta");
+        clearButton.disableProperty().bind(Bindings.isEmpty(context.rows()));
+        addButton.setOnAction(event -> addSaleDetail(context, cantidadField, valorUnitarioField, statusLabel));
+        removeButton.setOnAction(event -> removeSelectedSaleDetail(context, table, statusLabel));
+        clearButton.setOnAction(event -> clearSaleDetails(context, table, cantidadField, valorUnitarioField, statusLabel));
 
         row.getChildren().addAll(valor, cantidad, actions);
         HBox.setHgrow(valor, Priority.ALWAYS);
@@ -1278,6 +1382,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private Node createSummaryCard(
+            ComboBox<String> paymentMethod,
             TextField montoRecibidoField,
             Label totalLabel,
             Label changeLabel,
@@ -1293,8 +1398,9 @@ public class PosDesktopFxApplication extends Application {
         overline.getStyleClass().add("amount-overline");
         amountBlock.getChildren().addAll(overline, totalLabel, changeLabel);
 
+        VBox payment = createFieldGroup("Tipo de pago", paymentMethod, 220);
         VBox recibido = createFieldGroup("Monto recibido", montoRecibidoField, 220);
-        card.getChildren().addAll(printReceiptCheck, amountBlock, recibido, payButton);
+        card.getChildren().addAll(printReceiptCheck, amountBlock, payment, recibido, payButton);
         return card;
     }
 
@@ -1324,6 +1430,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void addSaleDetail(
+            SaleTabContext context,
             TextField cantidadField,
             TextField valorUnitarioField,
             Label statusLabel
@@ -1334,8 +1441,8 @@ public class PosDesktopFxApplication extends Application {
                     valorUnitarioField.getText(),
                     "El valor unitario debe ser mayor a cero."
             );
-            saleDraftRows.add(new SaleDraftRow(cantidad, valorUnitario));
-            recalculateSaleTotal();
+            context.rows().add(new SaleDraftRow(cantidad, valorUnitario));
+            recalculateSaleTotal(context);
 
             cantidadField.setText("1");
             valorUnitarioField.clear();
@@ -1346,32 +1453,95 @@ public class PosDesktopFxApplication extends Application {
         }
     }
 
-    private void removeSelectedSaleDetail(TableView<SaleDraftRow> table, Label statusLabel) {
+    private void removeSelectedSaleDetail(
+            SaleTabContext context,
+            TableView<SaleDraftRow> table,
+            Label statusLabel
+    ) {
         SaleDraftRow selected = table.getSelectionModel().getSelectedItem();
         if (selected == null) {
             setSalesStatusError(statusLabel, "Selecciona un detalle para quitarlo de la venta.");
             return;
         }
 
-        saleDraftRows.remove(selected);
-        recalculateSaleTotal();
+        context.rows().remove(selected);
+        recalculateSaleTotal(context);
         setSalesStatusInfo(statusLabel, "Detalle retirado de la venta.");
     }
 
-    private void registerSale(
+    private void clearSaleDetails(
+            SaleTabContext context,
+            TableView<SaleDraftRow> table,
+            TextField cantidadField,
+            TextField valorUnitarioField,
+            Label statusLabel
+    ) {
+        context.rows().clear();
+        table.getSelectionModel().clearSelection();
+        recalculateSaleTotal(context);
+        cantidadField.setText("1");
+        valorUnitarioField.clear();
+        setSalesStatusInfo(statusLabel, "Venta limpiada. Puedes registrar nuevos artículos.");
+        valorUnitarioField.requestFocus();
+    }
+
+    private void syncSalePaymentMethod(
+            ComboBox<String> paymentMethod,
             TextField montoRecibidoField,
+            Label changeLabel,
+            SimpleObjectProperty<BigDecimal> saleTotal
+    ) {
+        boolean transferenciaQr = isQrTransfer(paymentMethod);
+        montoRecibidoField.setDisable(transferenciaQr);
+        if (transferenciaQr) {
+            montoRecibidoField.setText(formatCurrency(saleTotal.get()));
+            changeLabel.setText("Transferencia QR: se registra el total exacto de la venta.");
+            return;
+        }
+        updateReceivedLabel(montoRecibidoField.getText(), saleTotal.get(), changeLabel);
+    }
+
+    private boolean isQrTransfer(ComboBox<String> paymentMethod) {
+        return paymentMethod != null && SALES_PAYMENT_TRANSFER_QR.equals(paymentMethod.getValue());
+    }
+
+    private ComboBox<String> createPaymentMethodCombo() {
+        ComboBox<String> paymentMethod = new ComboBox<>(FXCollections.observableArrayList(
+                SALES_PAYMENT_CASH,
+                SALES_PAYMENT_TRANSFER_QR
+        ));
+        paymentMethod.getSelectionModel().select(SALES_PAYMENT_CASH);
+        paymentMethod.setMaxWidth(Double.MAX_VALUE);
+        return paymentMethod;
+    }
+
+    private String paymentMethodCode(ComboBox<String> paymentMethod) {
+        return isQrTransfer(paymentMethod) ? "TRANSFERENCIA_QR" : "EFECTIVO";
+    }
+
+    private void toggleSalePaymentMethod(ComboBox<String> paymentMethod) {
+        paymentMethod.getSelectionModel().select(
+                isQrTransfer(paymentMethod) ? SALES_PAYMENT_CASH : SALES_PAYMENT_TRANSFER_QR
+        );
+    }
+
+    private void registerSale(
+            SaleTabContext context,
+            TextField montoRecibidoField,
+            ComboBox<String> paymentMethod,
             Label statusLabel,
             TextField valorUnitarioField,
             CheckBox printReceiptCheck
     ) {
-        if (saleDraftRows.isEmpty()) {
+        if (context.rows().isEmpty()) {
             setSalesStatusError(statusLabel, "Debe existir al menos un articulo en la tabla antes de cobrar.");
             return;
         }
 
-        if (montoRecibidoField.getText() != null && !montoRecibidoField.getText().isBlank()) {
+        boolean transferenciaQr = isQrTransfer(paymentMethod);
+        if (!transferenciaQr && montoRecibidoField.getText() != null && !montoRecibidoField.getText().isBlank()) {
             BigDecimal montoRecibidoValidado = parseCurrencyOrZero(montoRecibidoField.getText());
-            if (montoRecibidoValidado.signum() > 0 && montoRecibidoValidado.compareTo(saleTotal.get()) < 0) {
+            if (montoRecibidoValidado.signum() > 0 && montoRecibidoValidado.compareTo(context.total().get()) < 0) {
                 setSalesStatusError(statusLabel, "El valor recibido no puede ser menor al valor total de la venta.");
                 montoRecibidoField.requestFocus();
                 montoRecibidoField.selectAll();
@@ -1379,15 +1549,18 @@ public class PosDesktopFxApplication extends Application {
             }
         }
 
-        BigDecimal montoRecibido = parseCurrencyOrZero(montoRecibidoField.getText());
-        BigDecimal cambioEntregado = montoRecibido.subtract(saleTotal.get());
-        if (!showChangeConfirmationDialog(statusLabel.getScene().getWindow(), montoRecibido, saleTotal.get(), cambioEntregado)) {
+        BigDecimal montoRecibido = transferenciaQr
+                ? context.total().get()
+                : parseCurrencyOrZero(montoRecibidoField.getText());
+        BigDecimal cambioEntregado = montoRecibido.subtract(context.total().get());
+        if (!transferenciaQr
+                && !showChangeConfirmationDialog(statusLabel.getScene().getWindow(), montoRecibido, context.total().get(), cambioEntregado)) {
             setSalesStatusInfo(statusLabel, "Confirmacion de venta cancelada.");
             valorUnitarioField.requestFocus();
             return;
         }
 
-        List<PosApiClient.RegistrarDetalleVentaRequest> detalles = saleDraftRows.stream()
+        List<PosApiClient.RegistrarDetalleVentaRequest> detalles = context.rows().stream()
                 .map(row -> new PosApiClient.RegistrarDetalleVentaRequest(
                         null,
                         row.cantidad(),
@@ -1397,38 +1570,44 @@ public class PosDesktopFxApplication extends Application {
 
         setSalesStatusInfo(statusLabel, "Registrando venta en la API...");
         runAsync(
-                () -> posApiClient.registrarVenta(new PosApiClient.RegistrarVentaRequest(detalles, montoRecibido, null)),
+                () -> posApiClient.registrarVenta(new PosApiClient.RegistrarVentaRequest(
+                        detalles,
+                        montoRecibido,
+                        null,
+                        paymentMethodCode(paymentMethod)
+                )),
                 response -> {
-                    saleDraftRows.clear();
-                    recalculateSaleTotal();
+                    boolean printReceipt = printReceiptCheck.isSelected();
+                    context.rows().clear();
+                    recalculateSaleTotal(context);
                     montoRecibidoField.clear();
+                    paymentMethod.getSelectionModel().select(SALES_PAYMENT_CASH);
+                    printReceiptCheck.setSelected(false);
                     setSalesStatusInfo(statusLabel, "Venta " + response.numeroVenta() + " registrada correctamente.");
                     valorUnitarioField.requestFocus();
-                    if (printReceiptCheck.isSelected()) {
+                    if (printReceipt) {
                         showReceiptPreviewAndPrint(statusLabel.getScene().getWindow(), response);
-                    } else {
-                        showInfo("Venta registrada", "Se registró la venta " + response.numeroVenta()
-                                + " por " + formatCurrency(response.total()) + ".");
                     }
                 },
                 exception -> setSalesStatusError(statusLabel, exception.getMessage())
         );
     }
 
-    private void recalculateSaleTotal() {
-        BigDecimal total = saleDraftRows.stream()
+    private void recalculateSaleTotal(SaleTabContext context) {
+        BigDecimal total = context.rows().stream()
                 .map(SaleDraftRow::total)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        saleTotal.set(total.setScale(2, RoundingMode.HALF_UP));
+        context.total().set(total.setScale(2, RoundingMode.HALF_UP));
     }
 
     private void configureSalesFocusFlow(
+            SaleTabContext context,
             TextField valorUnitarioField,
             TextField cantidadField,
             Label statusLabel
     ) {
         valorUnitarioField.setOnAction(event -> cantidadField.requestFocus());
-        cantidadField.setOnAction(event -> addSaleDetail(cantidadField, valorUnitarioField, statusLabel));
+        cantidadField.setOnAction(event -> addSaleDetail(context, cantidadField, valorUnitarioField, statusLabel));
     }
 
     private void configureCurrencyFormatOnInput(TextField field) {
@@ -1936,6 +2115,7 @@ public class PosDesktopFxApplication extends Application {
         bindTableHeightToScene(table, 0.24, 138, 205);
         table.getColumns().addAll(
                 tableColumn("Fecha", row -> row.fechaOperacion().toString()),
+                tableColumn("Responsable", row -> safeText(row.responsableUsuario(), "-")),
                 tableColumn("Ventas", row -> String.valueOf(row.cantidadVentas())),
                 tableColumn("Total ventas", row -> formatCurrency(row.totalVentas())),
                 tableColumn("Base", row -> formatCurrency(row.baseCaja())),
@@ -1948,7 +2128,7 @@ public class PosDesktopFxApplication extends Application {
 
     private TableView<PosApiClient.MovimientoVentaResponse> createMovementsTable() {
         TableView<PosApiClient.MovimientoVentaResponse> table = new TableView<>();
-        table.getStyleClass().add("data-table");
+        table.getStyleClass().addAll("data-table", "movements-data-table");
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         bindTableHeightToScene(table, 0.24, 140, 208);
         table.getColumns().addAll(
@@ -1957,7 +2137,8 @@ public class PosDesktopFxApplication extends Application {
                 tableColumn("Total", row -> formatCurrency(row.total())),
                 tableColumn("Recibido", row -> formatCurrency(row.montoRecibido())),
                 tableColumn("Devuelto", row -> formatCurrency(row.cambioEntregado())),
-                tableColumn("Fecha", row -> formatDateTime(row.fechaVenta()))
+                tableColumn("Fecha", row -> formatDateTime(row.fechaVenta())),
+                createMovementPrintColumn()
         );
         return table;
     }
@@ -2167,6 +2348,7 @@ public class PosDesktopFxApplication extends Application {
                 refreshHistoryAction
         ));
         save.setDisable(!editAllowed);
+
         fechaOperacionPicker.setDisable(!editAllowed);
         baseField.setDisable(!editAllowed);
         trabajadorasField.setDisable(!editAllowed);
@@ -2191,13 +2373,129 @@ public class PosDesktopFxApplication extends Application {
         return card;
     }
 
+    private void showTransfersForRange(
+            Window owner,
+            LocalDate fechaInicial,
+            LocalDate fechaFinal,
+            Button exportButton
+    ) {
+        LocalDate inicio = fechaInicial == null ? LocalDate.now() : fechaInicial;
+        LocalDate fin = fechaFinal == null ? inicio : fechaFinal;
+        if (fin.isBefore(inicio)) {
+            showError("Transferencias", "Selecciona la fecha de operación que deseas consultar.");
+            return;
+        }
+
+        exportButton.setDisable(true);
+        runAsync(
+                () -> posApiClient.listarMovimientos(inicio, fin)
+                        .stream()
+                        .filter(movement -> "TRANSFERENCIA_QR".equalsIgnoreCase(movement.medioPago()))
+                        .toList(),
+                transfers -> {
+                    exportButton.setDisable(!hasPermission(PERM_MOVIMIENTOS_VIEW));
+                    showTransfersWindow(owner, inicio, fin, transfers);
+                },
+                exception -> {
+                    exportButton.setDisable(!hasPermission(PERM_MOVIMIENTOS_VIEW));
+                    showError("Transferencias", exception.getMessage());
+                }
+        );
+    }
+
+    private void showTransfersWindow(
+            Window owner,
+            LocalDate fechaInicial,
+            LocalDate fechaFinal,
+            List<PosApiClient.MovimientoVentaResponse> transfers
+    ) {
+        String rango = formatDateRange(fechaInicial, fechaFinal);
+        Stage stage = createDialogStage("Transferencias | " + rango);
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        TableView<PosApiClient.MovimientoVentaResponse> table = new TableView<>();
+        table.getStyleClass().add("data-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.getColumns().addAll(
+                tableColumn("Número", PosApiClient.MovimientoVentaResponse::numeroVenta),
+                tableColumn("Tipo", movement -> formatTransferMovementType(movement.origen())),
+                tableColumn("Hora", row -> row.fechaVenta() == null
+                        ? "-"
+                        : DateTimeFormatter.ofPattern("HH:mm").format(row.fechaVenta())),
+                tableColumn("Total", row -> formatCurrency(row.total()))
+        );
+        table.setItems(FXCollections.observableArrayList(transfers));
+        table.setPlaceholder(new Label("No hay transferencias QR registradas para este rango."));
+        table.setMaxHeight(Double.MAX_VALUE);
+        bindTableHeightToScene(table, 0.42, 220, 420);
+
+        BigDecimal total = transfers.stream()
+                .map(PosApiClient.MovimientoVentaResponse::total)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long layawayPaymentCount = transfers.stream()
+                .filter(movement -> "SEPARADO".equalsIgnoreCase(movement.origen()))
+                .count();
+        BigDecimal layawayPaymentTotal = transfers.stream()
+                .filter(movement -> "SEPARADO".equalsIgnoreCase(movement.origen()))
+                .map(PosApiClient.MovimientoVentaResponse::total)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        FlowPane summary = new FlowPane(12, 10,
+                createCompactInfoBlock("Rango", createMetaValueLabel(rango)),
+                createCompactInfoBlock("Transferencias", createMetaValueLabel(String.valueOf(transfers.size()))),
+                createCompactInfoBlock(
+                        "Abonos de separados",
+                        createMetaValueLabel(layawayPaymentCount + " | " + formatCurrency(layawayPaymentTotal))
+                ),
+                createCompactInfoBlock("Valor total", createMetaValueLabel(formatCurrency(total)))
+        );
+        summary.getStyleClass().add("invoice-provider-flow");
+
+        VBox root = createDialogRoot(
+                "Transferencias realizadas",
+                "Transferencias QR registradas entre " + rango + "."
+        );
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+
+        VBox summaryCard = createCard("Resumen del día", "Consulta rápida de las transferencias registradas.");
+        summaryCard.getChildren().add(summary);
+        VBox tableCard = createCard(
+                "Detalle de transferencias",
+                transfers.isEmpty()
+                        ? "No se registraron transferencias QR en el rango seleccionado."
+                        : "Incluye ventas y abonos de separados registrados mediante transferencia QR."
+        );
+        VBox.setVgrow(table, Priority.ALWAYS);
+        tableCard.getChildren().add(table);
+        VBox.setVgrow(tableCard, Priority.ALWAYS);
+
+        Button close = createActionButton("Cerrar", "ghost-button");
+        close.setOnAction(event -> stage.close());
+        HBox footer = new HBox(close);
+        footer.setAlignment(Pos.CENTER_RIGHT);
+        root.getChildren().addAll(summaryCard, tableCard, footer);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.62, 0.64, 620, 460);
+        stage.show();
+    }
+
+    private String formatTransferMovementType(String origen) {
+        return "SEPARADO".equalsIgnoreCase(origen) ? "Abono de separado" : "Venta";
+    }
+
     private Node createClosingHistoryCard(
             TableView<PosApiClient.CierreDiarioListadoResponse> table,
             DatePicker fechaInicialPicker,
             DatePicker fechaFinalPicker,
             ComboBox<String> estadoHistorialCombo,
             Label historyFeedbackLabel,
-            Runnable refreshHistoryAction
+            Runnable refreshHistoryAction,
+            boolean transferExportAllowed
     ) {
         VBox card = createCard("Historial de cierres", "Filtra por rango y estado antes de totalizar el consolidado.");
         card.getStyleClass().add("closing-history-card");
@@ -2211,6 +2509,15 @@ public class PosDesktopFxApplication extends Application {
         Button search = createActionButton("Buscar cierres", "ghost-button");
         search.setOnAction(event -> refreshHistoryAction.run());
 
+        Button exportTransfers = createActionButton("Exportar transferencias", "ghost-button");
+        exportTransfers.setDisable(!transferExportAllowed);
+        exportTransfers.setOnAction(event -> showTransfersForRange(
+                exportTransfers.getScene() == null ? null : exportTransfers.getScene().getWindow(),
+                fechaInicialPicker.getValue(),
+                fechaFinalPicker.getValue(),
+                exportTransfers
+        ));
+
         Button totalize = createActionButton("Totalizar", "primary-button");
         totalize.setOnAction(event -> showClosingTotalsWindow(
                 totalize.getScene() == null ? null : totalize.getScene().getWindow(),
@@ -2220,12 +2527,16 @@ public class PosDesktopFxApplication extends Application {
                 new ArrayList<>(table.getItems())
         ));
 
-        Region spacer = new Region();
-        HBox.setHgrow(historyFeedbackLabel, Priority.ALWAYS);
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox actions = new HBox(12, historyFeedbackLabel, spacer, search, totalize);
+        for (Button actionButton : List.of(search, exportTransfers, totalize)) {
+            actionButton.setMinWidth(Region.USE_PREF_SIZE);
+        }
+        FlowPane actionButtons = new FlowPane(10, 8, search, exportTransfers, totalize);
+        actionButtons.setAlignment(Pos.CENTER_RIGHT);
+        actionButtons.setMaxWidth(Double.MAX_VALUE);
+
+        VBox actions = new VBox(8, historyFeedbackLabel, actionButtons);
         actions.getStyleClass().add("closing-history-actions");
-        actions.setAlignment(Pos.CENTER_LEFT);
+        actions.setAlignment(Pos.TOP_LEFT);
 
         card.getChildren().addAll(filters, actions, table);
         return card;
@@ -2568,6 +2879,7 @@ public class PosDesktopFxApplication extends Application {
                 tableColumn("Numero", PosApiClient.SeparadoListadoResponse::numeroSeparado),
                 tableColumn("Cliente", PosApiClient.SeparadoListadoResponse::cliente),
                 tableColumn("Articulos", PosApiClient.SeparadoListadoResponse::descripcionArticulos),
+                tableColumn("Responsable", separado -> safeText(separado.responsableUsuario(), "-")),
                 tableColumn("Estado", separado -> formatLayawayStatus(separado.estado())),
                 tableColumn("Total", separado -> formatCurrency(separado.valorTotal())),
                 tableColumn("Abonado", separado -> formatCurrency(separado.totalAbonado())),
@@ -4190,6 +4502,7 @@ public class PosDesktopFxApplication extends Application {
             return "-";
         }
         return switch (method.toUpperCase(Locale.ROOT)) {
+            case "TRANSFERENCIA_QR" -> SALES_PAYMENT_TRANSFER_QR;
             case "TRANSFERENCIA" -> "Transferencia";
             case "EFECTIVO" -> "Efectivo";
             case "CONSIGNACION" -> "Consignacion";
@@ -5697,6 +6010,7 @@ public class PosDesktopFxApplication extends Application {
         TextField totalField = createField("0");
         TextField abonoInicialField = createField("20000");
         TextField remaining = createField("0");
+        ComboBox<String> paymentMethod = createPaymentMethodCombo();
         configureCurrencyFormatOnInput(totalField);
         configureCurrencyFormatOnInput(abonoInicialField);
         totalField.setText(formatCurrency(BigDecimal.ZERO));
@@ -5724,6 +6038,7 @@ public class PosDesktopFxApplication extends Application {
                 createFieldGroup("Articulos", articulosArea, 380),
                 createFieldGroup("Valor total", totalField, 220),
                 createFieldGroup("Abono inicial", abonoInicialField, 220),
+                createFieldGroup("Medio de pago", paymentMethod, 220),
                 createFieldGroup("Restante estimado", remaining, 220)
         );
 
@@ -5754,7 +6069,8 @@ public class PosDesktopFxApplication extends Application {
                         articulosArea.getText(),
                         total,
                         initialPayment,
-                        observacionArea.getText()
+                        observacionArea.getText(),
+                        paymentMethodCode(paymentMethod)
                 );
                 save.setDisable(true);
                 runAsync(
@@ -5781,7 +6097,7 @@ public class PosDesktopFxApplication extends Application {
                 showError("Nuevo separado", exception.getMessage());
             }
         });
-        configureNewLayawayFocusFlow(clienteField, telefonoField, totalField, abonoInicialField, save);
+        configureNewLayawayFocusFlow(clienteField, telefonoField, totalField, abonoInicialField, paymentMethod, save);
 
         root.getChildren().addAll(fields, createFieldGroup("Observacion", observacionArea, 520), progress, save);
 
@@ -5796,12 +6112,14 @@ public class PosDesktopFxApplication extends Application {
             TextField telefonoField,
             TextField totalField,
             TextField abonoInicialField,
+            ComboBox<String> paymentMethod,
             Button saveButton
     ) {
         clienteField.setOnAction(event -> telefonoField.requestFocus());
         telefonoField.setOnAction(event -> totalField.requestFocus());
         totalField.setOnAction(event -> abonoInicialField.requestFocus());
-        abonoInicialField.setOnAction(event -> saveButton.requestFocus());
+        abonoInicialField.setOnAction(event -> paymentMethod.requestFocus());
+        paymentMethod.setOnAction(event -> saveButton.requestFocus());
     }
 
     private void openLayawayPaymentWindow(
@@ -5861,6 +6179,7 @@ public class PosDesktopFxApplication extends Application {
         amountField.setPromptText("Valor a abonar");
         configureCurrencyFormatOnInput(amountField);
         configureSelectAllOnFocus(amountField);
+        ComboBox<String> paymentMethod = createPaymentMethodCombo();
         TextField projectedBalanceField = createField(formatCurrency(initialDetail.saldoPendiente()));
         projectedBalanceField.setDisable(true);
         applyLayawayCurrencyInputStyle(totalField, currentBalanceField, amountField, projectedBalanceField);
@@ -5894,6 +6213,7 @@ public class PosDesktopFxApplication extends Application {
                     && detail.saldoPendiente().signum() > 0
                     && "ACTIVO".equalsIgnoreCase(detail.estado());
             amountField.setDisable(!canRegisterPayment);
+            paymentMethod.setDisable(!canRegisterPayment);
             observationArea.setDisable(!canRegisterPayment);
             save.setDisable(!canRegisterPayment);
             if (!canRegisterPayment) {
@@ -5911,6 +6231,7 @@ public class PosDesktopFxApplication extends Application {
                 createFieldGroup("Valor total", totalField, 220),
                 createFieldGroup("Saldo actual", currentBalanceField, 220),
                 createFieldGroup("Valor a abonar", amountField, 220),
+                createFieldGroup("Medio de pago", paymentMethod, 220),
                 createFieldGroup("Restante estimado", projectedBalanceField, 220)
         );
 
@@ -5936,7 +6257,11 @@ public class PosDesktopFxApplication extends Application {
                 runAsync(
                         () -> posApiClient.registrarAbonoSeparado(
                                 detail.id(),
-                                new PosApiClient.RegistrarAbonoSeparadoRequest(payment, observationArea.getText())
+                                new PosApiClient.RegistrarAbonoSeparadoRequest(
+                                        payment,
+                                        observationArea.getText(),
+                                        paymentMethodCode(paymentMethod)
+                                )
                         ),
                         updatedDetail -> {
                             selectedLayawayDetail.set(updatedDetail);
@@ -5959,12 +6284,15 @@ public class PosDesktopFxApplication extends Application {
                 showError("Abonos", exception.getMessage());
             }
         });
+        amountField.setOnAction(event -> paymentMethod.requestFocus());
+        paymentMethod.setOnAction(event -> save.requestFocus());
 
         root.getChildren().addAll(fields, createFieldGroup("Observacion", observationArea, 520), progress, save);
 
-        Scene scene = new Scene(root, 860, 620);
+        Scene scene = new Scene(root);
         scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
         stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.82, 0.82, 900, 650);
         stage.show();
     }
 
@@ -5991,6 +6319,8 @@ public class PosDesktopFxApplication extends Application {
                 tableColumn("Fecha y hora", payment -> formatDateTime(payment.fechaAbono())),
                 tableColumn("Valor", payment -> formatCurrency(payment.montoAbono())),
                 tableColumn("Tipo", payment -> payment.abonoInicial() ? "Inicial" : "Abono"),
+                tableColumn("Medio", payment -> formatPaymentMethod(payment.medioPago())),
+                tableColumn("Responsable", payment -> safeText(payment.responsableUsuario(), "-")),
                 tableColumn("Venta", payment -> payment.numeroVenta() == null ? "-" : payment.numeroVenta())
         );
 
@@ -6370,6 +6700,50 @@ public class PosDesktopFxApplication extends Application {
         return column;
     }
 
+    private TableColumn<PosApiClient.MovimientoVentaResponse, Void> createMovementPrintColumn() {
+        TableColumn<PosApiClient.MovimientoVentaResponse, Void> column = new TableColumn<>("Documento");
+        column.setSortable(false);
+        column.setMinWidth(94);
+        column.setPrefWidth(98);
+        column.setMaxWidth(108);
+        column.setCellFactory(ignored -> new TableCell<>() {
+            private final Button printButton = createActionButton("Imprimir", "ghost-button");
+
+            {
+                printButton.getStyleClass().add("movement-print-button");
+                printButton.setOnAction(event -> {
+                    int rowIndex = getIndex();
+                    if (rowIndex < 0 || rowIndex >= getTableView().getItems().size()) {
+                        return;
+                    }
+                    PosApiClient.MovimientoVentaResponse movement = getTableView().getItems().get(rowIndex);
+                    Window owner = getScene() == null ? primaryStage : getScene().getWindow();
+                    printMovementReceipt(owner, movement);
+                });
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                setGraphic(empty ? null : printButton);
+            }
+        });
+        return column;
+    }
+
+    private void printMovementReceipt(Window owner, PosApiClient.MovimientoVentaResponse movement) {
+        if (movement == null || movement.id() == null || movement.id().isBlank()) {
+            showError("Imprimir documento", "No fue posible identificar el movimiento seleccionado.");
+            return;
+        }
+        runAsync(
+                () -> posApiClient.consultarVenta(movement.id()),
+                response -> showReceiptPreviewAndPrint(owner, response),
+                exception -> showError("Imprimir documento", exception.getMessage())
+        );
+    }
+
     private <T> void runAsync(
             java.util.concurrent.Callable<T> supplier,
             java.util.function.Consumer<T> onSuccess,
@@ -6659,6 +7033,12 @@ public class PosDesktopFxApplication extends Application {
 
     private double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private record SaleTabContext(
+            ObservableList<SaleDraftRow> rows,
+            SimpleObjectProperty<BigDecimal> total
+    ) {
     }
 
     private record SaleDraftRow(BigDecimal cantidad, BigDecimal valorUnitario) {

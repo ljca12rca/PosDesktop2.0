@@ -11,6 +11,7 @@ public record MovimientoVentaResponse(
         BigDecimal total,
         BigDecimal montoRecibido,
         BigDecimal cambioEntregado,
-        LocalDateTime fechaVenta
+        LocalDateTime fechaVenta,
+        String medioPago
 ) {
 }

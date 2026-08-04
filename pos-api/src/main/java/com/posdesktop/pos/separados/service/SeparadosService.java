@@ -1,11 +1,15 @@
 package com.posdesktop.pos.separados.service;
 
+import com.posdesktop.pos.auth.service.AuthSessionData;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoSeparado;
+import com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta;
 import com.posdesktop.pos.modelo.relacional.AbonoSeparado;
 import com.posdesktop.pos.modelo.relacional.Separado;
+import com.posdesktop.pos.modelo.relacional.UsuarioSistema;
 import com.posdesktop.pos.modelo.relacional.Venta;
 import com.posdesktop.pos.repositorio.relacional.AbonoSeparadoRepositorio;
 import com.posdesktop.pos.repositorio.relacional.SeparadoRepositorio;
+import com.posdesktop.pos.repositorio.relacional.UsuarioSistemaRepositorio;
 import com.posdesktop.pos.separados.api.dto.AbonoSeparadoResponse;
 import com.posdesktop.pos.separados.api.dto.RegistrarAbonoSeparadoRequest;
 import com.posdesktop.pos.separados.api.dto.RegistrarSeparadoRequest;
@@ -30,26 +34,30 @@ public class SeparadosService {
     private final VentasService ventasService;
     private final SeparadoNumeroService separadoNumeroService;
     private final SeparadoValidationService separadoValidationService;
+    private final UsuarioSistemaRepositorio usuarioSistemaRepositorio;
 
     public SeparadosService(
             SeparadoRepositorio separadoRepositorio,
             AbonoSeparadoRepositorio abonoSeparadoRepositorio,
             VentasService ventasService,
             SeparadoNumeroService separadoNumeroService,
-            SeparadoValidationService separadoValidationService
+            SeparadoValidationService separadoValidationService,
+            UsuarioSistemaRepositorio usuarioSistemaRepositorio
     ) {
         this.separadoRepositorio = separadoRepositorio;
         this.abonoSeparadoRepositorio = abonoSeparadoRepositorio;
         this.ventasService = ventasService;
         this.separadoNumeroService = separadoNumeroService;
         this.separadoValidationService = separadoValidationService;
+        this.usuarioSistemaRepositorio = usuarioSistemaRepositorio;
     }
 
     @Transactional
-    public SeparadoDetalleResponse registrarSeparado(RegistrarSeparadoRequest request) {
+    public SeparadoDetalleResponse registrarSeparado(RegistrarSeparadoRequest request, AuthSessionData session) {
         BigDecimal valorTotal = normalizarDinero(request.valorTotal());
         BigDecimal abonoInicial = normalizarDinero(request.abonoInicial());
         separadoValidationService.validarRegistro(valorTotal, abonoInicial);
+        UsuarioSistema responsableUsuario = resolveResponsibleUser(session);
 
         LocalDate fechaSeparacion = LocalDate.now();
         Separado separado = new Separado();
@@ -60,14 +68,24 @@ public class SeparadosService {
         separado.setDescripcionArticulo(limpiarRequerido(request.descripcionArticulos()));
         separado.setValorTotal(valorTotal);
         separado.setObservacion(limpiarOpcional(request.observacion()));
+        separado.setResponsableUsuario(responsableUsuario);
 
         Venta ventaAbonoInicial = ventasService.registrarVentaSeparado(
                 construirDescripcionVenta(separado, true),
                 abonoInicial,
-                construirObservacionVenta(separado, request.observacion(), true)
+                construirObservacionVenta(separado, request.observacion(), true),
+                normalizarMedioPago(request.medioPago())
         );
 
-        AbonoSeparado abonoInicialEntity = crearAbono(separado, ventaAbonoInicial, 1, abonoInicial, true, request.observacion());
+        AbonoSeparado abonoInicialEntity = crearAbono(
+                separado,
+                ventaAbonoInicial,
+                1,
+                abonoInicial,
+                true,
+                request.observacion(),
+                responsableUsuario
+        );
         separado.agregarAbono(abonoInicialEntity);
 
         Separado guardado = separadoRepositorio.saveAndFlush(separado);
@@ -106,19 +124,33 @@ public class SeparadosService {
     }
 
     @Transactional
-    public SeparadoDetalleResponse registrarAbono(UUID separadoId, RegistrarAbonoSeparadoRequest request) {
+    public SeparadoDetalleResponse registrarAbono(
+            UUID separadoId,
+            RegistrarAbonoSeparadoRequest request,
+            AuthSessionData session
+    ) {
         Separado separado = obtenerSeparado(separadoId);
         BigDecimal valorAbono = normalizarDinero(request.valorAbono());
         separadoValidationService.validarNuevoAbono(separado, valorAbono);
+        UsuarioSistema responsableUsuario = resolveResponsibleUser(session);
 
         int numeroAbono = separado.getAbonos().size() + 1;
         Venta ventaAbono = ventasService.registrarVentaSeparado(
                 construirDescripcionVenta(separado, false),
                 valorAbono,
-                construirObservacionVenta(separado, request.observacion(), false)
+                construirObservacionVenta(separado, request.observacion(), false),
+                normalizarMedioPago(request.medioPago())
         );
 
-        AbonoSeparado abono = crearAbono(separado, ventaAbono, numeroAbono, valorAbono, false, request.observacion());
+        AbonoSeparado abono = crearAbono(
+                separado,
+                ventaAbono,
+                numeroAbono,
+                valorAbono,
+                false,
+                request.observacion(),
+                responsableUsuario
+        );
         separado.agregarAbono(abono);
 
         Separado guardado = separadoRepositorio.saveAndFlush(separado);
@@ -137,7 +169,8 @@ public class SeparadosService {
             int numeroAbono,
             BigDecimal montoAbono,
             boolean abonoInicial,
-            String observacion
+            String observacion,
+            UsuarioSistema responsableUsuario
     ) {
         AbonoSeparado abono = new AbonoSeparado();
         abono.setSeparado(separado);
@@ -147,7 +180,22 @@ public class SeparadosService {
         abono.setMontoAbono(montoAbono);
         abono.setAbonoInicial(abonoInicial);
         abono.setObservacion(limpiarOpcional(observacion));
+        abono.setResponsableUsuario(responsableUsuario);
         return abono;
+    }
+
+    private UsuarioSistema resolveResponsibleUser(AuthSessionData session) {
+        if (session == null || session.usuarioId() == null || session.usuarioId().isBlank()) {
+            throw new IllegalStateException("No fue posible identificar al usuario responsable de la operacion.");
+        }
+        try {
+            UUID usuarioId = UUID.fromString(session.usuarioId());
+            return usuarioSistemaRepositorio.findById(usuarioId)
+                    .filter(UsuarioSistema::isActivo)
+                    .orElseThrow(() -> new IllegalStateException("El usuario responsable no existe o esta inactivo."));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("La sesion contiene un identificador de usuario invalido.", exception);
+        }
     }
 
     private SeparadoListadoResponse mapearListado(Separado separado) {
@@ -160,7 +208,8 @@ public class SeparadosService {
                 separado.getValorTotal(),
                 separado.getTotalAbonado(),
                 separado.getSaldoPendiente(),
-                separado.getFechaSeparacion()
+                separado.getFechaSeparacion(),
+                separado.getResponsableUsuario().getNombreCompleto()
         );
     }
 
@@ -191,8 +240,14 @@ public class SeparadosService {
                 abono.getMontoAbono(),
                 abono.isAbonoInicial(),
                 abono.getVenta() == null ? null : abono.getVenta().getNumeroVenta(),
-                abono.getObservacion()
+                abono.getObservacion(),
+                abono.getResponsableUsuario().getNombreCompleto(),
+                abono.getVenta() == null ? null : normalizarMedioPago(abono.getVenta().getMedioPago()).name()
         );
+    }
+
+    private MedioPagoVenta normalizarMedioPago(MedioPagoVenta medioPago) {
+        return medioPago == null ? MedioPagoVenta.EFECTIVO : medioPago;
     }
 
     private String construirDescripcionVenta(Separado separado, boolean abonoInicial) {

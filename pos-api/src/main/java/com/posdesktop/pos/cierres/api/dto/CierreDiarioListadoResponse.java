@@ -16,6 +16,7 @@ public record CierreDiarioListadoResponse(
         BigDecimal trabajadoras,
         BigDecimal ahorro,
         BigDecimal totalFinal,
-        String estado
+        String estado,
+        String responsableUsuario
 ) {
 }

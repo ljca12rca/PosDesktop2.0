@@ -2,6 +2,7 @@ package com.posdesktop.pos.modelo.relacional;
 
 import com.posdesktop.pos.modelo.comun.EntidadAuditable;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoVenta;
+import com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta;
 import com.posdesktop.pos.modelo.enumeraciones.OrigenVenta;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -66,6 +67,10 @@ public class Venta extends EntidadAuditable {
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal cambioEntregado = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "medio_pago", nullable = false, length = 30)
+    private MedioPagoVenta medioPago = MedioPagoVenta.EFECTIVO;
 
     @Column(length = 500)
     private String observacion;
@@ -155,6 +160,14 @@ public class Venta extends EntidadAuditable {
 
     public void setCambioEntregado(BigDecimal cambioEntregado) {
         this.cambioEntregado = valorSeguro(cambioEntregado);
+    }
+
+    public MedioPagoVenta getMedioPago() {
+        return medioPago;
+    }
+
+    public void setMedioPago(MedioPagoVenta medioPago) {
+        this.medioPago = medioPago == null ? MedioPagoVenta.EFECTIVO : medioPago;
     }
 
     public String getObservacion() {

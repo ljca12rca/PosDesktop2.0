@@ -222,6 +222,8 @@ CREATE TABLE ventas (
     total NUMERIC(19, 2) NOT NULL DEFAULT 0,
     monto_recibido NUMERIC(19, 2) NOT NULL DEFAULT 0,
     cambio_entregado NUMERIC(19, 2) NOT NULL DEFAULT 0,
+    medio_pago VARCHAR(30) NOT NULL DEFAULT 'EFECTIVO'
+        CHECK (medio_pago IN ('EFECTIVO', 'TRANSFERENCIA_QR')),
     observacion VARCHAR(500),
     cierre_diario_id UUID REFERENCES cierres_diarios (id),
     creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -230,6 +232,7 @@ CREATE TABLE ventas (
 
 CREATE INDEX idx_ventas_fecha_venta ON ventas (fecha_venta);
 CREATE INDEX idx_ventas_cierre_diario_id ON ventas (cierre_diario_id);
+CREATE INDEX idx_ventas_medio_pago ON ventas (medio_pago);
 
 CREATE TABLE detalle_venta (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -271,6 +274,7 @@ CREATE TABLE separados (
     fecha_promesa_entrega DATE,
     fecha_entrega DATE,
     observacion VARCHAR(500),
+    responsable_usuario_id UUID NOT NULL REFERENCES usuarios_sistema (id) ON DELETE RESTRICT,
     creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -288,12 +292,15 @@ CREATE TABLE abonos_separado (
     monto_abono NUMERIC(19, 2) NOT NULL DEFAULT 0,
     abono_inicial BOOLEAN NOT NULL DEFAULT FALSE,
     observacion VARCHAR(500),
+    responsable_usuario_id UUID NOT NULL REFERENCES usuarios_sistema (id) ON DELETE RESTRICT,
     creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_abonos_separado_separado_id ON abonos_separado (separado_id);
 CREATE INDEX idx_abonos_separado_fecha_abono ON abonos_separado (fecha_abono);
+CREATE INDEX idx_separados_responsable_usuario_id ON separados (responsable_usuario_id);
+CREATE INDEX idx_abonos_separado_responsable_usuario_id ON abonos_separado (responsable_usuario_id);
 
 CREATE TABLE facturas_proveedor (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -79,6 +79,11 @@ public final class PosApiClient {
         }).data();
     }
 
+    public VentaRegistradaResponse consultarVenta(String ventaId) {
+        return get("/ventas/" + encode(ventaId), new TypeReference<ApiResponseEnvelope<VentaRegistradaResponse>>() {
+        }).data();
+    }
+
     public List<SeparadoListadoResponse> listarSeparados(String estado, String articulo) {
         StringBuilder path = new StringBuilder("/separados");
         boolean hasQuery = false;
@@ -467,7 +472,8 @@ public final class PosApiClient {
     public record RegistrarVentaRequest(
             List<RegistrarDetalleVentaRequest> detalles,
             BigDecimal montoRecibido,
-            String observacion
+            String observacion,
+            String medioPago
     ) {
     }
 
@@ -508,13 +514,15 @@ public final class PosApiClient {
             String descripcionArticulos,
             BigDecimal valorTotal,
             BigDecimal abonoInicial,
-            String observacion
+            String observacion,
+            String medioPago
     ) {
     }
 
     public record RegistrarAbonoSeparadoRequest(
             BigDecimal valorAbono,
-            String observacion
+            String observacion,
+            String medioPago
     ) {
     }
 
@@ -658,7 +666,9 @@ public final class PosApiClient {
             BigDecimal montoAbono,
             boolean abonoInicial,
             String numeroVenta,
-            String observacion
+            String observacion,
+            String responsableUsuario,
+            String medioPago
     ) {
     }
 
@@ -671,7 +681,8 @@ public final class PosApiClient {
             BigDecimal valorTotal,
             BigDecimal totalAbonado,
             BigDecimal saldoPendiente,
-            LocalDate fechaSeparacion
+            LocalDate fechaSeparacion,
+            String responsableUsuario
     ) {
     }
 
@@ -731,7 +742,8 @@ public final class PosApiClient {
             BigDecimal trabajadoras,
             BigDecimal ahorro,
             BigDecimal totalFinal,
-            String estado
+            String estado,
+            String responsableUsuario
     ) {
     }
 
@@ -742,7 +754,8 @@ public final class PosApiClient {
             BigDecimal total,
             BigDecimal montoRecibido,
             BigDecimal cambioEntregado,
-            LocalDateTime fechaVenta
+            LocalDateTime fechaVenta,
+            String medioPago
     ) {
     }
 

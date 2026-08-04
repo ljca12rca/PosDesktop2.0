@@ -12,6 +12,7 @@ public record SeparadoListadoResponse(
         BigDecimal valorTotal,
         BigDecimal totalAbonado,
         BigDecimal saldoPendiente,
-        LocalDate fechaSeparacion
+        LocalDate fechaSeparacion,
+        String responsableUsuario
 ) {
 }

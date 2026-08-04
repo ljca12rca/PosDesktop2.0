@@ -1,5 +1,6 @@
 package com.posdesktop.pos.ventas.api.dto;
 
+import com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
@@ -11,6 +12,7 @@ public record RegistrarVentaManualRequest(
         List<@Valid RegistrarDetalleVentaRequest> detalles,
         @DecimalMin(value = "0.00", message = "El monto recibido no puede ser negativo.")
         BigDecimal montoRecibido,
-        String observacion
+        String observacion,
+        MedioPagoVenta medioPago
 ) {
 }

@@ -1089,6 +1089,72 @@
     -fx-font-size: 10px;
 }
 
+.sales-tabs-toolbar {
+    -fx-alignment: top-left;
+}
+
+.sales-tab-pane {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.sales-tab-pane > .tab-header-area {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 5 0;
+}
+
+.sales-tab-pane > .tab-header-area > .tab-header-background,
+.sales-tab-pane > .tab-header-area > .headers-region {
+    -fx-background-color: transparent;
+}
+
+.sales-tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: rgba(255, 255, 255, 0.68);
+    -fx-background-radius: 12 12 8 8;
+    -fx-padding: 5 10 5 10;
+}
+
+.sales-tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: linear-gradient(to right, #f28a53, #f7c36f);
+}
+
+.sales-tab-pane > .tab-header-area > .headers-region > .tab .tab-label {
+    -fx-text-fill: #29404b;
+    -fx-font-size: 13px;
+    -fx-font-weight: 800;
+}
+
+.sales-tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label {
+    -fx-text-fill: #173746;
+}
+
+.sales-tab-pane > .tab-content-area {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.sales-new-tab-button {
+    -fx-min-width: 42;
+    -fx-min-height: 42;
+    -fx-max-width: 42;
+    -fx-max-height: 42;
+    -fx-background-color: linear-gradient(to bottom right, #0e8f8d, #0b6d6c);
+    -fx-background-radius: 21;
+    -fx-text-fill: white;
+    -fx-font-size: 26px;
+    -fx-font-weight: 500;
+    -fx-padding: 0 0 3 0;
+    -fx-cursor: hand;
+}
+
+.sales-new-tab-button:hover {
+    -fx-background-color: linear-gradient(to bottom right, #14a49f, #0e7775);
+}
+
+.sales-tab-content {
+    -fx-padding: 2 0 0 0;
+}
+
 .sales-entry-card {
     -fx-padding: 14;
 }
@@ -1134,6 +1200,21 @@
 .sales-screen .primary-button,
 .sales-screen .ghost-button {
     -fx-font-size: 18px;
+}
+
+.sales-screen .sales-clear-button {
+    -fx-background-color: #fff4e8;
+    -fx-border-color: #ef9a69;
+    -fx-text-fill: #a84d2c;
+    -fx-font-size: 24px;
+    -fx-min-width: 46px;
+    -fx-pref-width: 46px;
+    -fx-max-width: 46px;
+    -fx-padding: 4 0 6 0;
+}
+
+.sales-screen .sales-clear-button:hover {
+    -fx-background-color: #ffe4d2;
 }
 
 .sales-screen .amount-main {
@@ -1185,6 +1266,12 @@
 
 .movements-table-card {
     -fx-padding: 12;
+}
+
+.movements-data-table .movement-print-button {
+    -fx-font-size: 11px;
+    -fx-padding: 5 8 5 8;
+    -fx-min-width: 78px;
 }
 
 .app-shell:compact .sidebar {
@@ -1342,9 +1429,15 @@
     -fx-font-size: 16px;
 }
 
-.app-shell .sales-screen .soft-field {
+.app-shell .sales-screen .soft-field,
+.app-shell .sales-screen .combo-box {
     -fx-font-size: 18px;
     -fx-padding: 8 12 8 12;
+}
+
+.app-shell .sales-screen .combo-box .list-cell {
+    -fx-font-size: 18px;
+    -fx-font-weight: 700;
 }
 
 .app-shell .sales-screen .primary-button,

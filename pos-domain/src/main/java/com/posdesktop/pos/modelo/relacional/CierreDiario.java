@@ -270,7 +270,7 @@ public class CierreDiario extends EntidadAuditable {
     }
 
     private BigDecimal montoRecibidoEfectivo(Venta venta) {
-        if (venta == null) {
+        if (venta == null || venta.getMedioPago() == com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta.TRANSFERENCIA_QR) {
             return BigDecimal.ZERO;
         }
         BigDecimal recibido = valorSeguro(venta.getMontoRecibido());
@@ -281,7 +281,7 @@ public class CierreDiario extends EntidadAuditable {
     }
 
     private BigDecimal cambioEntregadoEfectivo(Venta venta) {
-        if (venta == null) {
+        if (venta == null || venta.getMedioPago() == com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta.TRANSFERENCIA_QR) {
             return BigDecimal.ZERO;
         }
         return valorSeguro(venta.getCambioEntregado()).max(BigDecimal.ZERO);

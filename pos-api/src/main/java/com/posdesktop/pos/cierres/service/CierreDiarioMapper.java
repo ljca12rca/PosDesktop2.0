@@ -62,7 +62,8 @@ public class CierreDiarioMapper {
                 cierre.getTrabajadoras(),
                 cierre.getAhorro(),
                 cierre.getTotalFinal(),
-                cierre.getEstado().name()
+                cierre.getEstado().name(),
+                cierre.getResponsableUsuario().getNombreCompleto()
         );
     }
 }

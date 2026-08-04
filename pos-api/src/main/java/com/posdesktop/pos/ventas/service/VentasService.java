@@ -3,11 +3,13 @@ package com.posdesktop.pos.ventas.service;
 import com.posdesktop.pos.cierres.service.CierreDiarioAutoSyncService;
 import com.posdesktop.pos.modelo.relacional.CierreDiario;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoCierreDiario;
+import com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta;
 import com.posdesktop.pos.modelo.enumeraciones.OrigenVenta;
 import com.posdesktop.pos.modelo.relacional.DetalleVenta;
 import com.posdesktop.pos.modelo.relacional.Venta;
 import com.posdesktop.pos.repositorio.relacional.CierreDiarioRepositorio;
 import com.posdesktop.pos.repositorio.relacional.VentaRepositorio;
+import com.posdesktop.pos.shared.exception.ResourceNotFoundException;
 import com.posdesktop.pos.ventas.api.dto.DetalleVentaResponse;
 import com.posdesktop.pos.ventas.api.dto.MovimientoVentaResponse;
 import com.posdesktop.pos.ventas.api.dto.RegistrarDetalleVentaRequest;
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +53,7 @@ public class VentasService {
         Venta venta = new Venta();
         venta.setNumeroVenta(generarNumeroVenta(fechaOperacion));
         venta.setObservacion(request.observacion());
+        venta.setMedioPago(normalizarMedioPago(request.medioPago()));
 
         int orden = 1;
         for (RegistrarDetalleVentaRequest detalleRequest : request.detalles()) {
@@ -66,7 +70,12 @@ public class VentasService {
     }
 
     @Transactional
-    public Venta registrarVentaSeparado(String descripcion, BigDecimal valorAbono, String observacion) {
+    public Venta registrarVentaSeparado(
+            String descripcion,
+            BigDecimal valorAbono,
+            String observacion,
+            MedioPagoVenta medioPago
+    ) {
         LocalDate fechaOperacion = LocalDate.now();
         CierreDiario cierreDelDia = validarPermisoVentaMismoDia(fechaOperacion);
 
@@ -74,6 +83,7 @@ public class VentasService {
         venta.setNumeroVenta(generarNumeroVenta(fechaOperacion));
         venta.setOrigen(OrigenVenta.SEPARADO);
         venta.setObservacion(observacion);
+        venta.setMedioPago(normalizarMedioPago(medioPago));
         venta.agregarDetalle(DetalleVenta.crearDetalleManual(
                 1,
                 descripcion,
@@ -97,6 +107,13 @@ public class VentasService {
                 .stream()
                 .map(this::mapearMovimiento)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public VentaRegistradaResponse consultarVenta(UUID ventaId) {
+        Venta venta = ventaRepositorio.findById(ventaId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe un movimiento con id " + ventaId + "."));
+        return mapearVenta(venta);
     }
 
     @Transactional(readOnly = true)
@@ -205,7 +222,8 @@ public class VentasService {
                 venta.getTotal(),
                 venta.getMontoRecibido(),
                 venta.getCambioEntregado(),
-                venta.getFechaVenta()
+                venta.getFechaVenta(),
+                normalizarMedioPago(venta.getMedioPago()).name()
         );
     }
 
@@ -215,6 +233,10 @@ public class VentasService {
 
     private BigDecimal normalizarCantidad(BigDecimal valor) {
         return valor == null ? BigDecimal.ZERO : valor.setScale(3, RoundingMode.HALF_UP);
+    }
+
+    private MedioPagoVenta normalizarMedioPago(MedioPagoVenta medioPago) {
+        return medioPago == null ? MedioPagoVenta.EFECTIVO : medioPago;
     }
 
     private Venta guardarVenta(

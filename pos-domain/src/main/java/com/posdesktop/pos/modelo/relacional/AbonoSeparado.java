@@ -46,6 +46,10 @@ public class AbonoSeparado extends EntidadAuditable {
     @Column(length = 500)
     private String observacion;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "responsable_usuario_id", nullable = false)
+    private UsuarioSistema responsableUsuario;
+
     public UUID getId() {
         return id;
     }
@@ -104,5 +108,13 @@ public class AbonoSeparado extends EntidadAuditable {
 
     public void setObservacion(String observacion) {
         this.observacion = observacion;
+    }
+
+    public UsuarioSistema getResponsableUsuario() {
+        return responsableUsuario;
+    }
+
+    public void setResponsableUsuario(UsuarioSistema responsableUsuario) {
+        this.responsableUsuario = responsableUsuario;
     }
 }

@@ -10,6 +10,8 @@ public record AbonoSeparadoResponse(
         BigDecimal montoAbono,
         boolean abonoInicial,
         String numeroVenta,
-        String observacion
+        String observacion,
+        String responsableUsuario,
+        String medioPago
 ) {
 }

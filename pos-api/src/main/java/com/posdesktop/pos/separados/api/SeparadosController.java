@@ -1,5 +1,7 @@
 package com.posdesktop.pos.separados.api;
 
+import com.posdesktop.pos.auth.service.AuthService;
+import com.posdesktop.pos.auth.service.AuthSessionData;
 import com.posdesktop.pos.auth.service.PermisosSistema;
 import com.posdesktop.pos.auth.web.RequiresPermissions;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoSeparado;
@@ -78,10 +80,11 @@ public class SeparadosController {
             @Valid @RequestBody RegistrarSeparadoRequest request,
             HttpServletRequest httpRequest
     ) {
+        AuthSessionData session = (AuthSessionData) httpRequest.getAttribute(AuthService.REQUEST_CONTEXT);
         return ApiResponse.success(
                 "Separado registrado correctamente.",
                 httpRequest.getRequestURI(),
-                separadosService.registrarSeparado(request)
+                separadosService.registrarSeparado(request, session)
         );
     }
 
@@ -92,10 +95,11 @@ public class SeparadosController {
             @Valid @RequestBody RegistrarAbonoSeparadoRequest request,
             HttpServletRequest httpRequest
     ) {
+        AuthSessionData session = (AuthSessionData) httpRequest.getAttribute(AuthService.REQUEST_CONTEXT);
         return ApiResponse.success(
                 "Abono registrado correctamente.",
                 httpRequest.getRequestURI(),
-                separadosService.registrarAbono(separadoId, request)
+                separadosService.registrarAbono(separadoId, request, session)
         );
     }
 }

@@ -80,6 +80,10 @@ public class Separado extends EntidadAuditable {
     @Column(length = 500)
     private String observacion;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "responsable_usuario_id", nullable = false)
+    private UsuarioSistema responsableUsuario;
+
     @OneToMany(mappedBy = "separado", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("numeroAbono ASC")
     private List<AbonoSeparado> abonos = new ArrayList<>();
@@ -207,6 +211,14 @@ public class Separado extends EntidadAuditable {
 
     public void setObservacion(String observacion) {
         this.observacion = observacion;
+    }
+
+    public UsuarioSistema getResponsableUsuario() {
+        return responsableUsuario;
+    }
+
+    public void setResponsableUsuario(UsuarioSistema responsableUsuario) {
+        this.responsableUsuario = responsableUsuario;
     }
 
     public List<AbonoSeparado> getAbonos() {

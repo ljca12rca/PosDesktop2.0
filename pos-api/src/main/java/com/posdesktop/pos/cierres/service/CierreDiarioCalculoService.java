@@ -65,6 +65,9 @@ public class CierreDiarioCalculoService {
     }
 
     private BigDecimal montoRecibidoEfectivo(Venta venta) {
+        if (venta != null && venta.getMedioPago() == com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta.TRANSFERENCIA_QR) {
+            return BigDecimal.ZERO;
+        }
         BigDecimal recibido = normalizar(venta == null ? null : venta.getMontoRecibido());
         if (recibido.signum() > 0) {
             return recibido;
@@ -73,6 +76,9 @@ public class CierreDiarioCalculoService {
     }
 
     private BigDecimal cambioEntregadoEfectivo(Venta venta) {
+        if (venta != null && venta.getMedioPago() == com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta.TRANSFERENCIA_QR) {
+            return BigDecimal.ZERO;
+        }
         return normalizar(venta == null ? null : venta.getCambioEntregado()).max(BigDecimal.ZERO);
     }
 
