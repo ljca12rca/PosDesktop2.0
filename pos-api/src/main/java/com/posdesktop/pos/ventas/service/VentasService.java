@@ -250,13 +250,14 @@ public class VentasService {
         venta.setMontoRecibido(montoRecibido);
         validarMontoRecibidoContraTotal(venta.getMontoRecibido(), venta.getTotal());
         venta.setCambioEntregado(calcularCambioEntregado(venta.getMontoRecibido(), venta.getTotal()));
-        if (debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia)) {
+        boolean cierreDelDiaYaGuardado = debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia);
+        if (cierreDelDiaYaGuardado) {
             venta.setEstado(com.posdesktop.pos.modelo.enumeraciones.EstadoVenta.CERRADA);
             venta.setCierreDiario(cierreDelDia);
         }
 
         Venta ventaGuardada = ventaRepositorio.saveAndFlush(venta);
-        if (debeSincronizarCierreGuardado(fechaOperacion, cierreDelDia)) {
+        if (fechaOperacion.equals(LocalDate.now())) {
             cierreDiarioAutoSyncService.sincronizarSiCierreDelDiaYaExiste(fechaOperacion);
         }
         return ventaGuardada;

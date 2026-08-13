@@ -7,7 +7,6 @@ import com.posdesktop.pos.modelo.relacional.Venta;
 import com.posdesktop.pos.repositorio.relacional.CierreDiarioRepositorio;
 import com.posdesktop.pos.repositorio.relacional.VentaRepositorio;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -35,9 +34,9 @@ public class CierreDiarioAutoSyncService {
 
     @Transactional
     public Optional<CierreDiario> sincronizarYObtenerCierreDelDia(LocalDate fechaOperacion) {
-        cierreDiarioRepositorio.findByFechaOperacion(fechaOperacion)
+        return cierreDiarioRepositorio.findByFechaOperacion(fechaOperacion)
                 .filter(cierre -> cierre.getEstado() == EstadoCierreDiario.CERRADO)
-                .ifPresent(cierre -> {
+                .map(cierre -> {
                     List<Venta> ventasDelDia = ventaRepositorio.findByFechaVentaBetween(
                             fechaOperacion.atStartOfDay(),
                             fechaOperacion.atTime(LocalTime.MAX)
@@ -47,12 +46,9 @@ public class CierreDiarioAutoSyncService {
                             .filter(venta -> venta.getEstado() != EstadoVenta.ANULADA)
                             .forEach(venta -> venta.setEstado(EstadoVenta.CERRADA));
 
-                    cierre.setFechaHoraCierre(LocalDateTime.now());
                     cierre.reemplazarVentas(ventasDelDia);
                     cierreDiarioRepositorio.saveAndFlush(cierre);
+                    return cierre;
                 });
-
-        return cierreDiarioRepositorio.findByFechaOperacion(fechaOperacion)
-                .filter(cierre -> cierre.getEstado() == EstadoCierreDiario.CERRADO);
     }
 }

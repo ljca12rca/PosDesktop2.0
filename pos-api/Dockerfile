@@ -1,4 +1,4 @@
-FROM maven:3.9.9-eclipse-temurin-21 AS build
+FROM maven:3.9.11-eclipse-temurin-25 AS build
 
 WORKDIR /workspace
 
@@ -15,7 +15,7 @@ COPY pos-api/src pos-api/src
 RUN mvn -B -pl pos-api -am clean package -DskipTests \
     && cp /workspace/pos-api/target/pos-api-*.jar /workspace/pos-api/target/app.jar
 
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 
 WORKDIR /app
 
