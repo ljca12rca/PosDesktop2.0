@@ -1,6 +1,7 @@
 param(
     [ValidateSet("exe", "msi", "app-image")]
-    [string]$Type = "exe"
+    [string]$Type = "exe",
+    [string]$JavaHome = $env:JAVA_HOME
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +25,32 @@ function Write-Step {
     param([string]$Message)
     Write-Host ""
     Write-Host "==> $Message" -ForegroundColor Cyan
+}
+
+function Use-Java25 {
+    if ([string]::IsNullOrWhiteSpace($JavaHome)) {
+        throw "Define JAVA_HOME con un JDK 25 antes de generar el instalador."
+    }
+
+    $javaExecutable = Join-Path $JavaHome "bin\java.exe"
+    $jpackageExecutable = Join-Path $JavaHome "bin\jpackage.exe"
+    if (-not (Test-Path $javaExecutable) -or -not (Test-Path $jpackageExecutable)) {
+        throw "No se encontro un JDK valido en JAVA_HOME: $JavaHome"
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $javaVersion = (& $javaExecutable -version 2>&1 | Out-String)
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($javaVersion -notmatch 'version "25\.') {
+        throw "El instalador requiere JDK 25. JAVA_HOME actual: $JavaHome"
+    }
+
+    $env:JAVA_HOME = $JavaHome
+    $env:Path = "$(Join-Path $JavaHome 'bin');$env:Path"
 }
 
 function Ensure-Directory {
@@ -176,6 +203,9 @@ function Invoke-Maven {
 }
 
 Ensure-Directory $toolsDir
+
+Write-Step "Configurando JDK 25"
+Use-Java25
 
 Write-Step "Resolviendo Maven"
 $mavenCmd = Ensure-Maven

@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -229,6 +230,7 @@ public class CierreDiario extends EntidadAuditable {
 
     public void recalcularTotales() {
         List<Venta> ventasValidas = ventas.stream()
+                .filter(Objects::nonNull)
                 .filter(venta -> venta.getEstado() != EstadoVenta.ANULADA)
                 .toList();
 
@@ -245,23 +247,26 @@ public class CierreDiario extends EntidadAuditable {
         totalCalculado = ventasValidas.stream()
                 .map(Venta::getTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        montoRecibidoCalculado = ventasValidas.stream()
+        BigDecimal efectivoRecibido = ventasValidas.stream()
                 .map(this::montoRecibidoEfectivo)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal transferenciasRecibidas = ventasValidas.stream()
+                .map(this::montoRecibidoTransferencia)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        montoRecibidoCalculado = efectivoRecibido.add(transferenciasRecibidas);
         cambioEntregadoCalculado = ventasValidas.stream()
                 .map(this::cambioEntregadoEfectivo)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        montoNetoCajaCalculado = montoRecibidoCalculado
-                .subtract(baseCaja)
-                .subtract(trabajadoras)
-                .subtract(ahorro)
+        BigDecimal efectivoDisponible = efectivoRecibido
+                .subtract(cambioEntregadoCalculado);
+        montoNetoCajaCalculado = efectivoDisponible
+                .subtract(valorSeguro(baseCaja))
+                .subtract(valorSeguro(trabajadoras))
+                .subtract(valorSeguro(ahorro))
                 .setScale(2, RoundingMode.HALF_UP);
-        egresosLegacy = trabajadoras.add(ahorro);
-        totalFinal = montoRecibidoCalculado
-                .subtract(cambioEntregadoCalculado)
-                .subtract(trabajadoras)
-                .subtract(ahorro)
-                .subtract(baseCaja)
+        egresosLegacy = valorSeguro(trabajadoras).add(valorSeguro(ahorro));
+        totalFinal = montoNetoCajaCalculado
+                .add(transferenciasRecibidas)
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
@@ -285,5 +290,16 @@ public class CierreDiario extends EntidadAuditable {
             return BigDecimal.ZERO;
         }
         return valorSeguro(venta.getCambioEntregado()).max(BigDecimal.ZERO);
+    }
+
+    private BigDecimal montoRecibidoTransferencia(Venta venta) {
+        if (venta == null || venta.getMedioPago() != com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta.TRANSFERENCIA_QR) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal recibido = valorSeguro(venta.getMontoRecibido());
+        if (recibido.signum() > 0) {
+            return recibido;
+        }
+        return valorSeguro(venta.getTotal());
     }
 }

@@ -139,6 +139,7 @@ public class PosDesktopFxApplication extends Application {
     private int apiProbeAttempt;
     private Stage primaryStage;
     private PosApiClient.AuthSessionResponse authenticatedSession;
+    private Node cachedSalesScreen;
 
     @Override
     public void start(Stage stage) {
@@ -335,6 +336,7 @@ public class PosDesktopFxApplication extends Application {
     private void returnToLoginView() {
         screenFactories.clear();
         contentHost.getChildren().clear();
+        cachedSalesScreen = null;
         authenticatedSession = null;
         posApiClient.clearSession();
         applicationRoot.getChildren().set(0, createLoginView());
@@ -498,6 +500,10 @@ public class PosDesktopFxApplication extends Application {
             contentHost.getChildren().setAll(wrapContent(createNoAccessScreen()));
             return;
         }
+        if ("Ventas".equals(key)) {
+            contentHost.getChildren().setAll(getOrCreateSalesScreen());
+            return;
+        }
         contentHost.getChildren().setAll(wrapContent(screenFactory.get()));
     }
 
@@ -598,6 +604,13 @@ public class PosDesktopFxApplication extends Application {
         addSalesTab(salesTabs);
         root.getChildren().add(tabsToolbar);
         return root;
+    }
+
+    private Node getOrCreateSalesScreen() {
+        if (cachedSalesScreen == null) {
+            cachedSalesScreen = wrapContent(createSalesScreen());
+        }
+        return cachedSalesScreen;
     }
 
     private void addSalesTab(TabPane salesTabs) {
@@ -2155,6 +2168,34 @@ public class PosDesktopFxApplication extends Application {
             Label totalValue,
             Label totalCaption
     ) {
+        loadClosingSummary(
+                fechaOperacion,
+                baseField,
+                trabajadorasField,
+                ahorroField,
+                observacionArea,
+                ventasCaption,
+                ventasValue,
+                baseValue,
+                totalValue,
+                totalCaption,
+                true
+        );
+    }
+
+    private void loadClosingSummary(
+            LocalDate fechaOperacion,
+            TextField baseField,
+            TextField trabajadorasField,
+            TextField ahorroField,
+            TextArea observacionArea,
+            Label ventasCaption,
+            Label ventasValue,
+            Label baseValue,
+            Label totalValue,
+            Label totalCaption,
+            boolean cargarValoresEnFormulario
+    ) {
         LocalDate fecha = fechaOperacion == null ? LocalDate.now() : fechaOperacion;
         runAsync(
                 () -> posApiClient.consultarResumenCierre(fecha),
@@ -2164,10 +2205,12 @@ public class PosDesktopFxApplication extends Application {
                     baseValue.setText(formatCurrency(resumen.baseCaja()));
                     totalValue.setText(formatCurrency(resumen.totalFinal()));
                     totalCaption.setText(resumen.cierreGuardado() ? "Cierre guardado: " + resumen.estado() : "Pendiente por guardar");
-                    baseField.setText(formatCurrency(resumen.baseCaja()));
-                    trabajadorasField.setText(formatCurrency(resumen.trabajadoras()));
-                    ahorroField.setText(formatCurrency(resumen.ahorro()));
-                    observacionArea.setText(resumen.observacion() == null ? "" : resumen.observacion());
+                    if (cargarValoresEnFormulario) {
+                        baseField.setText(formatCurrency(resumen.baseCaja()));
+                        trabajadorasField.setText(formatCurrency(resumen.trabajadoras()));
+                        ahorroField.setText(formatCurrency(resumen.ahorro()));
+                        observacionArea.setText(resumen.observacion() == null ? "" : resumen.observacion());
+                    }
                 },
                 exception -> showError("Cierre de caja", exception.getMessage())
         );
@@ -2248,6 +2291,9 @@ public class PosDesktopFxApplication extends Application {
             runAsync(
                     () -> posApiClient.registrarCierre(request),
                     response -> {
+                        baseField.clear();
+                        trabajadorasField.clear();
+                        ahorroField.clear();
                         showInfo("Cierre registrado", "Se registró el cierre del " + response.fechaOperacion() + ".");
                         loadClosingSummary(
                                 fecha,
@@ -2259,7 +2305,8 @@ public class PosDesktopFxApplication extends Application {
                                 ventasValue,
                                 baseValue,
                                 totalValue,
-                                totalCaption
+                                totalCaption,
+                                false
                         );
                         refreshHistoryAction.run();
                     },
