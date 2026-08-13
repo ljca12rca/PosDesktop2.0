@@ -39,6 +39,8 @@ class CierreDiarioCalculoServiceTest {
         assertThat(calculo.cambioEntregado()).isEqualByComparingTo("5000.00");
         assertThat(calculo.montoNetoCaja()).isEqualByComparingTo("4000.00");
         assertThat(calculo.totalFinal()).isEqualByComparingTo("34000.00");
+        assertThat(ventaEfectivo.getCierreDiario()).isNull();
+        assertThat(ventaTransferencia.getCierreDiario()).isNull();
     }
 
     @Test
