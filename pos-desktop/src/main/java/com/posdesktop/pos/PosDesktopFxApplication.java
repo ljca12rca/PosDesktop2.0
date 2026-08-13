@@ -3781,15 +3781,15 @@ public class PosDesktopFxApplication extends Application {
         root.setPadding(new Insets(16));
 
         TextField nitField = createField("");
-        nitField.setPromptText("NIT o identificacion");
+        nitField.setPromptText("NIT o identificacion (opcional)");
         TextField nameField = createField("");
         nameField.setPromptText("Nombre del proveedor");
         TextField phoneField = createField("");
         phoneField.setPromptText("Telefono");
         TextField emailField = createField("");
-        emailField.setPromptText("Correo");
+        emailField.setPromptText("Correo (opcional)");
         TextField addressField = createField("");
-        addressField.setPromptText("Direccion");
+        addressField.setPromptText("Direccion (opcional)");
         TextArea notesArea = createArea("", 2);
         notesArea.setPromptText("Observacion interna");
 
@@ -3810,11 +3810,11 @@ public class PosDesktopFxApplication extends Application {
             save.setDisable(true);
             runAsync(
                     () -> posApiClient.registrarProveedor(new PosApiClient.RegistrarProveedorRequest(
-                            nitField.getText(),
+                            optionalText(nitField.getText()),
                             nameField.getText(),
                             phoneField.getText(),
-                            emailField.getText(),
-                            addressField.getText(),
+                            optionalText(emailField.getText()),
+                            optionalText(addressField.getText()),
                             notesArea.getText()
                     )),
                     createdProvider -> {
@@ -6893,6 +6893,10 @@ public class PosDesktopFxApplication extends Application {
 
     private String safeText(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private String optionalText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private String formatDateTime(LocalDateTime value) {

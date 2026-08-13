@@ -4,7 +4,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 public record RegistrarProveedorRequest(
-        @NotBlank(message = "El NIT del proveedor es obligatorio.")
         String nit,
         @NotBlank(message = "El nombre del proveedor es obligatorio.")
         String nombre,

@@ -45,11 +45,8 @@ public class ProveedoresService {
 
     @Transactional
     public ProveedorResponse registrarProveedor(RegistrarProveedorRequest request) {
-        String nit = limpiarRequerido(request.nit());
-        proveedorRepositorio.findByNitIgnoreCase(nit)
-                .ifPresent(proveedor -> {
-                    throw new IllegalArgumentException("Ya existe un proveedor registrado con NIT " + nit + ".");
-                });
+        String nit = limpiarOpcional(request.nit());
+        validarNitUnico(nit, null);
 
         Proveedor proveedor = new Proveedor();
         proveedor.setNit(nit);
@@ -68,12 +65,8 @@ public class ProveedoresService {
         Proveedor proveedor = proveedorRepositorio.findById(proveedorId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe un proveedor con id " + proveedorId + "."));
 
-        String nit = limpiarRequerido(request.nit());
-        proveedorRepositorio.findByNitIgnoreCase(nit)
-                .filter(existente -> !existente.getId().equals(proveedorId))
-                .ifPresent(existente -> {
-                    throw new IllegalArgumentException("Ya existe un proveedor registrado con NIT " + nit + ".");
-                });
+        String nit = limpiarOpcional(request.nit());
+        validarNitUnico(nit, proveedorId);
 
         proveedor.setNit(nit);
         proveedor.setNombre(limpiarRequerido(request.nombre()));
@@ -112,6 +105,17 @@ public class ProveedoresService {
 
     private BigDecimal normalizarDinero(BigDecimal valor) {
         return valor == null ? BigDecimal.ZERO : valor.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private void validarNitUnico(String nit, UUID proveedorIdActual) {
+        if (nit == null) {
+            return;
+        }
+        proveedorRepositorio.findByNitIgnoreCase(nit)
+                .filter(existente -> proveedorIdActual == null || !existente.getId().equals(proveedorIdActual))
+                .ifPresent(proveedor -> {
+                    throw new IllegalArgumentException("Ya existe un proveedor registrado con NIT " + nit + ".");
+                });
     }
 
     private String limpiarRequerido(String valor) {
