@@ -17,7 +17,7 @@ public class Proveedor extends EntidadAuditable {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, unique = true, length = 30)
+    @Column(unique = true, length = 30)
     private String nit;
 
     @Column(nullable = false, length = 160)
