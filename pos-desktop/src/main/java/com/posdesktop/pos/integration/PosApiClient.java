@@ -27,6 +27,8 @@ public final class PosApiClient {
 
     private static final Duration API_CONNECT_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration API_REQUEST_TIMEOUT = Duration.ofSeconds(4);
+    // La API espera a Dataico y puede reintentar una vez: cada intento admite 5 s de conexión y 30 s de lectura.
+    private static final Duration ELECTRONIC_INVOICE_REQUEST_TIMEOUT = Duration.ofSeconds(90);
     private static final String AUTH_HEADER = "X-Pos-Auth";
     private final String baseUrl;
     private final HttpClient httpClient;
@@ -84,6 +86,56 @@ public final class PosApiClient {
         }).data();
     }
 
+    public ResultadoFacturaElectronicaResponse emitirFacturaElectronica(String ventaId, String clienteId) {
+        return post(
+                "/ventas/" + encode(ventaId) + "/factura-electronica",
+                new EmitirFacturaElectronicaRequest(clienteId),
+                new TypeReference<ApiResponseEnvelope<ResultadoFacturaElectronicaResponse>>() {
+                },
+                ELECTRONIC_INVOICE_REQUEST_TIMEOUT
+        ).data();
+    }
+
+    public ConfiguracionDataicoResponse consultarConfiguracionDataico() {
+        return get("/configuracion/dataico", new TypeReference<ApiResponseEnvelope<ConfiguracionDataicoResponse>>() { }).data();
+    }
+
+    public ConfiguracionDataicoResponse guardarConfiguracionDataico(GuardarConfiguracionDataicoRequest request) {
+        return put("/configuracion/dataico", request,
+                new TypeReference<ApiResponseEnvelope<ConfiguracionDataicoResponse>>() { }, ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
+    }
+
+    public List<FacturaElectronicaListadoResponse> listarFacturasElectronicas(
+            String numeracion, String factura, LocalDate fechaInicial, LocalDate fechaFinal,
+            String cliente, String estadoDian, String estadoCliente, String estadoCorreo
+    ) {
+        List<String> parameters = new ArrayList<>();
+        addQueryParameter(parameters, "numeracion", numeracion);
+        addQueryParameter(parameters, "factura", factura);
+        if (fechaInicial != null) addQueryParameter(parameters, "fechaInicial", fechaInicial.toString());
+        if (fechaFinal != null) addQueryParameter(parameters, "fechaFinal", fechaFinal.toString());
+        addQueryParameter(parameters, "cliente", cliente);
+        addQueryParameter(parameters, "estadoDian", estadoDian);
+        addQueryParameter(parameters, "estadoCliente", estadoCliente);
+        addQueryParameter(parameters, "estadoCorreo", estadoCorreo);
+        String path = "/ventas/facturas-electronicas" + (parameters.isEmpty() ? "" : "?" + String.join("&", parameters));
+        return get(path, new TypeReference<ApiResponseEnvelope<List<FacturaElectronicaListadoResponse>>>() {
+        }).data();
+    }
+
+    public FacturaElectronicaListadoResponse enviarFacturaDian(String facturaId) {
+        return post("/ventas/facturas-electronicas/" + encode(facturaId) + "/dian", new EmptyRequest(),
+                new TypeReference<ApiResponseEnvelope<FacturaElectronicaListadoResponse>>() { },
+                ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
+    }
+
+    public FacturaElectronicaListadoResponse enviarCorreoFactura(String facturaId, String email) {
+        return post("/ventas/facturas-electronicas/" + encode(facturaId) + "/correo",
+                new EnviarCorreoFacturaRequest(email),
+                new TypeReference<ApiResponseEnvelope<FacturaElectronicaListadoResponse>>() { },
+                ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
+    }
+
     public List<SeparadoListadoResponse> listarSeparados(String estado, String articulo) {
         StringBuilder path = new StringBuilder("/separados");
         boolean hasQuery = false;
@@ -132,6 +184,51 @@ public final class PosApiClient {
                 "/proveedores/" + encode(proveedorId),
                 request,
                 new TypeReference<ApiResponseEnvelope<ProveedorResponse>>() {
+                }
+        ).data();
+    }
+
+    public ClienteElectronicoResponse registrarClienteElectronico(RegistrarClienteElectronicoRequest request) {
+        return post("/clientes-electronicos", request, new TypeReference<ApiResponseEnvelope<ClienteElectronicoResponse>>() {
+        }).data();
+    }
+
+    public ClienteElectronicoResponse actualizarClienteElectronico(String clienteId, RegistrarClienteElectronicoRequest request) {
+        return put(
+                "/clientes-electronicos/" + encode(clienteId),
+                request,
+                new TypeReference<ApiResponseEnvelope<ClienteElectronicoResponse>>() {
+                }
+        ).data();
+    }
+
+    public List<ClienteElectronicoResponse> buscarClientesElectronicos(String termino) {
+        return get("/clientes-electronicos?q=" + encode(termino), new TypeReference<ApiResponseEnvelope<List<ClienteElectronicoResponse>>>() {
+        }).data();
+    }
+
+    public ClienteElectronicoResponse buscarConsumidorFinal() {
+        return buscarClientesElectronicos("222222222222").stream()
+                .filter(cliente -> "222222222222".equals(cliente.identificacion())
+                        && "CC".equalsIgnoreCase(cliente.tipoIdentificacion())
+                        && cliente.id() != null && !cliente.id().isBlank())
+                .findFirst()
+                .orElseThrow(() -> new PosApiException("El cliente Consumidor final no está disponible."));
+    }
+
+    public ConsultaDianResponse consultarClienteEnDian(String tipoIdentificacion, String identificacion) {
+        return get(
+                "/clientes-electronicos/consulta-dian?tipoIdentificacion=" + encode(tipoIdentificacion)
+                        + "&identificacion=" + encode(identificacion),
+                new TypeReference<ApiResponseEnvelope<ConsultaDianResponse>>() {
+                }
+        ).data();
+    }
+
+    public ConsultaDianResponse consultarClienteEnDian(String identificacion) {
+        return get(
+                "/clientes-electronicos/consulta-dian?identificacion=" + encode(identificacion),
+                new TypeReference<ApiResponseEnvelope<ConsultaDianResponse>>() {
                 }
         ).data();
     }
@@ -260,10 +357,19 @@ public final class PosApiClient {
             Object body,
             TypeReference<ApiResponseEnvelope<T>> typeReference
     ) {
+        return post(path, body, typeReference, API_REQUEST_TIMEOUT);
+    }
+
+    private <T> ApiResponseEnvelope<T> post(
+            String path,
+            Object body,
+            TypeReference<ApiResponseEnvelope<T>> typeReference,
+            Duration requestTimeout
+    ) {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + path))
-                    .timeout(API_REQUEST_TIMEOUT)
+                    .timeout(requestTimeout)
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json");
             applyAuthHeader(builder);
@@ -281,10 +387,15 @@ public final class PosApiClient {
             Object body,
             TypeReference<ApiResponseEnvelope<T>> typeReference
     ) {
+        return put(path, body, typeReference, API_REQUEST_TIMEOUT);
+    }
+
+    private <T> ApiResponseEnvelope<T> put(String path, Object body,
+            TypeReference<ApiResponseEnvelope<T>> typeReference, Duration requestTimeout) {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + path))
-                    .timeout(API_REQUEST_TIMEOUT)
+                    .timeout(requestTimeout)
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json");
             applyAuthHeader(builder);
@@ -331,6 +442,12 @@ public final class PosApiClient {
     private void applyAuthHeader(HttpRequest.Builder builder) {
         if (authToken != null && !authToken.isBlank()) {
             builder.header(AUTH_HEADER, authToken);
+        }
+    }
+
+    private void addQueryParameter(List<String> parameters, String key, String value) {
+        if (value != null && !value.isBlank() && !"TODOS".equalsIgnoreCase(value) && !"TODAS".equalsIgnoreCase(value)) {
+            parameters.add(key + "=" + encode(value));
         }
     }
 
@@ -557,6 +674,113 @@ public final class PosApiClient {
             boolean activo,
             BigDecimal saldoPendienteTotal,
             int cantidadFacturas
+    ) {
+    }
+
+    public record RegistrarClienteElectronicoRequest(
+            String tipoIdentificacion,
+            String tipoPersona,
+            String identificacion,
+            String digitoVerificacion,
+            String razonSocial,
+            String primerNombre,
+            String segundoNombre,
+            String primerApellido,
+            String segundoApellido,
+            String email,
+            String telefono,
+            String direccion,
+            String ciudadCodigoDane,
+            String departamentoCodigoDane,
+            String paisCodigo
+    ) {
+    }
+
+    public record EmitirFacturaElectronicaRequest(String clienteId) {
+    }
+
+    public record ConfiguracionDataicoResponse(
+            String prefijo, String resolucion, Long siguienteNumero, String ambiente, boolean flexible,
+            Long version, String accountId, boolean proveedorHabilitado, boolean tokenConfigurado,
+            String baseUrl, int connectTimeoutSeconds, int readTimeoutSeconds
+    ) { }
+
+    public record GuardarConfiguracionDataicoRequest(
+            String prefijo, String resolucion, Long siguienteNumero, String ambiente, Boolean flexible,
+            Long version, Long siguienteNumeroActual, String token, String accountId, Boolean proveedorHabilitado,
+            String baseUrl, Integer connectTimeoutSeconds, Integer readTimeoutSeconds
+    ) {
+        @Override public String toString() { return "GuardarConfiguracionDataicoRequest[prefijo=" + prefijo + ", token=***]"; }
+    }
+
+    public record EnviarCorreoFacturaRequest(String email) { }
+
+    public record ResultadoFacturaElectronicaResponse(
+            String identificadorExterno,
+            String numero,
+            String estadoDian,
+            String cufe,
+            String qrCode,
+            String mensaje,
+            String pdfUrl
+    ) {
+    }
+
+    public record FacturaElectronicaListadoResponse(
+            String id, LocalDateTime fechaEmision, String numeracion, String numeroFactura,
+            String clienteNombre, String clienteIdentificacion, BigDecimal impuestoTotal, BigDecimal retencionTotal,
+            BigDecimal total, String estadoDian, String estadoCliente, String estadoCorreo,
+            String mensajeDian, String mensajeCorreo, String pdfUrl, String clienteEmail
+    ) {
+        public boolean dianAceptada() {
+            return estadoDian != null && "DIAN_ACEPTADO".equalsIgnoreCase(estadoDian.trim());
+        }
+
+        public boolean correoEnviado() {
+            return estadoCorreo != null && ("ENVIADO".equalsIgnoreCase(estadoCorreo.trim())
+                    || "CORREO_ENVIADO".equalsIgnoreCase(estadoCorreo.trim()));
+        }
+    }
+
+    public record ClienteElectronicoResponse(
+            String id,
+            String tipoIdentificacion,
+            String tipoPersona,
+            String identificacion,
+            String digitoVerificacion,
+            String razonSocial,
+            String primerNombre,
+            String segundoNombre,
+            String primerApellido,
+            String segundoApellido,
+            String email,
+            String telefono,
+            String direccion,
+            String ciudadCodigoDane,
+            String departamentoCodigoDane,
+            String paisCodigo
+    ) {
+        public String nombreFactura() {
+            return razonSocial;
+        }
+    }
+
+    public record ConsultaDianResponse(
+            String tipoPersona,
+            String tipoIdentificacion,
+            String identificacion,
+            String digitoVerificacion,
+            String razonSocial,
+            String primerNombre,
+            String segundoNombre,
+            String primerApellido,
+            String segundoApellido,
+            String email,
+            String telefono,
+            String direccion,
+            String ciudadCodigoDane,
+            String departamentoCodigoDane,
+            String paisCodigo
     ) {
     }
 

@@ -7,8 +7,15 @@ import com.posdesktop.pos.shared.api.ApiResponse;
 import com.posdesktop.pos.shared.api.ModuleStatusResponse;
 import com.posdesktop.pos.shared.service.ModuleCatalogService;
 import com.posdesktop.pos.ventas.api.dto.MovimientoVentaResponse;
+import com.posdesktop.pos.ventas.api.dto.EmitirFacturaElectronicaRequest;
 import com.posdesktop.pos.ventas.api.dto.RegistrarVentaManualRequest;
+import com.posdesktop.pos.ventas.api.dto.ResultadoFacturaElectronicaVentaResponse;
+import com.posdesktop.pos.ventas.api.dto.FacturaElectronicaListadoResponse;
+import com.posdesktop.pos.ventas.service.FacturasElectronicasConsultaService;
+import com.posdesktop.pos.ventas.service.FacturasElectronicasAccionesService;
+import com.posdesktop.pos.ventas.api.dto.EnviarCorreoFacturaRequest;
 import com.posdesktop.pos.ventas.api.dto.VentaRegistradaResponse;
+import com.posdesktop.pos.ventas.service.FacturacionVentaService;
 import com.posdesktop.pos.ventas.service.VentasService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -29,10 +36,22 @@ public class VentasController {
 
     private final ModuleCatalogService moduleCatalogService;
     private final VentasService ventasService;
+    private final FacturacionVentaService facturacionVentaService;
+    private final FacturasElectronicasConsultaService facturasElectronicasConsultaService;
+    private final FacturasElectronicasAccionesService facturasElectronicasAccionesService;
 
-    public VentasController(ModuleCatalogService moduleCatalogService, VentasService ventasService) {
+    public VentasController(
+            ModuleCatalogService moduleCatalogService,
+            VentasService ventasService,
+            FacturacionVentaService facturacionVentaService,
+            FacturasElectronicasConsultaService facturasElectronicasConsultaService,
+            FacturasElectronicasAccionesService facturasElectronicasAccionesService
+    ) {
         this.moduleCatalogService = moduleCatalogService;
         this.ventasService = ventasService;
+        this.facturacionVentaService = facturacionVentaService;
+        this.facturasElectronicasConsultaService = facturasElectronicasConsultaService;
+        this.facturasElectronicasAccionesService = facturasElectronicasAccionesService;
     }
 
     @GetMapping("/estado")
@@ -82,5 +101,54 @@ public class VentasController {
                 httpRequest.getRequestURI(),
                 ventasService.registrarVentaManual(request)
         );
+    }
+
+    @GetMapping("/facturas-electronicas")
+    @RequiresPermissions(PermisosSistema.VENTAS_VIEW)
+    public ApiResponse<List<FacturaElectronicaListadoResponse>> listarFacturasElectronicas(
+            @RequestParam(required = false) String numeracion,
+            @RequestParam(required = false) String factura,
+            @RequestParam(required = false) LocalDate fechaInicial,
+            @RequestParam(required = false) LocalDate fechaFinal,
+            @RequestParam(required = false) String cliente,
+            @RequestParam(required = false) String estadoDian,
+            @RequestParam(required = false) String estadoCliente,
+            @RequestParam(required = false) String estadoCorreo,
+            HttpServletRequest request
+    ) {
+        return ApiResponse.success("Facturas electrónicas consultadas correctamente.", request.getRequestURI(),
+                facturasElectronicasConsultaService.listar(numeracion, factura, fechaInicial, fechaFinal,
+                        cliente, estadoDian, estadoCliente, estadoCorreo));
+    }
+
+    @PostMapping("/{ventaId}/factura-electronica")
+    @RequiresPermissions(PermisosSistema.VENTAS_EDIT)
+    public ApiResponse<ResultadoFacturaElectronicaVentaResponse> emitirFacturaElectronica(
+            @PathVariable UUID ventaId,
+            @Valid @RequestBody EmitirFacturaElectronicaRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return ApiResponse.success(
+                "Factura electrónica enviada a Dataico.",
+                httpRequest.getRequestURI(),
+                facturacionVentaService.emitir(ventaId, request.clienteId())
+        );
+    }
+
+    @PostMapping("/facturas-electronicas/{facturaId}/dian")
+    @RequiresPermissions(PermisosSistema.VENTAS_EDIT)
+    public ApiResponse<FacturaElectronicaListadoResponse> enviarDian(
+            @PathVariable UUID facturaId, HttpServletRequest request) {
+        return ApiResponse.success("Solicitud de envío a DIAN procesada.", request.getRequestURI(),
+                facturasElectronicasAccionesService.enviarDian(facturaId));
+    }
+
+    @PostMapping("/facturas-electronicas/{facturaId}/correo")
+    @RequiresPermissions(PermisosSistema.VENTAS_EDIT)
+    public ApiResponse<FacturaElectronicaListadoResponse> enviarCorreo(
+            @PathVariable UUID facturaId, @Valid @RequestBody EnviarCorreoFacturaRequest body,
+            HttpServletRequest request) {
+        return ApiResponse.success("Solicitud de envío de correo procesada.", request.getRequestURI(),
+                facturasElectronicasAccionesService.enviarCorreo(facturaId, body.email()));
     }
 }

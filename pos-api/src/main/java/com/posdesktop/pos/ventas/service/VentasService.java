@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class VentasService {
@@ -34,15 +35,18 @@ public class VentasService {
     private final VentaRepositorio ventaRepositorio;
     private final CierreDiarioRepositorio cierreDiarioRepositorio;
     private final CierreDiarioAutoSyncService cierreDiarioAutoSyncService;
+    private final String localSalesPrefix;
 
     public VentasService(
             VentaRepositorio ventaRepositorio,
             CierreDiarioRepositorio cierreDiarioRepositorio,
-            CierreDiarioAutoSyncService cierreDiarioAutoSyncService
+            CierreDiarioAutoSyncService cierreDiarioAutoSyncService,
+            @Value("${pos.ventas.local-prefix:VTA}") String localSalesPrefix
     ) {
         this.ventaRepositorio = ventaRepositorio;
         this.cierreDiarioRepositorio = cierreDiarioRepositorio;
         this.cierreDiarioAutoSyncService = cierreDiarioAutoSyncService;
+        this.localSalesPrefix = localSalesPrefix == null || localSalesPrefix.isBlank() ? "VTA" : localSalesPrefix.trim();
     }
 
     @Transactional
@@ -127,7 +131,7 @@ public class VentasService {
         LocalDateTime inicio = fechaGeneracion.atStartOfDay();
         LocalDateTime fin = fechaGeneracion.atTime(LocalTime.MAX);
         long consecutivo = ventaRepositorio.countByFechaVentaBetween(inicio, fin) + 1;
-        return "VTA-" + fechaGeneracion.format(NUMERO_DIA) + "-" + String.format("%04d", consecutivo);
+        return localSalesPrefix + "-" + fechaGeneracion.format(NUMERO_DIA) + "-" + String.format("%04d", consecutivo);
     }
 
     private void validarRango(LocalDate fechaInicial, LocalDate fechaFinal) {

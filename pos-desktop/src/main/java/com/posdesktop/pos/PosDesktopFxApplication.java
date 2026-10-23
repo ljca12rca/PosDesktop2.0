@@ -1,14 +1,20 @@
 package com.posdesktop.pos;
 
 import com.posdesktop.pos.integration.PosApiClient;
+import com.posdesktop.pos.integration.DataicoPdfDownloader;
 import java.awt.Desktop;
 import com.posdesktop.pos.mockfx.MockData;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -36,20 +42,26 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
+import javafx.collections.ObservableSet;
 import javafx.collections.transformation.FilteredList;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
+import javafx.geometry.Side;
+import javafx.geometry.VPos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.CustomMenuItem;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
@@ -72,6 +84,8 @@ import javafx.scene.control.TextFormatter;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
+import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
@@ -84,6 +98,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.Screen;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -99,17 +114,19 @@ public class PosDesktopFxApplication extends Application {
     private static final Duration API_RETRY_DELAY = Duration.seconds(3);
     private static final Duration API_OVERLAY_FADE_DURATION = Duration.millis(320);
     private static final PseudoClass COMPACT = PseudoClass.getPseudoClass("compact");
+    private static final PseudoClass ELECTRONIC_INVOICING = PseudoClass.getPseudoClass("electronic-invoicing");
     private static final DateTimeFormatter SHORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
     private static final DateTimeFormatter RECEIPT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter RECEIPT_TIME_FORMATTER = DateTimeFormatter.ofPattern("hh:mm a");
-    private static final String RECEIPT_BUSINESS_NAME = "Milenaso del norte";
+    private static final String RECEIPT_BUSINESS_NAME = "GRAN MILENAZO DONMATIAS";
     private static final String RECEIPT_OWNER_NAME = "KELI MONSALVE";
     private static final String RECEIPT_ADDRESS = "CALLE 28 # 29-18";
     private static final String RECEIPT_NIT = "NIT. 1.035.833.243-6";
     private static final String RECEIPT_CASHIER = "Caja principal";
     private static final String SALES_PAYMENT_CASH = "EFECTIVO";
     private static final String SALES_PAYMENT_TRANSFER_QR = "TRANSFERENCIA (QR)";
+    private static final List<MunicipioColombiano> MUNICIPIOS_COLOMBIANOS = cargarMunicipiosColombianos();
     private static final double RECEIPT_PREVIEW_WIDTH = 230;
     private static final double RECEIPT_PAPER_WIDTH_POINTS = 226.8;
     private static final double RECEIPT_MIN_PAPER_HEIGHT_POINTS = 260;
@@ -132,6 +149,8 @@ public class PosDesktopFxApplication extends Application {
     private final NumberFormat currencyFormat = createCurrencyFormat();
     private final BooleanProperty apiAvailable = new SimpleBooleanProperty(false);
     private final BooleanProperty apiProbeInProgress = new SimpleBooleanProperty(false);
+    private final BooleanProperty electronicInvoicingEnabled = new SimpleBooleanProperty(false);
+    private final ObservableSet<String> facturasElectronicasEnEnvio = FXCollections.observableSet();
     private final PauseTransition apiRetryPause = new PauseTransition(API_RETRY_DELAY);
     private StackPane apiStartupOverlay;
     private Label apiStartupStatusLabel;
@@ -140,6 +159,7 @@ public class PosDesktopFxApplication extends Application {
     private Stage primaryStage;
     private PosApiClient.AuthSessionResponse authenticatedSession;
     private Node cachedSalesScreen;
+    private String currentScreenKey;
 
     @Override
     public void start(Stage stage) {
@@ -159,6 +179,7 @@ public class PosDesktopFxApplication extends Application {
         scene.addEventFilter(MouseEvent.ANY, event -> blockStartupInput(event));
         scene.addEventFilter(KeyEvent.ANY, event -> blockStartupInput(event));
         scene.addEventFilter(ScrollEvent.ANY, event -> blockStartupInput(event));
+        configureGlobalShortcuts(scene);
 
         stage.setTitle(APP_TITLE);
         stage.setMinWidth(Math.min(920, visualBounds.getWidth() * 0.78));
@@ -334,9 +355,11 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void returnToLoginView() {
+        currentScreenKey = null;
         screenFactories.clear();
         contentHost.getChildren().clear();
         cachedSalesScreen = null;
+        electronicInvoicingEnabled.set(false);
         authenticatedSession = null;
         posApiClient.clearSession();
         applicationRoot.getChildren().set(0, createLoginView());
@@ -375,6 +398,24 @@ public class PosDesktopFxApplication extends Application {
         if (apiStartupOverlay != null && apiStartupOverlay.isVisible()) {
             event.consume();
         }
+    }
+
+    private void configureGlobalShortcuts(Scene scene) {
+        scene.addEventFilter(KeyEvent.KEY_TYPED, event -> {
+            if (event.isConsumed() || authenticatedSession == null || !apiAvailable.get()
+                    || (apiStartupOverlay != null && apiStartupOverlay.isVisible())
+                    || !"/".equals(event.getCharacter()) || event.isControlDown() || event.isAltDown() || event.isMetaDown()) {
+                return;
+            }
+            event.consume();
+            electronicInvoicingEnabled.set(!electronicInvoicingEnabled.get());
+            if ("Ventas".equals(currentScreenKey) && contentHost.lookup(".sales-tab-pane") instanceof TabPane tabs
+                    && tabs.getSelectionModel().getSelectedItem() != null) {
+                Node content = tabs.getSelectionModel().getSelectedItem().getContent();
+                Node input = content.lookup(electronicInvoicingEnabled.get() ? "#sales-customer" : "#sales-unit-price");
+                if (input != null) input.requestFocus();
+            }
+        });
     }
 
     private void beginApiAvailabilityCheck(boolean manualTrigger) {
@@ -448,7 +489,7 @@ public class PosDesktopFxApplication extends Application {
 
         VBox brand = new VBox(12);
         brand.getStyleClass().add("brand-block");
-        StackPane avatar = createIconBadge("PD", "badge-xl");
+        ToggleButton electronicInvoiceToggle = createElectronicInvoiceToggle();
         Label title = new Label("POS Desktop");
         title.getStyleClass().add("sidebar-title");
         Label userLabel = new Label(authenticatedSession == null ? "" : authenticatedSession.nombreCompleto());
@@ -458,7 +499,7 @@ public class PosDesktopFxApplication extends Application {
         rolesLabel.getStyleClass().add("sidebar-helper");
         rolesLabel.setWrapText(true);
         brand.setAlignment(Pos.CENTER);
-        brand.getChildren().addAll(avatar, title, userLabel, rolesLabel);
+        brand.getChildren().addAll(electronicInvoiceToggle, title, userLabel, rolesLabel);
 
         ToggleGroup navigation = new ToggleGroup();
         VBox navButtons = new VBox(10);
@@ -468,12 +509,31 @@ public class PosDesktopFxApplication extends Application {
             button.setMaxWidth(Double.MAX_VALUE);
             button.setToggleGroup(navigation);
             button.getStyleClass().add("nav-button");
+            if (Set.of("Cierre", "Separados", "Movimientos").contains(key)) {
+                button.visibleProperty().bind(electronicInvoicingEnabled.not());
+                button.managedProperty().bind(button.visibleProperty());
+            } else if ("Configuración Dataico".equals(key)) {
+                button.visibleProperty().bind(electronicInvoicingEnabled);
+                button.managedProperty().bind(button.visibleProperty());
+            }
             button.setOnAction(event -> showScreen(key));
             navButtons.getChildren().add(button);
         }
         if (!navButtons.getChildren().isEmpty()) {
             ((ToggleButton) navButtons.getChildren().get(0)).setSelected(true);
         }
+        electronicInvoiceToggle.selectedProperty().addListener((observable, previous, enabled) -> {
+            if (!enabled && "Configuración Dataico".equals(currentScreenKey)) {
+                ToggleButton target = navButtons.getChildren().stream().filter(Node::isVisible)
+                        .map(node -> (ToggleButton) node).findFirst().orElse(null);
+                if (target != null) {
+                    target.setSelected(true);
+                    showScreen(target.getText());
+                } else {
+                    showScreen("Acceso");
+                }
+            }
+        });
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
@@ -495,11 +555,19 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void showScreen(String key) {
+        if ("Configuración Dataico".equals(key) && !electronicInvoicingEnabled.get()) {
+            String fallback = screenFactories.keySet().stream().filter(value -> !"Configuración Dataico".equals(value))
+                    .findFirst().orElse("Acceso");
+            showScreen(fallback);
+            return;
+        }
         Supplier<Node> screenFactory = screenFactories.get(key);
         if (screenFactory == null) {
+            currentScreenKey = null;
             contentHost.getChildren().setAll(wrapContent(createNoAccessScreen()));
             return;
         }
+        currentScreenKey = key;
         if ("Ventas".equals(key)) {
             contentHost.getChildren().setAll(getOrCreateSalesScreen());
             return;
@@ -523,6 +591,12 @@ public class PosDesktopFxApplication extends Application {
         }
         if (hasPermission(PERM_FACTURAS_VIEW) && hasPermission(PERM_PROVEEDORES_VIEW)) {
             screenFactories.put("Facturas", this::createInvoicesScreen);
+        }
+        if (hasPermission(PERM_VENTAS_VIEW)) {
+            screenFactories.put("Facturas electrónicas", this::createElectronicInvoicesScreen);
+        }
+        if (authenticatedSession != null && authenticatedSession.roles() != null && authenticatedSession.roles().contains("ADMIN")) {
+            screenFactories.put("Configuración Dataico", this::createDataicoSettingsScreen);
         }
         if (screenFactories.isEmpty()) {
             screenFactories.put("Acceso", this::createNoAccessScreen);
@@ -636,7 +710,11 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private Node createSalesInstance(SaleTabContext context) {
+        TextField clienteField = createField("");
+        clienteField.setId("sales-customer");
+        clienteField.setPromptText("Buscar por nombre, apellido o cédula");
         TextField valorUnitarioField = createField("");
+        valorUnitarioField.setId("sales-unit-price");
         valorUnitarioField.setPromptText("Valor unitario");
         configureCurrencyFormatOnInput(valorUnitarioField);
         TextField cantidadField = createField("1");
@@ -654,7 +732,7 @@ public class PosDesktopFxApplication extends Application {
         printReceiptCheck.getStyleClass().add("soft-check");
         printReceiptCheck.setWrapText(true);
 
-        TableView<SaleDraftRow> table = createSalesDraftTable();
+        TableView<SaleDraftRow> table = createSalesDraftTable(valorUnitarioField);
         table.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
         table.setItems(context.rows());
 
@@ -662,6 +740,7 @@ public class PosDesktopFxApplication extends Application {
         payButton.setMaxWidth(Double.MAX_VALUE);
         payButton.setOnAction(event -> registerSale(
                 context,
+                clienteField,
                 montoRecibidoField,
                 paymentMethod,
                 statusLabel,
@@ -691,15 +770,18 @@ public class PosDesktopFxApplication extends Application {
         );
         syncSalePaymentMethod(paymentMethod, montoRecibidoField, changeLabel, context.total());
 
-        configureSalesFocusFlow(context, valorUnitarioField, cantidadField, statusLabel);
+        configureSalesFocusFlow(context, valorUnitarioField, cantidadField, table, statusLabel);
         montoRecibidoField.setOnAction(event -> {
             formatCurrencyField(montoRecibidoField);
-            registerSale(context, montoRecibidoField, paymentMethod, statusLabel, valorUnitarioField, printReceiptCheck);
+            registerSale(context, clienteField, montoRecibidoField, paymentMethod, statusLabel, valorUnitarioField, printReceiptCheck);
         });
 
         VBox instance = new VBox();
         instance.getStyleClass().add("sales-tab-content");
         instance.addEventFilter(KeyEvent.KEY_TYPED, event -> {
+            if (table.getEditingCell() != null) {
+                return;
+            }
             if ("*".equals(event.getCharacter())) {
                 toggleSalePaymentMethod(paymentMethod);
                 event.consume();
@@ -717,13 +799,19 @@ public class PosDesktopFxApplication extends Application {
                 event.consume();
             }
         });
-        Platform.runLater(valorUnitarioField::requestFocus);
+        Platform.runLater(() -> {
+            if (electronicInvoicingEnabled.get()) {
+                clienteField.requestFocus();
+            } else {
+                valorUnitarioField.requestFocus();
+            }
+        });
 
         HBox layout = new HBox(16);
         layout.setAlignment(Pos.TOP_LEFT);
 
         VBox left = new VBox(12,
-                createSalesEntryCard(context, cantidadField, valorUnitarioField, table, statusLabel),
+                createSalesEntryCard(context, clienteField, cantidadField, valorUnitarioField, table, statusLabel),
                 createSalesTableCard(table)
         );
         left.setMinWidth(0);
@@ -1049,6 +1137,608 @@ public class PosDesktopFxApplication extends Application {
         return root;
     }
 
+    private Node createElectronicInvoicesScreen() {
+        VBox root = createScreenContainer(
+                "Facturas electrónicas",
+                "Consulta el estado de los documentos enviados a Dataico."
+        );
+        root.getStyleClass().add("electronic-invoices-screen");
+        root.setSpacing(16);
+
+        DatePicker fechaInicial = new DatePicker(LocalDate.now());
+        DatePicker fechaFinal = new DatePicker(LocalDate.now());
+        TextField numeroFactura = createField("");
+        numeroFactura.setPromptText("Número de factura");
+        TextField cliente = createField("");
+        cliente.setPromptText("Buscar cliente");
+        ComboBox<String> numeracion = createElectronicInvoiceFilterCombo("TODAS");
+        ComboBox<String> estadoDian = createElectronicInvoiceFilterCombo("TODOS", "ACEPTADA", "ENVIADA", "PENDIENTE", "RECHAZADA", "ERROR");
+        ComboBox<String> estadoCliente = createElectronicInvoiceFilterCombo("TODOS", "REGISTRADO");
+        ComboBox<String> estadoCorreo = createElectronicInvoiceFilterCombo("TODOS", "ENVIADO", "NO_ENVIADO", "NO_SOLICITADO", "PENDIENTE", "ERROR");
+
+        TableView<PosApiClient.FacturaElectronicaListadoResponse> table = createElectronicInvoicesTable();
+        Label empty = new Label("No hay facturas electrónicas para los filtros seleccionados.");
+        empty.getStyleClass().add("electronic-invoice-empty");
+        table.setPlaceholder(empty);
+        Label summary = new Label("Preparando consulta…");
+        summary.getStyleClass().add("electronic-invoice-summary");
+        summary.setWrapText(true);
+        Label totalPeriod = new Label("Total facturado");
+        totalPeriod.getStyleClass().add("electronic-invoice-total-period");
+        totalPeriod.setWrapText(true);
+        Label totalAmount = new Label("—");
+        totalAmount.getStyleClass().add("electronic-invoice-total-amount");
+        Label totalHint = new Label("Según los filtros aplicados");
+        totalHint.getStyleClass().add("electronic-invoice-summary");
+
+        Button filter = createActionButton("Filtrar facturas", "primary-button");
+        filter.getStyleClass().add("electronic-invoice-filter-action");
+        Button clear = createActionButton("Limpiar filtros", "ghost-button");
+        clear.disableProperty().bind(filter.disableProperty());
+
+        Runnable refresh = () -> {
+            if (filter.isDisabled()) return;
+            LocalDate from = fechaInicial.getValue() == null ? LocalDate.now() : fechaInicial.getValue();
+            LocalDate to = fechaFinal.getValue() == null ? from : fechaFinal.getValue();
+            if (to.isBefore(from)) {
+                showError("Fechas de consulta", "La fecha final no puede ser anterior a la inicial.");
+                fechaFinal.requestFocus();
+                return;
+            }
+            fechaInicial.setValue(from);
+            fechaFinal.setValue(to);
+            String prefix = numeracion.getValue();
+            String number = optionalText(numeroFactura.getText());
+            String customer = optionalText(cliente.getText());
+            String dianState = estadoDian.getValue();
+            String customerState = estadoCliente.getValue();
+            String emailState = estadoCorreo.getValue();
+            filter.setDisable(true);
+            filter.setText("Filtrando…");
+            summary.setText("Consultando facturas electrónicas…");
+            totalAmount.setText("—");
+            totalPeriod.setText("Total facturado del " + from.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    + " al " + to.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+            totalHint.setText("Calculando total…");
+            table.getItems().clear();
+            empty.setText("Consultando facturas…");
+            runAsync(
+                    () -> posApiClient.listarFacturasElectronicas(
+                            prefix, number, from, to, customer, dianState, customerState, emailState
+                    ),
+                    invoices -> {
+                        table.getItems().setAll(invoices);
+                        updateElectronicInvoiceNumeraciones(numeracion, invoices);
+                        BigDecimal total = invoices.stream().map(PosApiClient.FacturaElectronicaListadoResponse::total)
+                                .filter(value -> value != null).reduce(BigDecimal.ZERO, BigDecimal::add);
+                        summary.setText(invoices.size() + (invoices.size() == 1 ? " factura encontrada" : " facturas encontradas"));
+                        totalAmount.setText(formatCurrency(total));
+                        totalHint.setText("Según los filtros aplicados");
+                        empty.setText("No hay facturas electrónicas para los filtros seleccionados.");
+                        filter.setText("Filtrar facturas");
+                        filter.setDisable(false);
+                    },
+                    exception -> {
+                        table.getItems().clear();
+                        summary.setText("No se pudieron consultar las facturas. Verifica la conexión con la API e inténtalo de nuevo.");
+                        empty.setText("No se pudo cargar la información. Pulsa Filtrar facturas para reintentar.");
+                        totalAmount.setText("—");
+                        totalHint.setText("Total no disponible");
+                        filter.setText("Filtrar facturas");
+                        filter.setDisable(false);
+                    }
+            );
+        };
+
+        filter.setOnAction(event -> refresh.run());
+        numeroFactura.setOnAction(event -> refresh.run());
+        cliente.setOnAction(event -> refresh.run());
+        clear.setOnAction(event -> {
+            numeracion.getSelectionModel().select("TODAS");
+            numeroFactura.clear();
+            cliente.clear();
+            fechaInicial.setValue(LocalDate.now());
+            fechaFinal.setValue(LocalDate.now());
+            estadoDian.getSelectionModel().select("TODOS");
+            estadoCliente.getSelectionModel().select("TODOS");
+            estadoCorreo.getSelectionModel().select("TODOS");
+            refresh.run();
+        });
+
+        FlowPane quickFilters = createResponsiveRow(
+                createQuickDateFilter("Año pasado", fechaInicial, fechaFinal, LocalDate.now().minusYears(1).withDayOfYear(1), LocalDate.now().minusYears(1).withMonth(12).withDayOfMonth(31), refresh),
+                createQuickDateFilter("Año", fechaInicial, fechaFinal, LocalDate.now().withDayOfYear(1), LocalDate.now().withMonth(12).withDayOfMonth(31), refresh),
+                createQuickDateFilter("Mes", fechaInicial, fechaFinal, LocalDate.now().withDayOfMonth(1), LocalDate.now(), refresh),
+                createQuickDateFilter("Semana", fechaInicial, fechaFinal, LocalDate.now().minusDays(LocalDate.now().getDayOfWeek().getValue() - 1), LocalDate.now(), refresh),
+                createQuickDateFilter("Día", fechaInicial, fechaFinal, LocalDate.now(), LocalDate.now(), refresh)
+        );
+        quickFilters.setPrefWrapLength(340);
+        quickFilters.setHgap(6);
+        quickFilters.setVgap(6);
+        quickFilters.getStyleClass().add("electronic-invoice-quick-filters");
+        quickFilters.disableProperty().bind(filter.disableProperty());
+
+        FlowPane periodFields = createResponsiveRow(
+                createFieldGroup("Fecha inicial", fechaInicial, 165),
+                createFieldGroup("Fecha final", fechaFinal, 165),
+                quickFilters);
+        periodFields.setRowValignment(VPos.BOTTOM);
+        FlowPane states = createResponsiveRow(
+                createFieldGroup("Estado DIAN", estadoDian, 160),
+                createFieldGroup("Estado cliente", estadoCliente, 160),
+                createFieldGroup("Estado correo", estadoCorreo, 160)
+        );
+        ToggleButton moreFilters = new ToggleButton("Estados ▾");
+        moreFilters.getStyleClass().add("ghost-button");
+        moreFilters.setAccessibleText("Mostrar u ocultar filtros de estado DIAN, cliente y correo");
+        states.visibleProperty().bind(moreFilters.selectedProperty());
+        states.managedProperty().bind(states.visibleProperty());
+        Runnable updateStatesCaption = () -> {
+            long active = List.of(estadoDian, estadoCliente, estadoCorreo).stream()
+                    .filter(combo -> !"TODOS".equals(combo.getValue())).count();
+            moreFilters.setText("Estados" + (active == 0 ? "" : " (" + active + ")")
+                    + (moreFilters.isSelected() ? " ▴" : " ▾"));
+        };
+        moreFilters.selectedProperty().addListener((observable, previous, selected) -> updateStatesCaption.run());
+        for (ComboBox<String> combo : List.of(estadoDian, estadoCliente, estadoCorreo)) {
+            combo.valueProperty().addListener((observable, previous, selected) -> updateStatesCaption.run());
+        }
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Numeración", numeracion, 135),
+                createFieldGroup("Factura", numeroFactura, 165),
+                createFieldGroup("Cliente", cliente, 220),
+                moreFilters, clear, filter);
+        fields.setRowValignment(VPos.BOTTOM);
+        VBox filters = new VBox(12, periodFields, fields, states);
+        filters.getStyleClass().addAll("surface-card", "electronic-invoice-filters");
+
+        VBox totalText = new VBox(4, totalPeriod, summary);
+        totalText.setMinWidth(0);
+        totalText.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(totalText, Priority.ALWAYS);
+        VBox amountText = new VBox(2, totalAmount, totalHint);
+        amountText.setAlignment(Pos.CENTER_RIGHT);
+        HBox tableHeader = new HBox(16, totalText, amountText);
+        tableHeader.getStyleClass().add("electronic-invoice-table-header");
+        VBox tableSurface = new VBox(10, tableHeader, table);
+        tableSurface.getStyleClass().addAll("surface-card", "electronic-invoice-table-surface");
+        VBox.setVgrow(table, Priority.ALWAYS);
+        VBox.setVgrow(tableSurface, Priority.ALWAYS);
+        root.getChildren().addAll(filters, tableSurface);
+        refresh.run();
+        return root;
+    }
+
+    private Node createDataicoSettingsScreen() {
+        VBox root = createScreenContainer("Configuración Dataico", "Administra la cuenta, conexión y numeración electrónica desde el POS.");
+        root.getStyleClass().add("dataico-settings-screen");
+        TextField account = createField("");
+        account.setId("dataico-account-id");
+        account.setPromptText("UUID completo de la empresa en Dataico");
+        CheckBox enabled = new CheckBox("Habilitar conexión con Dataico");
+        enabled.setId("dataico-enabled");
+        enabled.getStyleClass().add("soft-check");
+        TextField baseUrl = createField("");
+        baseUrl.setId("dataico-base-url");
+        baseUrl.setPromptText("Pega la URL oficial HTTPS de Dataico");
+        TextField connectTimeout = createField("");
+        connectTimeout.setId("dataico-connect-timeout");
+        TextField readTimeout = createField("");
+        readTimeout.setId("dataico-read-timeout");
+        TextField prefix = createField("");
+        prefix.setId("dataico-prefix");
+        prefix.setPromptText("Ej. FEE");
+        TextField resolution = createField("");
+        resolution.setId("dataico-resolution");
+        resolution.setPromptText("Número de resolución");
+        TextField nextNumber = createField("");
+        nextNumber.setId("dataico-next-number");
+        nextNumber.setPromptText("Próximo número, no el último usado");
+        ComboBox<String> environment = createElectronicInvoiceFilterCombo("PRODUCCION", "PRUEBAS");
+        environment.setId("dataico-environment");
+        CheckBox flexible = new CheckBox("Numeración flexible");
+        flexible.setId("dataico-flexible");
+        flexible.getStyleClass().add("soft-check");
+        PasswordField token = new PasswordField();
+        token.setId("dataico-token");
+        token.getStyleClass().add("soft-field");
+        token.setAccessibleText("Nuevo token de Dataico. Vacío conserva el actual.");
+        token.setPromptText("Deja vacío para conservar el token actual");
+        VBox tokenGroup = createFieldGroup("Nuevo token Dataico", token, 540);
+        tokenGroup.setMaxWidth(Double.MAX_VALUE);
+        Label tokenHelp = new Label("Pega el token completo para reemplazarlo. Se guarda cifrado y nunca se muestra el valor actual.");
+        tokenHelp.setWrapText(true);
+        tokenHelp.setMinHeight(Region.USE_PREF_SIZE);
+        tokenHelp.getStyleClass().add("card-subtitle");
+        tokenGroup.getChildren().add(tokenHelp);
+        Label preview = new Label();
+        preview.getStyleClass().add("electronic-invoice-total-amount");
+        preview.textProperty().bind(Bindings.concat("Próxima factura: ", prefix.textProperty(), nextNumber.textProperty()));
+        preview.setWrapText(true);
+        Label note = new Label("Estos ajustes solo afectan a nuevas facturas Dataico. La numeración local VTA y el cierre diario no cambian. "
+                + "Cambiar de cuenta no migra documentos anteriores. Para producción, verifica la cuenta, token y numeración definitivos.");
+        note.setWrapText(true);
+        note.setMinHeight(Region.USE_PREF_SIZE);
+        note.getStyleClass().add("card-subtitle");
+        Label connection = new Label("Consultando conexión configurada…");
+        connection.setWrapText(true);
+        connection.setMinHeight(Region.USE_PREF_SIZE);
+        connection.getStyleClass().add("card-subtitle");
+        Label status = new Label("Cargando configuración…");
+        status.setId("dataico-settings-status");
+        status.setWrapText(true);
+        status.setMinHeight(Region.USE_PREF_SIZE);
+        status.getStyleClass().add("card-subtitle");
+        CheckBox confirmation = new CheckBox("Confirmo que estos datos corresponden a la numeración de mi cuenta Dataico.");
+        confirmation.setId("dataico-confirmation");
+        confirmation.setWrapText(true);
+        confirmation.setMinHeight(Region.USE_PREF_SIZE);
+        confirmation.getStyleClass().add("soft-check");
+        Button reload = createActionButton("Recargar datos", "ghost-button");
+        reload.setId("dataico-reload");
+        Button save = createActionButton("Guardar configuración", "primary-button");
+        save.setId("dataico-save");
+        BooleanProperty busy = new SimpleBooleanProperty(false);
+        SimpleObjectProperty<PosApiClient.ConfiguracionDataicoResponse> loaded = new SimpleObjectProperty<>();
+        FlowPane accountFields = createResponsiveRow(createFieldGroup("Account ID de la empresa *", account, 450), enabled);
+        accountFields.setRowValignment(VPos.BOTTOM);
+        ToggleButton showAdvanced = new ToggleButton("Conexión avanzada ▾");
+        showAdvanced.getStyleClass().add("ghost-button");
+        showAdvanced.setId("dataico-show-advanced");
+        VBox urlGroup = createFieldGroup("URL base de la API (HTTPS, api.dataico.com)", baseUrl, 600);
+        urlGroup.setMaxWidth(Double.MAX_VALUE);
+        VBox advanced = new VBox(8, urlGroup, createResponsiveRow(
+                createFieldGroup("Conexión: 1–10 segundos", connectTimeout, 200),
+                createFieldGroup("Respuesta: 1–30 segundos", readTimeout, 210)));
+        advanced.visibleProperty().bind(showAdvanced.selectedProperty());
+        advanced.managedProperty().bind(advanced.visibleProperty());
+        showAdvanced.selectedProperty().addListener((observable, previous, selected) ->
+                showAdvanced.setText(selected ? "Conexión avanzada ▴" : "Conexión avanzada ▾"));
+        FlowPane fields = createResponsiveRow(
+                createFieldGroup("Prefijo Dataico *", prefix, 150),
+                createFieldGroup("Resolución *", resolution, 240),
+                createFieldGroup("Próximo número a utilizar *", nextNumber, 270),
+                createFieldGroup("Ambiente *", environment, 180));
+        fields.disableProperty().bind(busy.or(loaded.isNull()));
+        accountFields.disableProperty().bind(fields.disableProperty());
+        advanced.disableProperty().bind(fields.disableProperty());
+        flexible.disableProperty().bind(fields.disableProperty());
+        tokenGroup.disableProperty().bind(fields.disableProperty());
+        confirmation.disableProperty().bind(fields.disableProperty());
+        reload.disableProperty().bind(busy);
+        save.disableProperty().bind(busy.or(loaded.isNull()).or(confirmation.selectedProperty().not()));
+        for (TextField field : List.of(prefix, resolution, nextNumber, account, baseUrl, connectTimeout, readTimeout)) {
+            field.textProperty().addListener((observable, previous, value) -> confirmation.setSelected(false));
+        }
+        environment.valueProperty().addListener((observable, previous, value) -> confirmation.setSelected(false));
+        flexible.selectedProperty().addListener((observable, previous, value) -> confirmation.setSelected(false));
+        enabled.selectedProperty().addListener((observable, previous, value) -> confirmation.setSelected(false));
+        token.textProperty().addListener((observable, previous, value) -> confirmation.setSelected(false));
+        Consumer<PosApiClient.ConfiguracionDataicoResponse> apply = config -> {
+            prefix.setText(config.prefijo());
+            resolution.setText(config.resolucion());
+            nextNumber.setText(Long.toString(config.siguienteNumero()));
+            environment.setValue(config.ambiente());
+            flexible.setSelected(config.flexible());
+            account.setText(config.accountId());
+            enabled.setSelected(config.proveedorHabilitado());
+            baseUrl.setText(config.baseUrl());
+            connectTimeout.setText(Integer.toString(config.connectTimeoutSeconds()));
+            readTimeout.setText(Integer.toString(config.readTimeoutSeconds()));
+            token.clear();
+            token.setPromptText(config.tokenConfigurado() ? "Deja vacío para conservar el token actual" : "Pega el token completo entregado por Dataico");
+            connection.setText("Proveedor: " + (config.proveedorHabilitado() ? "habilitado" : "deshabilitado")
+                    + " · Token: " + (config.tokenConfigurado() ? "configurado" : "no configurado")
+                    + ". Todos los cambios guardados se aplican a las siguientes llamadas.");
+            loaded.set(config);
+            confirmation.setSelected(false);
+            busy.set(false);
+        };
+        Runnable load = () -> {
+            busy.set(true);
+            loaded.set(null);
+            token.clear();
+            confirmation.setSelected(false);
+            setSalesStatusInfo(status, "Cargando configuración…");
+            runAsync(posApiClient::consultarConfiguracionDataico, config -> {
+                apply.accept(config);
+                setSalesStatusInfo(status, "Configuración actual cargada. Revisa los datos antes de guardar.");
+            }, error -> {
+                busy.set(false);
+                setSalesStatusError(status, "No se pudo cargar la configuración. Pulsa Recargar datos para reintentar.");
+                status.setTooltip(new Tooltip(error.getMessage()));
+            });
+        };
+        reload.setOnAction(event -> load.run());
+        save.setOnAction(event -> {
+            PosApiClient.ConfiguracionDataicoResponse current = loaded.get();
+            try {
+                String prefijo = prefix.getText().trim().toUpperCase(Locale.ROOT);
+                String resolucion = resolution.getText().trim();
+                String uuid = account.getText().trim().toLowerCase(Locale.ROOT);
+                if (!uuid.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
+                    setSalesStatusError(status, "Ingresa el Account ID completo y válido de la empresa en Dataico (UUID).");
+                    account.requestFocus();
+                    return;
+                }
+                int connectSeconds = Integer.parseInt(connectTimeout.getText().trim());
+                int readSeconds = Integer.parseInt(readTimeout.getText().trim());
+                if (connectSeconds < 1 || connectSeconds > 10 || readSeconds < 1 || readSeconds > 30) {
+                    setSalesStatusError(status, "Revisa Conexión avanzada: conexión de 1–10 segundos y respuesta de 1–30.");
+                    showAdvanced.setSelected(true);
+                    return;
+                }
+                long siguiente = Long.parseLong(nextNumber.getText().trim());
+                if (!prefijo.matches("[A-Z0-9]{1,40}") || !resolucion.matches("[0-9]{1,40}") || siguiente < 1) {
+                    throw new IllegalArgumentException("Datos inválidos");
+                }
+                String newToken = token.getText().strip();
+                if (!newToken.isEmpty() && !newToken.matches("[\\x21-\\x7E]{8,512}")) {
+                    setSalesStatusError(status, "Pega el token completo, sin espacios internos ni saltos de línea (8 a 512 caracteres).");
+                    token.requestFocus();
+                    return;
+                }
+                var request = new PosApiClient.GuardarConfiguracionDataicoRequest(prefijo, resolucion, siguiente,
+                        environment.getValue(), flexible.isSelected(), current.version(), current.siguienteNumero(),
+                        newToken.isEmpty() ? null : newToken, uuid, enabled.isSelected(), baseUrl.getText().trim(), connectSeconds, readSeconds);
+                busy.set(true);
+                setSalesStatusInfo(status, "Guardando configuración…");
+                runAsync(() -> posApiClient.guardarConfiguracionDataico(request), config -> {
+                    apply.accept(config);
+                    setSalesStatusSuccess(status, "Configuración guardada. Se aplicará a las próximas facturas.");
+                }, error -> {
+                    busy.set(false);
+                    token.clear();
+                    confirmation.setSelected(false);
+                    setSalesStatusError(status, error instanceof PosApiClient.PosApiException
+                            ? "No se pudo guardar: " + error.getMessage()
+                            : "No se pudo confirmar el guardado. Recarga los datos antes de reintentar.");
+                    status.setTooltip(new Tooltip(error.getMessage()));
+                });
+            } catch (IllegalArgumentException error) {
+                setSalesStatusError(status, "Revisa el prefijo, la resolución, el próximo número y los tiempos de Conexión avanzada.");
+            }
+        });
+        FlowPane actions = createResponsiveRow(reload, save);
+        VBox settings = createCard("Cuenta y numeración electrónica", "Configuración de Dataico independiente del consecutivo de ventas del POS.");
+        settings.getStyleClass().add("dataico-settings-card");
+        settings.setMinHeight(Region.USE_PREF_SIZE);
+        settings.getChildren().addAll(accountFields, fields, flexible, tokenGroup, showAdvanced, advanced, preview, note, connection, confirmation, status, actions);
+        root.getChildren().add(settings);
+        load.run();
+        return root;
+    }
+
+    private ComboBox<String> createElectronicInvoiceFilterCombo(String... values) {
+        ComboBox<String> combo = new ComboBox<>(FXCollections.observableArrayList(values));
+        combo.getSelectionModel().selectFirst();
+        combo.setMaxWidth(Double.MAX_VALUE);
+        return combo;
+    }
+
+    private Button createQuickDateFilter(String label, DatePicker initial, DatePicker end, LocalDate from, LocalDate to,
+            Runnable refresh) {
+        Button button = createActionButton(label, "ghost-button");
+        button.getStyleClass().add("electronic-invoice-quick-filter");
+        button.setOnAction(event -> {
+            initial.setValue(from);
+            end.setValue(to);
+            refresh.run();
+        });
+        return button;
+    }
+
+    private void updateElectronicInvoiceNumeraciones(
+            ComboBox<String> combo,
+            List<PosApiClient.FacturaElectronicaListadoResponse> invoices
+    ) {
+        String selected = combo.getValue();
+        List<String> values = new ArrayList<>();
+        values.add("TODAS");
+        invoices.stream().map(PosApiClient.FacturaElectronicaListadoResponse::numeracion)
+                .filter(value -> value != null && !value.isBlank()).distinct().sorted().forEach(values::add);
+        combo.setItems(FXCollections.observableArrayList(values));
+        combo.getSelectionModel().select(values.contains(selected) ? selected : "TODAS");
+    }
+
+    private TableView<PosApiClient.FacturaElectronicaListadoResponse> createElectronicInvoicesTable() {
+        TableView<PosApiClient.FacturaElectronicaListadoResponse> table = new TableView<>();
+        table.getStyleClass().addAll("data-table", "electronic-invoices-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        bindTableHeightToScene(table, 0.48, 280, 560);
+        table.getColumns().addAll(
+                tableColumn("Fecha", row -> row.fechaEmision() == null ? "-" : DATE_TIME_FORMATTER.format(row.fechaEmision())),
+                tableColumn("Factura", row -> row.numeroFactura()),
+                tableColumn("Cliente", row -> row.clienteNombre() + "\n" + row.clienteIdentificacion()),
+                tableColumn("Impuesto", row -> formatCurrency(row.impuestoTotal())),
+                tableColumn("Retención", row -> formatCurrency(row.retencionTotal())),
+                tableColumn("Total", row -> formatCurrency(row.total())),
+                createElectronicInvoiceActionsColumn()
+        );
+        return table;
+    }
+
+    private TableColumn<PosApiClient.FacturaElectronicaListadoResponse, PosApiClient.FacturaElectronicaListadoResponse>
+            createElectronicInvoiceActionsColumn() {
+        TableColumn<PosApiClient.FacturaElectronicaListadoResponse, PosApiClient.FacturaElectronicaListadoResponse> column =
+                new TableColumn<>("Acciones");
+        column.setMinWidth(150);
+        column.setPrefWidth(164);
+        column.setMaxWidth(180);
+        column.setSortable(false);
+        column.setCellValueFactory(cell -> new SimpleObjectProperty<>(cell.getValue()));
+        column.setCellFactory(value -> new TableCell<>() {
+            private final Button dian = createElectronicInvoiceIconButton(
+                    "M3 9 L12 3 L21 9 Z M5 11 V18 M10 11 V18 M14 11 V18 M19 11 V18 M4 18 H20 M3 21 H21",
+                    "Enviar factura a DIAN");
+            private final Button email = createElectronicInvoiceIconButton(
+                    "M4 5 H20 Q22 5 22 7 V17 Q22 19 20 19 H4 Q2 19 2 17 V7 Q2 5 4 5 Z M3 7 L12 13 L21 7",
+                    "Enviar factura por correo");
+            private final Button pdf = createElectronicInvoiceIconButton(
+                    "M6 2 H14 L20 8 V22 H6 Z M14 2 V8 H20", "Visualizar PDF");
+            private final HBox actions = new HBox(8, dian, email, pdf);
+            {
+                actions.setAlignment(Pos.CENTER);
+                Label pdfMark = new Label("PDF");
+                pdfMark.getStyleClass().add("electronic-invoice-pdf-mark");
+                pdfMark.setTranslateY(4);
+                StackPane document = new StackPane(pdf.getGraphic(), pdfMark);
+                document.setMinSize(24, 24);
+                document.setPrefSize(24, 24);
+                pdf.setGraphic(document);
+                var envioNoDisponible = Bindings.createBooleanBinding(
+                        () -> !hasPermission(PERM_VENTAS_EDIT) || getItem() == null
+                                || facturasElectronicasEnEnvio.contains(getItem().id()),
+                        itemProperty(), facturasElectronicasEnEnvio);
+                dian.disableProperty().bind(envioNoDisponible);
+                email.disableProperty().bind(envioNoDisponible);
+                dian.setOnAction(event -> {
+                    var invoice = getItem();
+                    if (invoice != null) showElectronicInvoiceSendPopup(dian, invoice, false,
+                            updated -> updateElectronicInvoiceRow(getTableView(), updated));
+                });
+                email.setOnAction(event -> {
+                    var invoice = getItem();
+                    if (invoice != null) showElectronicInvoiceSendPopup(email, invoice, true,
+                            updated -> updateElectronicInvoiceRow(getTableView(), updated));
+                });
+                pdf.setOnAction(event -> openElectronicInvoicePdf(getItem()));
+            }
+            @Override protected void updateItem(PosApiClient.FacturaElectronicaListadoResponse item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                if (empty || item == null) { setGraphic(null); return; }
+                updateElectronicInvoiceActionState(dian, "DIAN", item.estadoDian(), item.dianAceptada());
+                updateElectronicInvoiceActionState(email, "Correo", item.estadoCorreo(), item.correoEnviado());
+                boolean hasPdf = optionalText(item.pdfUrl()) != null;
+                pdf.setDisable(!hasPdf);
+                pdf.setTooltip(new Tooltip(hasPdf ? "Visualizar PDF" : "PDF no disponible"));
+                setGraphic(actions);
+                setAlignment(Pos.CENTER);
+            }
+        });
+        return column;
+    }
+
+    private Button createElectronicInvoiceIconButton(String path, String accessibleText) {
+        SVGPath icon = new SVGPath();
+        icon.setContent(path);
+        icon.getStyleClass().add("electronic-invoice-action-icon");
+        Button button = createActionButton("", "electronic-invoice-action-button");
+        button.setGraphic(icon);
+        button.setAccessibleText(accessibleText);
+        return button;
+    }
+
+    private void updateElectronicInvoiceActionState(Button button, String label, String state, boolean success) {
+        button.pseudoClassStateChanged(PseudoClass.getPseudoClass("success"), success);
+        button.pseudoClassStateChanged(PseudoClass.getPseudoClass("error"), !success);
+        String description = label + ": " + safeText(state, "Sin confirmar").replace('_', ' ');
+        button.setAccessibleText(description);
+        button.setTooltip(new Tooltip(description + ("Correo".equals(label)
+                ? "\nEnviar factura por correo." : "\nVer estado y enviar a DIAN.")));
+    }
+
+    private void updateElectronicInvoiceRow(TableView<PosApiClient.FacturaElectronicaListadoResponse> table,
+            PosApiClient.FacturaElectronicaListadoResponse updated) {
+        for (int index = 0; index < table.getItems().size(); index++) {
+            if (table.getItems().get(index).id().equals(updated.id())) {
+                table.getItems().set(index, updated);
+                return;
+            }
+        }
+    }
+
+    private void showElectronicInvoiceSendPopup(Button anchor, PosApiClient.FacturaElectronicaListadoResponse invoice,
+            boolean correo, Consumer<PosApiClient.FacturaElectronicaListadoResponse> onUpdated) {
+        if (!hasPermission(PERM_VENTAS_EDIT)) return;
+        ContextMenu popup = new ContextMenu();
+        popup.getStyleClass().add("invoice-send-popover");
+        popup.setAutoFix(true);
+        Label title = new Label(correo ? "Enviar factura por correo" : "Enviar factura a DIAN");
+        title.getStyleClass().add("send-popover-title");
+        Label invoiceNumber = new Label(invoice.numeroFactura());
+        invoiceNumber.getStyleClass().add("card-subtitle");
+        TextField emailField = createField(safeText(invoice.clienteEmail(), ""));
+        emailField.setPromptText("correo@cliente.com");
+        emailField.setAccessibleText("Correo del destinatario");
+        Label feedback = new Label(correo ? safeText(invoice.mensajeCorreo(), "Ingresa el correo del destinatario.")
+                : safeText(invoice.estadoDian(), "Estado sin confirmar").replace('_', ' '));
+        feedback.getStyleClass().add("send-popover-feedback");
+        feedback.setWrapText(true);
+        feedback.setMaxWidth(310);
+        feedback.setTooltip(new Tooltip(safeText(correo ? invoice.mensajeCorreo() : invoice.mensajeDian(), "Sin detalle adicional.")));
+        Button send = createActionButton(correo ? "Enviar correo" : "Enviar a DIAN", "primary-button");
+        send.getStyleClass().add("send-popover-button");
+        send.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> facturasElectronicasEnEnvio.contains(invoice.id()) || !correo && invoice.dianAceptada(),
+                facturasElectronicasEnEnvio));
+        emailField.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> facturasElectronicasEnEnvio.contains(invoice.id()), facturasElectronicasEnEnvio));
+        Button close = createActionButton("Cerrar", "ghost-button");
+        close.getStyleClass().add("send-popover-button");
+        close.setOnAction(event -> popup.hide());
+        send.setOnAction(event -> {
+            String destino = optionalText(emailField.getText());
+            if (correo && (destino == null || destino.length() > 120 || !destino.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))) {
+                setSalesStatusError(feedback, "Ingresa un correo válido.");
+                emailField.requestFocus();
+                return;
+            }
+            facturasElectronicasEnEnvio.add(invoice.id());
+            setSalesStatusInfo(feedback, "Enviando...");
+            runAsync(
+                    () -> correo ? posApiClient.enviarCorreoFactura(invoice.id(), destino)
+                            : posApiClient.enviarFacturaDian(invoice.id()),
+                    updated -> {
+                        facturasElectronicasEnEnvio.remove(invoice.id());
+                        onUpdated.accept(updated);
+                        if (correo ? updated.correoEnviado() : updated.dianAceptada()) {
+                            setSalesStatusSuccess(feedback, correo ? "Correo enviado con éxito." : "Factura aceptada por DIAN.");
+                        } else if (correo ? "ERROR".equals(updated.estadoCorreo()) : "DIAN_RECHAZADO".equals(updated.estadoDian())) {
+                            setSalesStatusError(feedback, correo ? "Dataico reportó un error al enviar." : "La DIAN rechazó el documento.");
+                        } else {
+                            setSalesStatusInfo(feedback, "Envío solicitado. Pendiente de confirmación.");
+                        }
+                        feedback.setTooltip(new Tooltip(safeText(correo ? updated.mensajeCorreo() : updated.mensajeDian(), "Sin detalle adicional.")));
+                        if (!correo && updated.dianAceptada()) popup.hide();
+                    },
+                    exception -> {
+                        facturasElectronicasEnEnvio.remove(invoice.id());
+                        setSalesStatusError(feedback, "No se pudo confirmar el envío.");
+                        feedback.setTooltip(new Tooltip(exception.getMessage()));
+                    }
+            );
+        });
+        emailField.setOnAction(event -> { if (!send.isDisabled()) send.fire(); });
+        VBox content = new VBox(10, title, invoiceNumber);
+        content.getStyleClass().add("send-popover-content");
+        if (correo) content.getChildren().add(createFieldGroup("Correo del cliente", emailField, 310));
+        content.getChildren().addAll(feedback, new HBox(8, close, send));
+        popup.getItems().add(new CustomMenuItem(content, false));
+        popup.setOnShown(event -> Platform.runLater(() -> {
+            if (correo) {
+                emailField.requestFocus();
+                emailField.selectAll();
+            } else {
+                send.requestFocus();
+            }
+        }));
+        popup.show(anchor, Side.LEFT, -8, 0);
+    }
+
+    private void openElectronicInvoicePdf(PosApiClient.FacturaElectronicaListadoResponse invoice) {
+        if (invoice == null || invoice.pdfUrl() == null || invoice.pdfUrl().isBlank()) {
+            showInfo("PDF no disponible", "Dataico no devolvió una URL de PDF para esta factura.");
+            return;
+        }
+        try {
+            Desktop.getDesktop().browse(URI.create(invoice.pdfUrl()));
+        } catch (Exception exception) {
+            showError("PDF de factura", "No fue posible abrir el PDF de la factura.");
+        }
+    }
+
     private Node createInvoicesScreen() {
         VBox root = createScreenContainer(
                 "Facturas",
@@ -1349,6 +2039,7 @@ public class PosDesktopFxApplication extends Application {
 
     private Node createSalesEntryCard(
             SaleTabContext context,
+            TextField clienteField,
             TextField cantidadField,
             TextField valorUnitarioField,
             TableView<SaleDraftRow> table,
@@ -1356,9 +2047,29 @@ public class PosDesktopFxApplication extends Application {
     ) {
         VBox card = createCard("", "");
         card.getStyleClass().add("sales-entry-card");
+        card.pseudoClassStateChanged(ELECTRONIC_INVOICING, electronicInvoicingEnabled.get());
+        electronicInvoicingEnabled.addListener((observable, previous, enabled) ->
+                card.pseudoClassStateChanged(ELECTRONIC_INVOICING, enabled));
 
         HBox row = new HBox(16);
         row.setAlignment(Pos.BOTTOM_LEFT);
+
+        Button addClientButton = createActionButton("+", "electronic-client-add-button");
+        updateElectronicClientAction(addClientButton, null);
+        configureElectronicCustomerAutocomplete(clienteField, addClientButton, valorUnitarioField, statusLabel);
+        addClientButton.setOnAction(event -> showElectronicCustomerWindow(
+                statusLabel.getScene() == null ? null : statusLabel.getScene().getWindow(),
+                clienteField,
+                addClientButton,
+                clienteField.getUserData() instanceof PosApiClient.ClienteElectronicoResponse customer ? customer : null
+        ));
+        HBox clientSelector = new HBox(8, clienteField, addClientButton);
+        clientSelector.getStyleClass().add("electronic-client-selector");
+        clientSelector.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(clienteField, Priority.ALWAYS);
+        VBox cliente = createFieldGroup("Cliente", clientSelector, 220);
+        cliente.visibleProperty().bind(electronicInvoicingEnabled);
+        cliente.managedProperty().bind(electronicInvoicingEnabled);
 
         VBox valor = createFieldGroup("Valor unitario", valorUnitarioField, 180);
         VBox cantidad = createFieldGroup("Cantidad", cantidadField, 120);
@@ -1371,18 +2082,25 @@ public class PosDesktopFxApplication extends Application {
         actions.setAlignment(Pos.BOTTOM_LEFT);
         Button addButton = (Button) actions.getChildren().get(0);
         Button removeButton = (Button) actions.getChildren().get(1);
+        for (Button button : List.of(addButton, removeButton)) {
+            button.getStyleClass().add("sales-item-action-button");
+            button.minWidthProperty().bind(Bindings.when(electronicInvoicingEnabled)
+                    .then(Region.USE_PREF_SIZE)
+                    .otherwise(Region.USE_COMPUTED_SIZE));
+        }
         Button clearButton = (Button) actions.getChildren().get(2);
         clearButton.getStyleClass().add("sales-clear-button");
         clearButton.setTextOverrun(OverrunStyle.CLIP);
         clearButton.setAccessibleText("Borrar todos los artículos de la venta");
         clearButton.disableProperty().bind(Bindings.isEmpty(context.rows()));
-        addButton.setOnAction(event -> addSaleDetail(context, cantidadField, valorUnitarioField, statusLabel));
+        addButton.setOnAction(event -> addSaleDetail(context, cantidadField, valorUnitarioField, table, statusLabel));
         removeButton.setOnAction(event -> removeSelectedSaleDetail(context, table, statusLabel));
         clearButton.setOnAction(event -> clearSaleDetails(context, table, cantidadField, valorUnitarioField, statusLabel));
 
         row.getChildren().addAll(valor, cantidad, actions);
         HBox.setHgrow(valor, Priority.ALWAYS);
 
+        row.getChildren().add(0, cliente);
         card.getChildren().addAll(row, statusLabel);
         return card;
     }
@@ -1417,13 +2135,30 @@ public class PosDesktopFxApplication extends Application {
         return card;
     }
 
-    private TableView<SaleDraftRow> createSalesDraftTable() {
+    private TableView<SaleDraftRow> createSalesDraftTable(TextField valorUnitarioField) {
         TableView<SaleDraftRow> table = new TableView<>();
         table.getStyleClass().add("data-table");
+        table.setEditable(true);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         bindTableHeightToScene(table, 0.32, 170, 280);
+        TableColumn<SaleDraftRow, String> articleColumn = new TableColumn<>("Articulo");
+        articleColumn.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().articulo()));
+        articleColumn.setCellFactory(TextFieldTableCell.forTableColumn());
+        articleColumn.setOnEditCommit(event -> {
+            String article = optionalText(event.getNewValue());
+            SaleDraftRow row = event.getRowValue();
+            int index = event.getTablePosition().getRow();
+            if (article != null && index >= 0 && index < table.getItems().size()) {
+                table.getItems().set(index, new SaleDraftRow(article, row.cantidad(), row.valorUnitario()));
+            }
+            if (article == null) {
+                table.refresh();
+            }
+            // El editor nativo devuelve primero el foco a la tabla al confirmar: moverlo al campo después.
+            Platform.runLater(valorUnitarioField::requestFocus);
+        });
         table.getColumns().addAll(
-                tableColumn("Articulo", row -> "Manual"),
+                articleColumn,
                 tableColumn("Cantidad", row -> formatNumber(row.cantidad())),
                 tableColumn("Valor unitario", row -> formatCurrency(row.valorUnitario())),
                 tableColumn("Total", row -> formatCurrency(row.total()))
@@ -1446,6 +2181,7 @@ public class PosDesktopFxApplication extends Application {
             SaleTabContext context,
             TextField cantidadField,
             TextField valorUnitarioField,
+            TableView<SaleDraftRow> table,
             Label statusLabel
     ) {
         try {
@@ -1454,13 +2190,30 @@ public class PosDesktopFxApplication extends Application {
                     valorUnitarioField.getText(),
                     "El valor unitario debe ser mayor a cero."
             );
-            context.rows().add(new SaleDraftRow(cantidad, valorUnitario));
+            context.rows().add(new SaleDraftRow("Artículo manual", cantidad, valorUnitario));
             recalculateSaleTotal(context);
 
             cantidadField.setText("1");
             valorUnitarioField.clear();
             setSalesStatusInfo(statusLabel, "Articulo agregado a la tabla. Total actualizado en pantalla.");
-            valorUnitarioField.requestFocus();
+            if (electronicInvoicingEnabled.get()) {
+                int rowIndex = context.rows().size() - 1;
+                Platform.runLater(() -> {
+                    if (rowIndex >= table.getItems().size()) {
+                        return;
+                    }
+                    TableColumn<SaleDraftRow, ?> articleColumn = table.getColumns().getFirst();
+                    table.scrollTo(rowIndex);
+                    table.applyCss();
+                    table.layout();
+                    table.requestFocus();
+                    table.getSelectionModel().select(rowIndex);
+                    table.getFocusModel().focus(rowIndex, articleColumn);
+                    table.edit(rowIndex, articleColumn);
+                });
+            } else {
+                valorUnitarioField.requestFocus();
+            }
         } catch (IllegalArgumentException exception) {
             setSalesStatusError(statusLabel, exception.getMessage());
         }
@@ -1540,6 +2293,7 @@ public class PosDesktopFxApplication extends Application {
 
     private void registerSale(
             SaleTabContext context,
+            TextField clienteField,
             TextField montoRecibidoField,
             ComboBox<String> paymentMethod,
             Label statusLabel,
@@ -1548,6 +2302,18 @@ public class PosDesktopFxApplication extends Application {
     ) {
         if (context.rows().isEmpty()) {
             setSalesStatusError(statusLabel, "Debe existir al menos un articulo en la tabla antes de cobrar.");
+            return;
+        }
+
+        boolean emitirFacturaElectronica = electronicInvoicingEnabled.get();
+        boolean printReceipt = printReceiptCheck.isSelected();
+        PosApiClient.ClienteElectronicoResponse clienteElectronico = emitirFacturaElectronica
+                && clienteField.getUserData() instanceof PosApiClient.ClienteElectronicoResponse cliente
+                ? cliente
+                : null;
+        if (emitirFacturaElectronica && clienteElectronico == null) {
+            setSalesStatusError(statusLabel, "Selecciona un cliente existente antes de facturar electrónicamente.");
+            clienteField.requestFocus();
             return;
         }
 
@@ -1575,7 +2341,7 @@ public class PosDesktopFxApplication extends Application {
 
         List<PosApiClient.RegistrarDetalleVentaRequest> detalles = context.rows().stream()
                 .map(row -> new PosApiClient.RegistrarDetalleVentaRequest(
-                        null,
+                        row.articulo(),
                         row.cantidad(),
                         row.valorUnitario()
                 ))
@@ -1590,19 +2356,75 @@ public class PosDesktopFxApplication extends Application {
                         paymentMethodCode(paymentMethod)
                 )),
                 response -> {
-                    boolean printReceipt = printReceiptCheck.isSelected();
                     context.rows().clear();
                     recalculateSaleTotal(context);
                     montoRecibidoField.clear();
+                    clienteField.clear();
+                    clienteField.setUserData(null);
                     paymentMethod.getSelectionModel().select(SALES_PAYMENT_CASH);
                     printReceiptCheck.setSelected(false);
-                    setSalesStatusInfo(statusLabel, "Venta " + response.numeroVenta() + " registrada correctamente.");
+                    setSalesStatusInfo(statusLabel, emitirFacturaElectronica
+                            ? "Enviando factura a Dataico..."
+                            : "Venta " + response.numeroVenta() + " registrada correctamente.");
                     valorUnitarioField.requestFocus();
-                    if (printReceipt) {
+                    if (printReceipt && !emitirFacturaElectronica) {
                         showReceiptPreviewAndPrint(statusLabel.getScene().getWindow(), response);
+                    }
+                    if (emitirFacturaElectronica) {
+                        PosApiClient.ClienteElectronicoResponse customer = clienteElectronico;
+                        runAsync(
+                                () -> posApiClient.emitirFacturaElectronica(response.id(), customer.id()),
+                                electronicInvoice -> {
+                                    setSalesStatusSuccess(statusLabel, "Factura enviada con éxito a Dataico.");
+                                    statusLabel.setTooltip(new Tooltip("Venta " + response.numeroVenta()
+                                            + (electronicInvoice.numero() == null ? "" : " · Factura " + electronicInvoice.numero())
+                                            + estadoDianEnMensaje(electronicInvoice.estadoDian())
+                                            + (optionalText(electronicInvoice.mensaje()) == null ? "" : "\n" + electronicInvoice.mensaje())));
+                                    if (printReceipt) {
+                                        downloadDataicoReceipt(statusLabel, electronicInvoice);
+                                    }
+                                },
+                                exception -> {
+                                    if (exception instanceof java.net.http.HttpTimeoutException) {
+                                        setSalesStatusWarning(statusLabel, "Envío pendiente de confirmar. Venta guardada.");
+                                    } else {
+                                        setSalesStatusError(statusLabel, "No se pudo enviar a Dataico. Venta guardada.");
+                                    }
+                                    statusLabel.setTooltip(new Tooltip("Venta " + response.numeroVenta() + "\n" + exception.getMessage()));
+                                }
+                        );
                     }
                 },
                 exception -> setSalesStatusError(statusLabel, exception.getMessage())
+        );
+    }
+
+    private void downloadDataicoReceipt(Label statusLabel, PosApiClient.ResultadoFacturaElectronicaResponse invoice) {
+        if (optionalText(invoice.pdfUrl()) == null) {
+            setSalesStatusWarning(statusLabel, "Factura enviada. PDF aún no disponible.");
+            statusLabel.setTooltip(new Tooltip("Puedes consultar el PDF posteriormente en Facturas electrónicas."));
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Guardar factura de Dataico");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documento PDF", "*.pdf"));
+        String numero = optionalText(invoice.numero()) == null ? "dataico" : invoice.numero();
+        chooser.setInitialFileName("Factura-" + numero.replaceAll("[^\\p{L}\\p{N}._-]", "_") + ".pdf");
+        File destino = chooser.showSaveDialog(statusLabel.getScene().getWindow());
+        if (destino == null) return;
+        Path destinoPdf = destino.toPath();
+        setSalesStatusInfo(statusLabel, "Factura enviada. Descargando PDF de Dataico...");
+        runAsync(
+                () -> new DataicoPdfDownloader().descargar(invoice.pdfUrl(), destinoPdf),
+                guardado -> {
+                    setSalesStatusSuccess(statusLabel, "Factura enviada y PDF descargado.");
+                    statusLabel.setTooltip(new Tooltip(guardado.toString()));
+                },
+                exception -> {
+                    setSalesStatusWarning(statusLabel, "Factura enviada. No se pudo descargar el PDF.");
+                    statusLabel.setTooltip(new Tooltip("La venta y la factura siguen guardadas. Puedes descargar el PDF en Facturas electrónicas.\n"
+                            + exception.getMessage()));
+                }
         );
     }
 
@@ -1617,10 +2439,11 @@ public class PosDesktopFxApplication extends Application {
             SaleTabContext context,
             TextField valorUnitarioField,
             TextField cantidadField,
+            TableView<SaleDraftRow> table,
             Label statusLabel
     ) {
         valorUnitarioField.setOnAction(event -> cantidadField.requestFocus());
-        cantidadField.setOnAction(event -> addSaleDetail(context, cantidadField, valorUnitarioField, statusLabel));
+        cantidadField.setOnAction(event -> addSaleDetail(context, cantidadField, valorUnitarioField, table, statusLabel));
     }
 
     private void configureCurrencyFormatOnInput(TextField field) {
@@ -1684,14 +2507,43 @@ public class PosDesktopFxApplication extends Application {
 
     private void setSalesStatusInfo(Label statusLabel, String message) {
         statusLabel.getStyleClass().remove("status-error");
+        statusLabel.getStyleClass().remove("status-success");
+        statusLabel.getStyleClass().remove("status-warning");
+        statusLabel.setTooltip(null);
         statusLabel.setText(message);
     }
 
     private void setSalesStatusError(Label statusLabel, String message) {
+        statusLabel.getStyleClass().remove("status-success");
+        statusLabel.getStyleClass().remove("status-warning");
+        statusLabel.setTooltip(null);
         if (!statusLabel.getStyleClass().contains("status-error")) {
             statusLabel.getStyleClass().add("status-error");
         }
         statusLabel.setText(message);
+    }
+
+    private void setSalesStatusSuccess(Label statusLabel, String message) {
+        statusLabel.getStyleClass().remove("status-error");
+        statusLabel.getStyleClass().remove("status-warning");
+        statusLabel.setTooltip(null);
+        if (!statusLabel.getStyleClass().contains("status-success")) {
+            statusLabel.getStyleClass().add("status-success");
+        }
+        statusLabel.setText(message);
+    }
+
+    private void setSalesStatusWarning(Label statusLabel, String message) {
+        setSalesStatusInfo(statusLabel, message);
+        statusLabel.getStyleClass().add("status-warning");
+    }
+
+    private String estadoDianEnMensaje(String estado) {
+        if (estado == null || estado.isBlank()) return "";
+        if ("DIAN_ACEPTADO".equalsIgnoreCase(estado)) return " DIAN aceptó el documento.";
+        if ("DIAN_NO_ENVIADO".equalsIgnoreCase(estado)) return " Documento aún no enviado a DIAN.";
+        if ("DIAN_RECHAZADO".equalsIgnoreCase(estado)) return " Dataico lo creó; DIAN reportó rechazo.";
+        return " Estado DIAN: " + estado + ".";
     }
 
     private boolean showChangeConfirmationDialog(
@@ -6431,11 +7283,23 @@ public class PosDesktopFxApplication extends Application {
         return stage;
     }
 
+    private Stage createElectronicCustomerDialogStage(String title) {
+        Stage stage = new Stage(StageStyle.UNDECORATED);
+        configurePopupEscapeClose(stage);
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.setTitle(title);
+        stage.setResizable(false);
+        stage.setMinWidth(460);
+        stage.setMinHeight(420);
+        return stage;
+    }
+
     private void configurePopupEscapeClose(Stage stage) {
         stage.sceneProperty().addListener((observable, oldScene, scene) -> {
             if (scene == null) {
                 return;
             }
+            configureGlobalShortcuts(scene);
             scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
                 if (event.getCode() == KeyCode.ESCAPE) {
                     stage.close();
@@ -6741,6 +7605,450 @@ public class PosDesktopFxApplication extends Application {
         return badge;
     }
 
+    private ToggleButton createElectronicInvoiceToggle() {
+        ToggleButton toggle = new ToggleButton();
+        toggle.setGraphic(createIconBadge("PD", "badge-xl"));
+        toggle.getStyleClass().add("electronic-invoice-toggle");
+        toggle.setTooltip(new Tooltip("Alternar facturación normal y electrónica (/ desde cualquier control)"));
+        toggle.setAccessibleText("Facturación electrónica desactivada");
+        toggle.selectedProperty().bindBidirectional(electronicInvoicingEnabled);
+        toggle.selectedProperty().addListener((observable, wasSelected, isSelected) ->
+                toggle.setAccessibleText(isSelected
+                        ? "Facturación electrónica activada"
+                        : "Facturación electrónica desactivada")
+        );
+        return toggle;
+    }
+
+    private void configureElectronicCustomerAutocomplete(
+            TextField customerField,
+            Button customerActionButton,
+            TextField nextField,
+            Label statusLabel
+    ) {
+        ContextMenu suggestions = new ContextMenu();
+        suggestions.getStyleClass().add("customer-autocomplete-menu");
+        PauseTransition delay = new PauseTransition(Duration.millis(220));
+        SimpleObjectProperty<Integer> selectedSuggestion = new SimpleObjectProperty<>(-1);
+        selectedSuggestion.addListener((observable, previous, selected) -> {
+            for (int index = 0; index < suggestions.getItems().size(); index++) {
+                var item = suggestions.getItems().get(index);
+                item.getStyleClass().remove("customer-autocomplete-selected");
+                if (index == selected) {
+                    item.getStyleClass().add("customer-autocomplete-selected");
+                }
+            }
+        });
+        javafx.event.EventHandler<KeyEvent> suggestionKeys = event -> {
+            if (!suggestions.isShowing() || suggestions.getItems().isEmpty()) {
+                return;
+            }
+            if (event.getCode() == KeyCode.DOWN) {
+                selectedSuggestion.set(Math.min(selectedSuggestion.get() + 1, suggestions.getItems().size() - 1));
+            } else if (event.getCode() == KeyCode.UP) {
+                selectedSuggestion.set(Math.max(selectedSuggestion.get() - 1, 0));
+            } else if (event.getCode() == KeyCode.ENTER) {
+                int selected = selectedSuggestion.get();
+                if (selected >= 0 && selected < suggestions.getItems().size()) {
+                    suggestions.getItems().get(selected).fire();
+                }
+            } else if (event.getCode() == KeyCode.ESCAPE) {
+                suggestions.hide();
+            } else {
+                return;
+            }
+            event.consume();
+        };
+        customerField.addEventFilter(KeyEvent.KEY_PRESSED, suggestionKeys);
+        suggestions.addEventFilter(KeyEvent.KEY_PRESSED, suggestionKeys);
+        customerField.textProperty().addListener((observable, previous, value) -> {
+            customerField.setUserData(null);
+            updateElectronicClientAction(customerActionButton, null);
+            delay.stop();
+            suggestions.hide();
+            selectedSuggestion.set(-1);
+            suggestions.getItems().clear();
+            String term = optionalText(value);
+            if (term == null || term.length() < 2) {
+                suggestions.hide();
+                return;
+            }
+            delay.setOnFinished(event -> runAsync(
+                    () -> posApiClient.buscarClientesElectronicos(term),
+                    customers -> showCustomerSuggestions(customerField, customerActionButton, nextField,
+                            suggestions, selectedSuggestion, delay, term, customers),
+                    exception -> {
+                        if (term.equalsIgnoreCase(optionalText(customerField.getText()))) {
+                            suggestions.hide();
+                        }
+                    }
+            ));
+            delay.playFromStart();
+        });
+        customerField.focusedProperty().addListener((observable, previous, focused) -> {
+            if (!focused) {
+                suggestions.hide();
+                if (customerField.getUserData() == null) {
+                    customerField.clear();
+                    updateElectronicClientAction(customerActionButton, null);
+                }
+            }
+        });
+        customerField.setOnAction(event -> {
+            event.consume();
+            if (suggestions.isShowing() && selectedSuggestion.get() >= 0
+                    && selectedSuggestion.get() < suggestions.getItems().size()) {
+                suggestions.getItems().get(selectedSuggestion.get()).fire();
+                return;
+            }
+            if (customerField.getUserData() instanceof PosApiClient.ClienteElectronicoResponse) {
+                delay.stop();
+                suggestions.hide();
+                nextField.requestFocus();
+                return;
+            }
+            if (optionalText(customerField.getText()) != null) {
+                return;
+            }
+            delay.stop();
+            suggestions.hide();
+            customerField.setDisable(true);
+            runAsync(
+                    posApiClient::buscarConsumidorFinal,
+                    customer -> {
+                        customerField.setDisable(false);
+                        customerField.setText(customer.nombreFactura() + " · " + customer.identificacion());
+                        customerField.setUserData(customer);
+                        updateElectronicClientAction(customerActionButton, customer);
+                        delay.stop();
+                        suggestions.hide();
+                        nextField.requestFocus();
+                    },
+                    exception -> {
+                        customerField.setDisable(false);
+                        setSalesStatusError(statusLabel, "No se pudo cargar Consumidor final.");
+                        statusLabel.setTooltip(new Tooltip(exception.getMessage()));
+                        customerField.requestFocus();
+                    }
+            );
+        });
+    }
+
+    private void showCustomerSuggestions(
+            TextField customerField,
+            Button customerActionButton,
+            TextField nextField,
+            ContextMenu suggestions,
+            SimpleObjectProperty<Integer> selectedSuggestion,
+            PauseTransition delay,
+            String searchedTerm,
+            List<PosApiClient.ClienteElectronicoResponse> customers
+    ) {
+        String currentTerm = optionalText(customerField.getText());
+        if (!customerField.isFocused() || currentTerm == null || !currentTerm.equalsIgnoreCase(searchedTerm)
+                || customerField.getUserData() != null) {
+            return;
+        }
+        if (customers.isEmpty()) {
+            suggestions.hide();
+            return;
+        }
+        selectedSuggestion.set(-1);
+        suggestions.getItems().clear();
+        for (int index = 0; index < customers.size(); index++) {
+            PosApiClient.ClienteElectronicoResponse customer = customers.get(index);
+            int suggestionPosition = index;
+            Label option = new Label(customer.razonSocial() + "  ·  "
+                    + customer.tipoIdentificacion() + " " + customer.identificacion());
+            option.getStyleClass().add("customer-autocomplete-option");
+            CustomMenuItem item = new CustomMenuItem(option, true);
+            option.setOnMouseEntered(event -> selectedSuggestion.set(suggestionPosition));
+            item.setOnAction(event -> {
+                customerField.setText(customer.razonSocial() + " · " + customer.identificacion());
+                customerField.setUserData(customer);
+                updateElectronicClientAction(customerActionButton, customer);
+                delay.stop();
+                suggestions.hide();
+                nextField.requestFocus();
+            });
+            suggestions.getItems().add(item);
+        }
+        selectedSuggestion.set(0);
+        suggestions.show(customerField, Side.BOTTOM, 0, 2);
+    }
+
+    private void updateElectronicClientAction(
+            Button customerActionButton,
+            PosApiClient.ClienteElectronicoResponse customer
+    ) {
+        boolean exists = customer != null && optionalText(customer.id()) != null;
+        customerActionButton.setText(exists ? "✎" : "+");
+        customerActionButton.setAccessibleText(exists
+                ? "Editar cliente seleccionado para factura electrónica"
+                : "Agregar cliente para factura electrónica");
+        customerActionButton.setTooltip(new Tooltip(exists ? "Editar cliente" : "Agregar cliente"));
+    }
+
+    private void showElectronicCustomerWindow(
+            Window owner,
+            TextField selectedClientField,
+            Button customerActionButton,
+            PosApiClient.ClienteElectronicoResponse existingCustomer
+    ) {
+        if (!hasPermission(PERM_VENTAS_EDIT)) {
+            showError("Clientes", "Tu usuario no tiene permiso para crear clientes de facturación electrónica.");
+            return;
+        }
+
+        boolean editing = existingCustomer != null && optionalText(existingCustomer.id()) != null;
+        String dialogTitle = editing ? "Editar cliente electrónico" : "Nuevo cliente electrónico";
+        Stage stage = createElectronicCustomerDialogStage(dialogTitle);
+        if (owner != null) {
+            stage.initOwner(owner);
+        }
+
+        VBox root = createDialogRoot(
+                dialogTitle,
+                editing
+                        ? "Actualiza los datos que Dataico utiliza para identificar al adquirente de la factura."
+                        : "Registra los datos que Dataico utiliza para identificar al adquirente de la factura."
+        );
+        root.getStyleClass().addAll("invoice-workspace", "electronic-customer-dialog");
+        root.setSpacing(12);
+        root.setPadding(new Insets(16));
+
+        ComboBox<String> documentType = new ComboBox<>(FXCollections.observableArrayList("NIT"));
+        documentType.getSelectionModel().select("NIT");
+        ComboBox<String> partyType = new ComboBox<>(FXCollections.observableArrayList("JURIDICA", "NATURAL"));
+        partyType.getSelectionModel().select("JURIDICA");
+        TextField identificationField = createField("");
+        identificationField.setPromptText("Número de identificación");
+        TextField checkDigitField = createField("");
+        checkDigitField.setPromptText("DV");
+        TextField legalNameField = createField("");
+        legalNameField.setPromptText("Razón social registrada en el RUT");
+        TextField firstNameField = createField("");
+        firstNameField.setPromptText("Primer nombre");
+        TextField middleNameField = createField("");
+        middleNameField.setPromptText("Segundo nombre (opcional)");
+        TextField firstLastNameField = createField("");
+        firstLastNameField.setPromptText("Primer apellido");
+        TextField secondLastNameField = createField("");
+        secondLastNameField.setPromptText("Segundo apellido (opcional)");
+        TextField emailField = createField("");
+        emailField.setPromptText("correo@cliente.com (opcional)");
+        TextField phoneField = createField("");
+        phoneField.setPromptText("Teléfono (opcional)");
+        TextField addressField = createField("");
+        addressField.setPromptText("Dirección de residencia");
+        ComboBox<PaisResidencia> countryField = new ComboBox<>(FXCollections.observableArrayList(
+                new PaisResidencia("CO", "Colombia")
+        ));
+        countryField.getSelectionModel().selectFirst();
+        countryField.setDisable(true);
+        countryField.setPrefWidth(160);
+        ComboBox<DepartamentoColombiano> departmentField = new ComboBox<>(FXCollections.observableArrayList(departamentosColombianos()));
+        departmentField.setPromptText("Selecciona departamento");
+        departmentField.setPrefWidth(250);
+        ComboBox<MunicipioColombiano> cityField = new ComboBox<>();
+        cityField.setPromptText("Selecciona ciudad");
+        cityField.setDisable(true);
+        cityField.setPrefWidth(250);
+        departmentField.valueProperty().addListener((observable, previous, selected) -> {
+            cityField.getSelectionModel().clearSelection();
+            cityField.getItems().setAll(selected == null ? List.of() : municipiosDelDepartamento(selected.codigo()));
+            cityField.setDisable(selected == null);
+        });
+
+        Label dianStatus = new Label("Consulta DIAN disponible para verificar los datos del tercero.");
+        dianStatus.getStyleClass().add("card-subtitle");
+        Button consultDianButton = createActionButton("Consultar DIAN", "ghost-button");
+        consultDianButton.setOnAction(event -> {
+            String identification = optionalText(identificationField.getText());
+            if (identification == null) {
+                dianStatus.setText("Ingresa el número de identificación antes de consultar DIAN.");
+                return;
+            }
+            consultDianButton.setDisable(true);
+            dianStatus.setText("Consultando tercero en DIAN...");
+            runAsync(
+                    () -> posApiClient.consultarClienteEnDian(identification),
+                    thirdParty -> {
+                        String previousNature = partyType.getValue();
+                        partyType.getSelectionModel().select(thirdParty.tipoPersona());
+                        documentType.getSelectionModel().select(thirdParty.tipoIdentificacion());
+                        if (!thirdParty.tipoPersona().equals(previousNature)) {
+                            if ("NATURAL".equals(thirdParty.tipoPersona())) {
+                                legalNameField.clear();
+                            } else {
+                                firstNameField.clear();
+                                middleNameField.clear();
+                                firstLastNameField.clear();
+                                secondLastNameField.clear();
+                            }
+                        }
+                        setTextIfPresent(identificationField, thirdParty.identificacion());
+                        setTextIfPresent(checkDigitField, thirdParty.digitoVerificacion());
+                        setTextIfPresent(legalNameField, thirdParty.razonSocial());
+                        setTextIfPresent(firstNameField, thirdParty.primerNombre());
+                        setTextIfPresent(middleNameField, thirdParty.segundoNombre());
+                        setTextIfPresent(firstLastNameField, thirdParty.primerApellido());
+                        setTextIfPresent(secondLastNameField, thirdParty.segundoApellido());
+                        setTextIfPresent(emailField, thirdParty.email());
+                        setTextIfPresent(phoneField, thirdParty.telefono());
+                        setTextIfPresent(addressField, thirdParty.direccion());
+                        seleccionarResidenciaDian(departmentField, cityField,
+                                thirdParty.departamentoCodigoDane(), thirdParty.ciudadCodigoDane());
+                        consultDianButton.setDisable(false);
+                        dianStatus.setText("Datos consultados en DIAN. Revisa la información antes de guardar.");
+                    },
+                    exception -> {
+                        consultDianButton.setDisable(false);
+                        dianStatus.setText("No fue posible consultar DIAN: " + exception.getMessage());
+                    }
+            );
+        });
+
+        VBox documentTypeGroup = createFieldGroup("Tipo de documento", documentType, 180);
+        VBox checkDigitGroup = createFieldGroup("Dígito de verificación", checkDigitField, 160);
+        VBox legalNameGroup = createFieldGroup("Razón social", legalNameField, 320);
+        VBox firstNameGroup = createFieldGroup("Primer nombre", firstNameField, 220);
+        VBox middleNameGroup = createFieldGroup("Segundo nombre", middleNameField, 220);
+        VBox firstLastNameGroup = createFieldGroup("Primer apellido", firstLastNameField, 220);
+        VBox secondLastNameGroup = createFieldGroup("Segundo apellido", secondLastNameField, 220);
+        checkDigitGroup.visibleProperty().bind(documentType.valueProperty().isEqualTo("NIT"));
+        checkDigitGroup.managedProperty().bind(documentType.valueProperty().isEqualTo("NIT"));
+        legalNameGroup.visibleProperty().bind(partyType.valueProperty().isEqualTo("JURIDICA"));
+        legalNameGroup.managedProperty().bind(partyType.valueProperty().isEqualTo("JURIDICA"));
+        for (VBox group : List.of(firstNameGroup, middleNameGroup, firstLastNameGroup, secondLastNameGroup)) {
+            group.visibleProperty().bind(partyType.valueProperty().isEqualTo("NATURAL"));
+            group.managedProperty().bind(partyType.valueProperty().isEqualTo("NATURAL"));
+        }
+        partyType.valueProperty().addListener((observable, previous, nature) -> {
+            boolean juridica = "JURIDICA".equals(nature);
+            documentType.setDisable(juridica);
+            documentType.setItems(FXCollections.observableArrayList(juridica
+                    ? List.of("NIT")
+                    : List.of("CC", "CE", "PASAPORTE", "TI", "RC", "NUIP", "TE", "PEP", "PPT", "IE", "NIT")));
+            documentType.getSelectionModel().selectFirst();
+        });
+        documentType.setDisable(true);
+
+        if (editing) {
+            partyType.getSelectionModel().select(existingCustomer.tipoPersona());
+            documentType.getSelectionModel().select(existingCustomer.tipoIdentificacion());
+            setTextIfPresent(identificationField, existingCustomer.identificacion());
+            setTextIfPresent(checkDigitField, existingCustomer.digitoVerificacion());
+            setTextIfPresent(legalNameField, existingCustomer.razonSocial());
+            setTextIfPresent(firstNameField, existingCustomer.primerNombre());
+            setTextIfPresent(middleNameField, existingCustomer.segundoNombre());
+            setTextIfPresent(firstLastNameField, existingCustomer.primerApellido());
+            setTextIfPresent(secondLastNameField, existingCustomer.segundoApellido());
+            setTextIfPresent(emailField, existingCustomer.email());
+            setTextIfPresent(phoneField, existingCustomer.telefono());
+            setTextIfPresent(addressField, existingCustomer.direccion());
+            seleccionarResidenciaDian(departmentField, cityField,
+                    existingCustomer.departamentoCodigoDane(), existingCustomer.ciudadCodigoDane());
+        }
+
+        Button cancel = createActionButton("Cancelar", "ghost-button");
+        cancel.setOnAction(event -> stage.close());
+        Button save = createActionButton(editing ? "Guardar cambios" : "Guardar cliente", "primary-button");
+        save.setOnAction(event -> {
+            String residenciaError = validarResidenciaCliente(
+                    addressField.getText(), codigoCiudad(cityField.getValue()), codigoDepartamento(departmentField.getValue()),
+                    codigoPais(countryField.getValue()));
+            if (residenciaError != null) {
+                showError("Residencia del cliente", residenciaError);
+                return;
+            }
+            save.setDisable(true);
+            runAsync(
+                    () -> {
+                        PosApiClient.RegistrarClienteElectronicoRequest request = new PosApiClient.RegistrarClienteElectronicoRequest(
+                                documentType.getValue(),
+                                partyType.getValue(),
+                                identificationField.getText(),
+                                optionalText(checkDigitField.getText()),
+                                optionalText(legalNameField.getText()),
+                                optionalText(firstNameField.getText()),
+                                optionalText(middleNameField.getText()),
+                                optionalText(firstLastNameField.getText()),
+                                optionalText(secondLastNameField.getText()),
+                                optionalText(emailField.getText()),
+                                optionalText(phoneField.getText()),
+                                optionalText(addressField.getText()),
+                                codigoCiudad(cityField.getValue()),
+                                codigoDepartamento(departmentField.getValue()),
+                                codigoPais(countryField.getValue())
+                        );
+                        return editing
+                                ? posApiClient.actualizarClienteElectronico(existingCustomer.id(), request)
+                                : posApiClient.registrarClienteElectronico(request);
+                    },
+                    customer -> {
+                        selectedClientField.setText(customer.nombreFactura() + " · " + customer.identificacion());
+                        selectedClientField.setUserData(customer);
+                        updateElectronicClientAction(customerActionButton, customer);
+                        stage.close();
+                        showInfo(editing ? "Cliente actualizado" : "Cliente registrado",
+                                "El cliente quedó disponible para esta factura electrónica.");
+                    },
+                    exception -> {
+                        save.setDisable(false);
+                        showError(dialogTitle, exception.getMessage());
+                    }
+            );
+        });
+
+        FlowPane fields = createResponsiveRow(
+                documentTypeGroup,
+                createFieldGroup("Tipo de persona", partyType, 170),
+                createFieldGroup("Identificación", identificationField, 220),
+                createFieldGroup("Verificación oficial", consultDianButton, 180),
+                checkDigitGroup,
+                legalNameGroup,
+                firstNameGroup,
+                middleNameGroup,
+                firstLastNameGroup,
+                secondLastNameGroup,
+                createFieldGroup("Correo electrónico", emailField, 260),
+                createFieldGroup("Teléfono", phoneField, 210),
+                createFieldGroup("Dirección de residencia *", addressField, 320),
+                createFieldGroup("Departamento de residencia *", departmentField, 250),
+                createFieldGroup("Ciudad de residencia *", cityField, 250),
+                createFieldGroup("País de residencia *", countryField, 160)
+        );
+        VBox formCard = createCard(
+                "Datos del adquirente",
+                "Persona jurídica: NIT, DV y razón social. Persona natural: tipo y número de documento, primer nombre y primer apellido. La residencia fiscal marcada con * es obligatoria."
+        );
+        ScrollPane fieldsScroll = new ScrollPane(fields);
+        fieldsScroll.setFitToWidth(true);
+        fieldsScroll.setHbarPolicy(ScrollBarPolicy.NEVER);
+        fieldsScroll.setVbarPolicy(ScrollBarPolicy.AS_NEEDED);
+        fieldsScroll.getStyleClass().add("electronic-customer-fields-scroll");
+        VBox.setVgrow(fieldsScroll, Priority.ALWAYS);
+
+        HBox actions = new HBox(10, cancel, save);
+        actions.getStyleClass().add("electronic-customer-dialog-actions");
+        formCard.getChildren().addAll(fieldsScroll, dianStatus, actions);
+        root.getChildren().add(formCard);
+        VBox.setVgrow(formCard, Priority.ALWAYS);
+
+        Scene scene = new Scene(root);
+        scene.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        stage.setScene(scene);
+        applyResponsiveStageSize(stage, 0.76, 0.92, 780, 480);
+        stage.show();
+    }
+
+    private void setTextIfPresent(TextField field, String value) {
+        if (value != null && !value.isBlank()) {
+            field.setText(value);
+        }
+    }
+
     private <T> TableColumn<T, String> tableColumn(String title, java.util.function.Function<T, String> mapper) {
         TableColumn<T, String> column = new TableColumn<>(title);
         column.setCellValueFactory(cell -> new ReadOnlyStringWrapper(mapper.apply(cell.getValue())));
@@ -6871,11 +8179,12 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private String formatCurrency(BigDecimal value) {
-        return currencyFormat.format(value == null ? BigDecimal.ZERO : value);
+        return "$ " + currencyFormat.format(value == null ? BigDecimal.ZERO : value);
     }
 
     private NumberFormat createCurrencyFormat() {
-        NumberFormat format = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO"));
+        NumberFormat format = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-CO"));
+        format.setGroupingUsed(true);
         format.setMinimumFractionDigits(0);
         format.setMaximumFractionDigits(0);
         return format;
@@ -6897,6 +8206,97 @@ public class PosDesktopFxApplication extends Application {
 
     private String optionalText(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static List<MunicipioColombiano> cargarMunicipiosColombianos() {
+        String resource = "/com/posdesktop/pos/catalogos/municipios-colombia.csv";
+        try (InputStream input = PosDesktopFxApplication.class.getResourceAsStream(resource)) {
+            if (input == null) throw new IllegalStateException("No se encontró el catálogo DANE de municipios.");
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
+                List<MunicipioColombiano> municipios = new ArrayList<>();
+                reader.readLine();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] values = line.split(";", -1);
+                    if (values.length == 4) {
+                        municipios.add(new MunicipioColombiano(values[0], values[1], values[2], values[3]));
+                    }
+                }
+                return List.copyOf(municipios);
+            }
+        } catch (IOException exception) {
+            throw new IllegalStateException("No fue posible cargar el catálogo DANE de municipios.", exception);
+        }
+    }
+
+    private List<DepartamentoColombiano> departamentosColombianos() {
+        Map<String, DepartamentoColombiano> departamentos = new LinkedHashMap<>();
+        for (MunicipioColombiano municipio : MUNICIPIOS_COLOMBIANOS) {
+            departamentos.putIfAbsent(municipio.departamentoCodigo(),
+                    new DepartamentoColombiano(municipio.departamentoCodigo(), municipio.departamentoNombre()));
+        }
+        return departamentos.values().stream().sorted(Comparator.comparing(DepartamentoColombiano::nombre)).toList();
+    }
+
+    private List<MunicipioColombiano> municipiosDelDepartamento(String departamentoCodigo) {
+        return MUNICIPIOS_COLOMBIANOS.stream()
+                .filter(municipio -> municipio.departamentoCodigo().equals(departamentoCodigo))
+                .sorted(Comparator.comparing(MunicipioColombiano::ciudadNombre))
+                .toList();
+    }
+
+    private void seleccionarResidenciaDian(
+            ComboBox<DepartamentoColombiano> departamento,
+            ComboBox<MunicipioColombiano> ciudad,
+            String departamentoCodigo,
+            String ciudadCodigo
+    ) {
+        String department = normalizarCodigoDane(departamentoCodigo, 2, true);
+        String city = normalizarCodigoDane(ciudadCodigo, 3, false);
+        if (department == null || city == null) return;
+        departamentosColombianos().stream().filter(item -> item.codigo().equals(department)).findFirst()
+                .ifPresent(departamento.getSelectionModel()::select);
+        ciudad.getItems().stream().filter(item -> item.ciudadCodigo().equals(city)).findFirst()
+                .ifPresent(ciudad.getSelectionModel()::select);
+    }
+
+    private String normalizarCodigoDane(String value, int length, boolean department) {
+        String digits = value == null ? "" : value.replaceAll("\\D", "");
+        if (digits.length() < length) return null;
+        if (department) return digits.substring(0, 2);
+        return digits.substring(digits.length() - 3);
+    }
+
+    private String codigoPais(PaisResidencia value) { return value == null ? null : value.codigo(); }
+    private String codigoDepartamento(DepartamentoColombiano value) { return value == null ? null : value.codigo(); }
+    private String codigoCiudad(MunicipioColombiano value) { return value == null ? null : value.ciudadCodigo(); }
+
+    private String validarResidenciaCliente(String direccion, String ciudad, String departamento, String pais) {
+        if (optionalText(direccion) == null) return "Ingresa la dirección de residencia del cliente.";
+        String country = optionalText(pais);
+        if (country == null || !country.matches("(?i)[A-Z]{2}")) {
+            return "Ingresa el país con su código ISO de dos letras, por ejemplo CO.";
+        }
+        String city = optionalText(ciudad);
+        String department = optionalText(departamento);
+        if (city == null || department == null) return "Ingresa la ciudad y el departamento de residencia.";
+        if ("CO".equalsIgnoreCase(country)) {
+            if (!department.matches("\\d{2}")) return "El departamento DANE debe tener 2 dígitos.";
+            if (!city.matches("\\d{3}")) return "La ciudad DANE debe tener 3 dígitos.";
+        }
+        return null;
+    }
+
+    private record PaisResidencia(String codigo, String nombre) {
+        @Override public String toString() { return nombre + " (" + codigo + ")"; }
+    }
+
+    private record DepartamentoColombiano(String codigo, String nombre) {
+        @Override public String toString() { return nombre; }
+    }
+
+    private record MunicipioColombiano(String departamentoCodigo, String departamentoNombre, String ciudadCodigo, String ciudadNombre) {
+        @Override public String toString() { return ciudadNombre; }
     }
 
     private String formatDateTime(LocalDateTime value) {
@@ -7092,7 +8492,7 @@ public class PosDesktopFxApplication extends Application {
     ) {
     }
 
-    private record SaleDraftRow(BigDecimal cantidad, BigDecimal valorUnitario) {
+    private record SaleDraftRow(String articulo, BigDecimal cantidad, BigDecimal valorUnitario) {
 
         private BigDecimal total() {
             return cantidad.multiply(valorUnitario).setScale(2, RoundingMode.HALF_UP);

@@ -3,6 +3,7 @@ package com.posdesktop.pos.shared.exception;
 import com.posdesktop.pos.auth.exception.ForbiddenException;
 import com.posdesktop.pos.auth.exception.UnauthorizedException;
 import com.posdesktop.pos.shared.api.ApiErrorResponse;
+import com.posdesktop.pos.facturacion.electronica.infraestructura.dataico.DataicoApiException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
@@ -93,6 +94,16 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                ApiErrorResponse.of(exception.getMessage(), request.getRequestURI(), List.of())
+        );
+    }
+
+    @ExceptionHandler(DataicoApiException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataico(
+            DataicoApiException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(
                 ApiErrorResponse.of(exception.getMessage(), request.getRequestURI(), List.of())
         );
     }

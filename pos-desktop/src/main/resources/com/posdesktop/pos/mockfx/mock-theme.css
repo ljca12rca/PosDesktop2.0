@@ -110,6 +110,245 @@
     -fx-font-weight: 800;
 }
 
+.electronic-invoice-toggle {
+    -fx-background-color: transparent;
+    -fx-background-radius: 100;
+    -fx-border-color: transparent;
+    -fx-border-radius: 100;
+    -fx-border-width: 0;
+    -fx-cursor: hand;
+    -fx-padding: 6;
+}
+
+.electronic-invoice-toggle:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+}
+
+.electronic-invoice-toggle:selected {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-effect: dropshadow(three-pass-box, rgba(65, 224, 128, 0.88), 20, 0.62, 0, 0);
+}
+
+.electronic-invoice-toggle:selected .icon-badge {
+    -fx-effect: dropshadow(three-pass-box, rgba(135, 255, 181, 0.55), 10, 0.44, 0, 0);
+}
+
+.electronic-invoice-toggle:focused {
+    -fx-border-color: transparent;
+}
+
+.electronic-invoice-toggle:selected:focused {
+    -fx-border-color: transparent;
+}
+
+.electronic-invoices-screen {
+    -fx-padding: 4 2 18 2;
+}
+
+.electronic-invoice-filters {
+    -fx-padding: 16;
+    -fx-spacing: 12;
+}
+
+.electronic-invoice-filters .field-group {
+    -fx-spacing: 4;
+}
+
+.electronic-invoice-filters .soft-field,
+.electronic-invoice-filters .combo-box,
+.electronic-invoice-filters .date-picker {
+    -fx-min-height: 34;
+    -fx-pref-height: 34;
+    -fx-padding: 5 10;
+    -fx-font-size: 12px;
+}
+
+.electronic-invoice-filters .primary-button,
+.electronic-invoice-filters .ghost-button {
+    -fx-min-height: 34;
+    -fx-padding: 7 12;
+    -fx-font-size: 12px;
+}
+
+.electronic-invoice-filters .toggle-button:selected {
+    -fx-background-color: #dceee6;
+    -fx-border-color: #74a995;
+}
+
+.electronic-invoice-filters .electronic-invoice-filter-action {
+    -fx-min-width: 132;
+}
+
+.electronic-invoice-quick-filters {
+    -fx-alignment: center-left;
+    -fx-padding: 0;
+}
+
+.electronic-invoice-quick-filter {
+    -fx-min-height: 34;
+    -fx-padding: 7 12 7 12;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-background-radius: 16;
+}
+
+.electronic-invoice-filter-action {
+    -fx-min-width: 158;
+    -fx-font-weight: 800;
+}
+
+.electronic-invoice-table-surface {
+    -fx-padding: 14 16 16 16;
+    -fx-spacing: 10;
+}
+
+.electronic-invoice-table-header {
+    -fx-alignment: center-left;
+    -fx-padding: 0 2 8 2;
+}
+
+.electronic-invoice-total-period {
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #21323c;
+}
+
+.electronic-invoice-total-amount {
+    -fx-font-size: 24px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #218667;
+}
+
+.dataico-settings-card {
+    -fx-spacing: 12;
+    -fx-padding: 16;
+}
+
+.dataico-settings-card .card-subtitle {
+    -fx-text-fill: #536660;
+}
+
+.electronic-invoice-summary {
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #4d625d;
+}
+
+.electronic-invoice-empty {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #76827b;
+    -fx-padding: 24;
+}
+
+.electronic-invoices-table .table-row-cell {
+    -fx-cell-size: 58px;
+}
+
+.electronic-invoices-table .table-cell {
+    -fx-font-size: 12px;
+    -fx-text-fill: #263b42;
+    -fx-wrap-text: true;
+    -fx-padding: 7 9 7 9;
+}
+
+.electronic-invoices-table .table-row-cell:filled:hover {
+    -fx-background-color: #fff4df;
+}
+
+.electronic-invoice-action-button {
+    -fx-min-width: 36;
+    -fx-pref-width: 36;
+    -fx-max-width: 36;
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+    -fx-max-height: 36;
+    -fx-padding: 5;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-background-color: #f1f7f6;
+    -fx-border-color: #c9dce1;
+    -fx-cursor: hand;
+}
+
+.electronic-invoice-action-icon {
+    -fx-fill: transparent;
+    -fx-stroke: #345765;
+    -fx-stroke-width: 1.7;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+}
+
+.electronic-invoice-action-button:success {
+    -fx-background-color: #e8f5ee;
+    -fx-border-color: #b0d8c0;
+}
+
+.electronic-invoice-action-button:success .electronic-invoice-action-icon {
+    -fx-stroke: #19734b;
+}
+
+.electronic-invoice-action-button:error {
+    -fx-background-color: #fff0ec;
+    -fx-border-color: #ecc0b5;
+}
+
+.electronic-invoice-action-button:error .electronic-invoice-action-icon {
+    -fx-stroke: #b43e2d;
+}
+
+.electronic-invoice-action-button:hover {
+    -fx-opacity: 0.8;
+}
+
+.electronic-invoice-action-button:focused {
+    -fx-effect: dropshadow(gaussian, rgba(14, 143, 141, 0.45), 7, 0.3, 0, 0);
+}
+
+.electronic-invoice-pdf-mark {
+    -fx-font-size: 7px;
+    -fx-font-weight: 900;
+    -fx-text-fill: #b43e2d;
+}
+
+.invoice-send-popover {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 16;
+    -fx-border-color: #d4dddb;
+    -fx-border-radius: 16;
+    -fx-padding: 14;
+    -fx-effect: dropshadow(gaussian, rgba(25, 55, 65, 0.2), 20, 0.2, 0, 5);
+}
+
+.invoice-send-popover .menu-item,
+.invoice-send-popover .menu-item:focused {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.send-popover-content {
+    -fx-pref-width: 310;
+    -fx-min-width: 310;
+    -fx-max-width: 310;
+}
+
+.send-popover-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #173746;
+}
+
+.send-popover-feedback {
+    -fx-font-size: 12px;
+    -fx-text-fill: #51646b;
+}
+
+.invoice-send-popover .send-popover-button {
+    -fx-font-size: 12px;
+    -fx-padding: 7 12;
+}
+
 .surface-card {
     -fx-background-color: rgba(255, 255, 255, 0.92);
     -fx-background-radius: 28;
@@ -238,6 +477,16 @@
 
 .status-error {
     -fx-text-fill: #c53d2f;
+    -fx-font-weight: 700;
+}
+
+.status-success {
+    -fx-text-fill: #168765;
+    -fx-font-weight: 700;
+}
+
+.status-warning {
+    -fx-text-fill: #946017;
     -fx-font-weight: 700;
 }
 
@@ -452,6 +701,36 @@
 .invoice-workspace {
     -fx-spacing: 10;
     -fx-padding: 14;
+}
+
+.electronic-customer-dialog {
+    -fx-spacing: 8;
+    -fx-padding: 12;
+}
+
+.electronic-customer-dialog .surface-card {
+    -fx-spacing: 10;
+    -fx-padding: 12;
+}
+
+.electronic-customer-fields-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.electronic-customer-fields-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.electronic-customer-fields-scroll .scroll-bar:vertical {
+    -fx-pref-width: 10;
+}
+
+.electronic-customer-dialog-actions {
+    -fx-alignment: center-left;
+    -fx-padding: 2 0 0 0;
 }
 
 .invoice-main-screen {
@@ -1157,6 +1436,58 @@
 
 .sales-entry-card {
     -fx-padding: 14;
+}
+
+.sales-screen .sales-entry-card:electronic-invoicing .sales-item-action-button {
+    -fx-font-size: 14px;
+    -fx-padding: 8 10 8 10;
+}
+
+.electronic-client-selector {
+    -fx-alignment: center-left;
+}
+
+.electronic-client-add-button {
+    -fx-min-width: 21;
+    -fx-pref-width: 21;
+    -fx-max-width: 21;
+    -fx-min-height: 21;
+    -fx-pref-height: 21;
+    -fx-max-height: 21;
+    -fx-background-color: linear-gradient(to bottom right, #0e8f8d, #0b6d6c);
+    -fx-background-radius: 999;
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+    -fx-font-weight: 700;
+    -fx-padding: 0 0 2 0;
+    -fx-cursor: hand;
+}
+
+.electronic-client-add-button:hover {
+    -fx-background-color: linear-gradient(to bottom right, #14a49f, #0e7775);
+}
+
+.customer-autocomplete-menu {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 12;
+    -fx-padding: 5;
+    -fx-effect: dropshadow(gaussian, rgba(25, 55, 65, 0.20), 16, 0.25, 0, 5);
+}
+
+.customer-autocomplete-menu .menu-item {
+    -fx-background-radius: 8;
+    -fx-padding: 7 10 7 10;
+}
+
+.customer-autocomplete-menu .menu-item:focused,
+.customer-autocomplete-menu .menu-item.customer-autocomplete-selected {
+    -fx-background-color: rgba(14, 143, 141, 0.13);
+}
+
+.customer-autocomplete-option {
+    -fx-text-fill: #25414b;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
 }
 
 .sales-table-card {

@@ -11,6 +11,7 @@ public final class ApiPaths {
     public static final String PROVEEDORES = API_V1 + "/proveedores";
     public static final String FACTURAS = API_V1 + "/facturas-proveedor";
     public static final String ARTICULOS = API_V1 + "/articulos";
+    public static final String CLIENTES_ELECTRONICOS = API_V1 + "/clientes-electronicos";
 
     private ApiPaths() {
     }

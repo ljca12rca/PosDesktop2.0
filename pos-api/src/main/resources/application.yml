@@ -34,6 +34,8 @@ management:
 
 pos:
   timezone: ${POS_TIMEZONE:America/Bogota}
+  ventas:
+    local-prefix: ${POS_VENTAS_LOCAL_PREFIX:VTA}
   api:
     application-name: POS Desktop API
     version: v1
@@ -43,3 +45,21 @@ pos:
       storage-root: ${POS_DOCUMENT_STORAGE_ROOT:${user.home}/posdesktop-media}
   auth:
     session-hours: ${POS_AUTH_SESSION_HOURS:12}
+  facturacion-electronica:
+    # El modulo queda aislado hasta que se habilite explicitamente con credenciales de sandbox/produccion.
+    dataico:
+      enabled: true
+      base-url: ${POS_DATAICO_BASE_URL:https://api.dataico.com/direct/dataico_api/v2}
+      account-id: 002979c5-7c23-43ab-aa98-3fa7dce6e4d0
+      auth-token: dtk_l-1PVfXB3aqaoe8-73rl7aO4G627Zvq762vqTFXZvmA
+      configured-auth-token: dtk_l-1PVfXB3aqaoe8-73rl7aO4G627Zvq762vqTFXZvmA
+      # Este prefijo corresponde únicamente a la numeración autorizada en Dataico.
+      # No interviene en la numeración interna de ventas (pos.ventas.local-prefix).
+      prefix: FEE
+      resolution-number: 18760000001
+      initial-number: 1789500096
+      flexible: true
+      # La numeración FEE / 18760000001 consultada en Dataico corresponde a PRODUCCION.
+      environment: PRODUCCION
+      connect-timeout: ${POS_DATAICO_CONNECT_TIMEOUT:5s}
+      read-timeout: ${POS_DATAICO_READ_TIMEOUT:30s}
