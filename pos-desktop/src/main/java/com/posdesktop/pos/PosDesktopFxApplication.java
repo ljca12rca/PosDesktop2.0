@@ -1,7 +1,8 @@
 package com.posdesktop.pos;
 
 import com.posdesktop.pos.integration.PosApiClient;
-import com.posdesktop.pos.integration.DataicoPdfDownloader;
+import com.posdesktop.pos.integration.DataicoPdfPrinter;
+import com.posdesktop.pos.printing.ReceiptPaper;
 import java.awt.Desktop;
 import com.posdesktop.pos.mockfx.MockData;
 import java.io.BufferedReader;
@@ -128,8 +129,8 @@ public class PosDesktopFxApplication extends Application {
     private static final String SALES_PAYMENT_TRANSFER_QR = "TRANSFERENCIA (QR)";
     private static final List<MunicipioColombiano> MUNICIPIOS_COLOMBIANOS = cargarMunicipiosColombianos();
     private static final double RECEIPT_PREVIEW_WIDTH = 230;
-    private static final double RECEIPT_PAPER_WIDTH_POINTS = 226.8;
-    private static final double RECEIPT_MIN_PAPER_HEIGHT_POINTS = 260;
+    private static final double RECEIPT_PAPER_WIDTH_POINTS = ReceiptPaper.WIDTH_POINTS;
+    private static final double RECEIPT_MIN_PAPER_HEIGHT_POINTS = ReceiptPaper.MIN_HEIGHT_POINTS;
     private static final int RECEIPT_RIGHT_SAFETY_MARGIN_POINTS = 26;
     private static final String PERM_VENTAS_VIEW = "VENTAS_VIEW";
     private static final String PERM_VENTAS_EDIT = "VENTAS_EDIT";
@@ -2047,6 +2048,7 @@ public class PosDesktopFxApplication extends Application {
     ) {
         VBox card = createCard("", "");
         card.getStyleClass().add("sales-entry-card");
+        bindSalesStatusVisibility(statusLabel);
         card.pseudoClassStateChanged(ELECTRONIC_INVOICING, electronicInvoicingEnabled.get());
         electronicInvoicingEnabled.addListener((observable, previous, enabled) ->
                 card.pseudoClassStateChanged(ELECTRONIC_INVOICING, enabled));
@@ -2312,7 +2314,7 @@ public class PosDesktopFxApplication extends Application {
                 ? cliente
                 : null;
         if (emitirFacturaElectronica && clienteElectronico == null) {
-            setSalesStatusError(statusLabel, "Selecciona un cliente existente antes de facturar electrónicamente.");
+            setElectronicSalesStatus(statusLabel, "Selecciona un cliente existente antes de facturar electrónicamente.", "status-error");
             clienteField.requestFocus();
             return;
         }
@@ -2347,6 +2349,7 @@ public class PosDesktopFxApplication extends Application {
                 ))
                 .toList();
 
+        ElectronicPrintRequest electronicPrint = emitirFacturaElectronica ? new ElectronicPrintRequest(printReceiptCheck) : null;
         setSalesStatusInfo(statusLabel, "Registrando venta en la API...");
         runAsync(
                 () -> posApiClient.registrarVenta(new PosApiClient.RegistrarVentaRequest(
@@ -2362,11 +2365,12 @@ public class PosDesktopFxApplication extends Application {
                     clienteField.clear();
                     clienteField.setUserData(null);
                     paymentMethod.getSelectionModel().select(SALES_PAYMENT_CASH);
-                    printReceiptCheck.setSelected(false);
+                    if (!emitirFacturaElectronica) printReceiptCheck.setSelected(false);
                     setSalesStatusInfo(statusLabel, emitirFacturaElectronica
                             ? "Enviando factura a Dataico..."
                             : "Venta " + response.numeroVenta() + " registrada correctamente.");
-                    valorUnitarioField.requestFocus();
+                    if (emitirFacturaElectronica) statusLabel.getProperties().put("electronic-status", true);
+                    focusNewSale(clienteField, valorUnitarioField);
                     if (printReceipt && !emitirFacturaElectronica) {
                         showReceiptPreviewAndPrint(statusLabel.getScene().getWindow(), response);
                     }
@@ -2375,54 +2379,64 @@ public class PosDesktopFxApplication extends Application {
                         runAsync(
                                 () -> posApiClient.emitirFacturaElectronica(response.id(), customer.id()),
                                 electronicInvoice -> {
-                                    setSalesStatusSuccess(statusLabel, "Factura enviada con éxito a Dataico.");
+                                    setElectronicSalesStatus(statusLabel, "Factura enviada con éxito a Dataico.", "status-success");
                                     statusLabel.setTooltip(new Tooltip("Venta " + response.numeroVenta()
                                             + (electronicInvoice.numero() == null ? "" : " · Factura " + electronicInvoice.numero())
                                             + estadoDianEnMensaje(electronicInvoice.estadoDian())
                                             + (optionalText(electronicInvoice.mensaje()) == null ? "" : "\n" + electronicInvoice.mensaje())));
-                                    if (printReceipt) {
-                                        downloadDataicoReceipt(statusLabel, electronicInvoice);
+                                    if (electronicPrint.getAsBoolean()) {
+                                        printDataicoReceipt(statusLabel, electronicInvoice, electronicPrint);
+                                    } else {
+                                        electronicPrint.close();
                                     }
                                 },
                                 exception -> {
+                                    electronicPrint.close();
                                     if (exception instanceof java.net.http.HttpTimeoutException) {
-                                        setSalesStatusWarning(statusLabel, "Envío pendiente de confirmar. Venta guardada.");
+                                        setElectronicSalesStatus(statusLabel, "Envío pendiente de confirmar. Venta guardada.", "status-warning");
                                     } else {
-                                        setSalesStatusError(statusLabel, "No se pudo enviar a Dataico. Venta guardada.");
+                                        setElectronicSalesStatus(statusLabel, "No se pudo enviar a Dataico. Venta guardada.", "status-error");
                                     }
                                     statusLabel.setTooltip(new Tooltip("Venta " + response.numeroVenta() + "\n" + exception.getMessage()));
                                 }
                         );
                     }
                 },
-                exception -> setSalesStatusError(statusLabel, exception.getMessage())
+                exception -> {
+                    if (electronicPrint != null) electronicPrint.close();
+                    setSalesStatusError(statusLabel, exception.getMessage());
+                }
         );
     }
 
-    private void downloadDataicoReceipt(Label statusLabel, PosApiClient.ResultadoFacturaElectronicaResponse invoice) {
+    private void focusNewSale(TextField customerField, TextField unitPriceField) {
+        (electronicInvoicingEnabled.get() ? customerField : unitPriceField).requestFocus();
+    }
+
+    private void printDataicoReceipt(Label statusLabel, PosApiClient.ResultadoFacturaElectronicaResponse invoice,
+                                    ElectronicPrintRequest printRequest) {
         if (optionalText(invoice.pdfUrl()) == null) {
-            setSalesStatusWarning(statusLabel, "Factura enviada. PDF aún no disponible.");
+            printRequest.close();
+            setElectronicSalesStatus(statusLabel, "Factura enviada. PDF aún no disponible.", "status-warning");
             statusLabel.setTooltip(new Tooltip("Puedes consultar el PDF posteriormente en Facturas electrónicas."));
             return;
         }
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Guardar factura de Dataico");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documento PDF", "*.pdf"));
-        String numero = optionalText(invoice.numero()) == null ? "dataico" : invoice.numero();
-        chooser.setInitialFileName("Factura-" + numero.replaceAll("[^\\p{L}\\p{N}._-]", "_") + ".pdf");
-        File destino = chooser.showSaveDialog(statusLabel.getScene().getWindow());
-        if (destino == null) return;
-        Path destinoPdf = destino.toPath();
-        setSalesStatusInfo(statusLabel, "Factura enviada. Descargando PDF de Dataico...");
+        setElectronicSalesStatus(statusLabel, "Factura enviada. Preparando impresión...", null);
         runAsync(
-                () -> new DataicoPdfDownloader().descargar(invoice.pdfUrl(), destinoPdf),
-                guardado -> {
-                    setSalesStatusSuccess(statusLabel, "Factura enviada y PDF descargado.");
-                    statusLabel.setTooltip(new Tooltip(guardado.toString()));
+                () -> new DataicoPdfPrinter().imprimir(invoice.pdfUrl(), invoice.numero(), printRequest),
+                impresora -> {
+                    printRequest.close();
+                    setElectronicSalesStatus(statusLabel, "Factura enviada a impresión.", "status-success");
+                    statusLabel.setTooltip(new Tooltip("Impresora: " + impresora + " · Tamaño real (100 %). Revisa la cola si no sale el papel."));
                 },
                 exception -> {
-                    setSalesStatusWarning(statusLabel, "Factura enviada. No se pudo descargar el PDF.");
-                    statusLabel.setTooltip(new Tooltip("La venta y la factura siguen guardadas. Puedes descargar el PDF en Facturas electrónicas.\n"
+                    printRequest.close();
+                    if (exception instanceof java.util.concurrent.CancellationException) {
+                        setElectronicSalesStatus(statusLabel, "Factura enviada. Impresión cancelada.", "status-success");
+                        return;
+                    }
+                    setElectronicSalesStatus(statusLabel, "Factura enviada. No se pudo imprimir.", "status-warning");
+                    statusLabel.setTooltip(new Tooltip("La venta y la factura siguen guardadas. Puedes abrir el PDF en Facturas electrónicas.\n"
                             + exception.getMessage()));
                 }
         );
@@ -2505,7 +2519,22 @@ public class PosDesktopFxApplication extends Application {
         changeLabel.setText("Faltan: " + formatCurrency(diferencia.abs()));
     }
 
+    private void bindSalesStatusVisibility(Label statusLabel) {
+        statusLabel.visibleProperty().bind(Bindings.createBooleanBinding(
+                () -> electronicInvoicingEnabled.get()
+                        || !Boolean.TRUE.equals(statusLabel.getProperties().get("electronic-status")),
+                electronicInvoicingEnabled, statusLabel.getProperties()));
+        statusLabel.managedProperty().bind(statusLabel.visibleProperty());
+    }
+
+    private void setElectronicSalesStatus(Label statusLabel, String message, String style) {
+        setSalesStatusInfo(statusLabel, message);
+        if (style != null) statusLabel.getStyleClass().add(style);
+        statusLabel.getProperties().put("electronic-status", true);
+    }
+
     private void setSalesStatusInfo(Label statusLabel, String message) {
+        statusLabel.getProperties().remove("electronic-status");
         statusLabel.getStyleClass().remove("status-error");
         statusLabel.getStyleClass().remove("status-success");
         statusLabel.getStyleClass().remove("status-warning");
@@ -2514,6 +2543,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void setSalesStatusError(Label statusLabel, String message) {
+        statusLabel.getProperties().remove("electronic-status");
         statusLabel.getStyleClass().remove("status-success");
         statusLabel.getStyleClass().remove("status-warning");
         statusLabel.setTooltip(null);
@@ -2524,6 +2554,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private void setSalesStatusSuccess(Label statusLabel, String message) {
+        statusLabel.getProperties().remove("electronic-status");
         statusLabel.getStyleClass().remove("status-error");
         statusLabel.getStyleClass().remove("status-warning");
         statusLabel.setTooltip(null);
@@ -7726,7 +7757,7 @@ public class PosDesktopFxApplication extends Application {
                     },
                     exception -> {
                         customerField.setDisable(false);
-                        setSalesStatusError(statusLabel, "No se pudo cargar Consumidor final.");
+                        setElectronicSalesStatus(statusLabel, "No se pudo cargar Consumidor final.", "status-error");
                         statusLabel.setTooltip(new Tooltip(exception.getMessage()));
                         customerField.requestFocus();
                     }

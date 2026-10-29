@@ -50,6 +50,92 @@ class ElectronicInvoicesViewTest {
     }
 
     @Test
+    void desmarcarCancelaLaImpresionPendienteYNoLaReactivaAlMarcarDeNuevo() throws Exception {
+        fx(() -> {
+            CheckBox check = new CheckBox();
+            check.setSelected(true);
+            ElectronicPrintRequest pending = new ElectronicPrintRequest(check);
+            assertTrue(pending.getAsBoolean());
+            check.setSelected(false);
+            assertFalse(pending.getAsBoolean());
+            check.setSelected(true);
+            assertFalse(pending.getAsBoolean());
+            ElectronicPrintRequest next = new ElectronicPrintRequest(check);
+            pending.close();
+            assertTrue(check.isSelected());
+            assertTrue(next.getAsBoolean());
+            next.close();
+            assertFalse(check.isSelected());
+            ElectronicPrintRequest unchecked = new ElectronicPrintRequest(check);
+            check.setSelected(true);
+            assertFalse(unchecked.getAsBoolean());
+            unchecked.close();
+            assertTrue(check.isSelected());
+            return null;
+        });
+    }
+
+    @Test
+    void nuevaVentaElectronicaEnfocaClienteYVentaNormalEnfocaValor() throws Exception {
+        fx(() -> {
+            PosDesktopFxApplication app = new PosDesktopFxApplication();
+            Field mode = PosDesktopFxApplication.class.getDeclaredField("electronicInvoicingEnabled");
+            mode.setAccessible(true);
+            var enabled = (javafx.beans.property.BooleanProperty) mode.get(app);
+            TextField customer = new TextField();
+            TextField price = new TextField();
+            Scene scene = new Scene(new VBox(customer, price));
+            Method focus = PosDesktopFxApplication.class.getDeclaredMethod("focusNewSale", TextField.class, TextField.class);
+            focus.setAccessible(true);
+            enabled.set(true);
+            price.requestFocus();
+            focus.invoke(app, customer, price);
+            assertSame(customer, scene.getFocusOwner());
+            enabled.set(false);
+            focus.invoke(app, customer, price);
+            assertSame(price, scene.getFocusOwner());
+            return null;
+        });
+    }
+
+    @Test
+    void mensajesElectronicosSoloSeMuestranConLaLuzEncendida() throws Exception {
+        fx(() -> {
+            PosDesktopFxApplication app = new PosDesktopFxApplication();
+            Field mode = PosDesktopFxApplication.class.getDeclaredField("electronicInvoicingEnabled");
+            mode.setAccessible(true);
+            var enabled = (javafx.beans.property.BooleanProperty) mode.get(app);
+            Label status = new Label();
+            Method bind = PosDesktopFxApplication.class.getDeclaredMethod("bindSalesStatusVisibility", Label.class);
+            bind.setAccessible(true);
+            bind.invoke(app, status);
+            Method electronic = PosDesktopFxApplication.class.getDeclaredMethod(
+                    "setElectronicSalesStatus", Label.class, String.class, String.class);
+            electronic.setAccessible(true);
+            enabled.set(true);
+            electronic.invoke(app, status, "No se pudo cargar Consumidor final.", "status-error");
+            assertTrue(status.isVisible());
+            enabled.set(false);
+            assertFalse(status.isVisible());
+            assertFalse(status.isManaged());
+            // Una respuesta tardia tampoco debe aparecer en facturacion normal.
+            electronic.invoke(app, status, "No se pudo enviar a Dataico.", "status-error");
+            assertFalse(status.isVisible());
+            enabled.set(true);
+            assertTrue(status.isVisible());
+            assertTrue(status.isManaged());
+            enabled.set(false);
+            Method normal = PosDesktopFxApplication.class.getDeclaredMethod("setSalesStatusInfo", Label.class, String.class);
+            normal.setAccessible(true);
+            normal.invoke(app, status, "Articulo agregado a la tabla.");
+            assertTrue(status.isVisible());
+            assertTrue(status.isManaged());
+            assertFalse(status.getStyleClass().contains("status-error"));
+            return null;
+        });
+    }
+
+    @Test
     void configuracionDataicoCargaGuardaYExigeConfirmacionExplicita() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         AtomicReference<String> body = new AtomicReference<>();
