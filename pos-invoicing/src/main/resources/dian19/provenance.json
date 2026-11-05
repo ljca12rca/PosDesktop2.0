@@ -1,0 +1,131 @@
+{
+  "retrieved": "2026-10-30",
+  "zip_url": "https://www.dian.gov.co/impuestos/factura-electronica/Documents/Caja-de-herramientas-FE_V19_v2026.zip",
+  "pdf_url": "https://www.dian.gov.co/impuestos/factura-electronica/Documents/Anexo-Tecnico-Factura-Electronica-de-Venta-vr-1-9.pdf",
+  "zip_sha256": "036eac8ca529ee7d13601eebcd77f89394bcd83fb1220f723616292d30685b39",
+  "pdf_sha256": "1b4022ac112232cd525a455432b2bdfc977d2edcf14c1c7aa26f8ba93fe47ded",
+  "sources": [
+    {
+      "table": "environment",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.1.1. Ambiente de Destino del Documento cbc ProfileExecutionID y cbc UUID @schemeID.xlsx",
+      "sha256": "eea987869bfd6c2372e412cf13b27a4b8b9fc491a52f8485003fdcb2dc52687d"
+    },
+    {
+      "table": "document",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.1.3 Tipo de Documento.xlsx",
+      "sha256": "931322bb8cd8c69882f57f6fb69646b77ca448976b4b336411f348b5bcf28cff"
+    },
+    {
+      "table": "operation",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.1.5.1 Tipos de operación.xlsx",
+      "sha256": "ee20dae21787029b8d97245821971ca10045c74a982b076ba21d3a103e782b05"
+    },
+    {
+      "table": "identification",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.2.1 Documento de identificación (Tipo de Identificador Fiscal).xlsx",
+      "sha256": "cddf3b2f221487925377c70650ed928d39fdfcf16e4ceb0f8122b34ea7e70fa2"
+    },
+    {
+      "table": "tax",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.2.2 Tributos.xlsx",
+      "sha256": "85047b3429ed57b6a7937d8c8787e2129883b3bb7649f15b8ad92ed93ef86cea"
+    },
+    {
+      "table": "organization",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.2.3. Tipo de organización jurídica (Personas Natural y Juridica) cbc AdditionalAccountID.xlsx",
+      "sha256": "9656a0689aa5516aecac1131f6f841c5305f579a76df379ca916d41bb80b295c"
+    },
+    {
+      "table": "responsibility",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.2.6.1 Responsabilidades fiscales.xlsx",
+      "sha256": "fa53659acdada05d610df028018f6458f9a745039da2f03475acb3b1a2348dfc"
+    },
+    {
+      "table": "party-tax",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.2.6.2. Para el grupo PartyTaxScheme.xlsx",
+      "sha256": "17180fc5142ced3f3342050b7cbbc4524b2c0502d1b08b6e93f2fd05dcb88d9f"
+    },
+    {
+      "table": "payment-form",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.3.4.1. Formas de Pago cbc PaymentMeans ID.xlsx",
+      "sha256": "c21d2095f77defade00d98bf730e0e9b695111bc38fa303e5cf749cb45e89da8"
+    },
+    {
+      "table": "payment-means",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.3.4.2 Medios de Pago PaymentMeansCode.xlsx",
+      "sha256": "c085486ff9b939d97e72276a4323126f8c462f74f6f7b3aca1ea3fc1b9f291e1"
+    },
+    {
+      "table": "unit",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.3.6 Unidades de Cantidad @unitCode.xlsx",
+      "sha256": "64600b5f43e79b80e41f1b23f2f906e316b47e2aa8325a24f0fcbfc962656770"
+    },
+    {
+      "table": "adjustment",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.3.8. Códigos de descuento y recargos.xlsx",
+      "sha256": "7066711cafe9c6431398f38e5c3e2d1397e4872b4b6abab8f3f4ecf5f298a66a"
+    },
+    {
+      "table": "country",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.4.1 Países (ISO 3166-1) IdentificationCode.xlsx",
+      "sha256": "0447c2863369f9067547606df8bfe62a44096e0f8e7ba0338662d61a0dc79e39"
+    },
+    {
+      "table": "department",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.4.2 Departamentos ISO 3166-2CO CountrySubentity, CountrySubentityCode.xlsx",
+      "sha256": "87b665bf5c727e6d5ef461ef98a6ced36702d861184c5421f3401ef63159eabf"
+    },
+    {
+      "table": "municipality",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.4.3 Municipios-CityName.xlsx",
+      "sha256": "8ec83735c37dd89f45b1797f3e75c721683bac85038aa08569c5b61f98314e3b"
+    },
+    {
+      "table": "rates",
+      "source": "Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.3.11 Tablas de tarifas por Impuesto.xlsx",
+      "sha256": "3f36e14573a2fce3590df14c1711821e071b81c7040fccbb05180eb4701e0445"
+    },
+    {
+      "local_correction": "DIAN_UBL_Structures-profile19.xsd",
+      "field": "coID2Type/@schemeID",
+      "reason": "DV 0..9 segun anexo FAC y ejemplos; original preservado",
+      "original_sha256": "41ead5af3ea44f1014be098061c62f8d1bfd7f7b8726997836b66e8955036a2c",
+      "corrected_sha256": "d4fc2d52dd008a111f999e9fed7f29b6055a8c59fb857e246e2e533a4cebe436"
+    },
+    {
+      "example": "generic.xml",
+      "source": "Caja de herramientas FE_V19_(v2026)/Ejemplificaciones/XMLs de ejemplo/Generica.xml",
+      "sha256": "b8973b27748d417f3e4a0fca9beb50ce435a041e2d096301d3c259898b94d408"
+    },
+    {
+      "example": "exempt.xml",
+      "source": "Caja de herramientas FE_V19_(v2026)/Ejemplificaciones/XMLs de ejemplo/Exento de IVA.xml",
+      "sha256": "fbf49404537ba39a99ba37b83d4fb6aab86b3c00e6fb0e3ca5da5b4d93d44aee"
+    },
+    {
+      "example": "excluded.xml",
+      "source": "Caja de herramientas FE_V19_(v2026)/Ejemplificaciones/XMLs de ejemplo/Excluido de IVA.xml",
+      "sha256": "cf6d0266b419414ea851ca7b12b971e49697593f21890848b635445e248fd431"
+    },
+    {
+      "example": "mixed.xml",
+      "source": "Caja de herramientas FE_V19_(v2026)/Ejemplificaciones/XMLs de ejemplo/ExcluidosExentos.xml",
+      "sha256": "9b36193fcfe3336cdc4ac4ea3322de040563e645162245781ad5dfbc7280ea5b"
+    },
+    {
+      "example": "ibua.xml",
+      "source": "Caja de herramientas FE_V19_(v2026)/Ejemplificaciones/XMLs de ejemplo/ejemplificacionIBUA.xml",
+      "sha256": "20f91e4e7a8f7a3787042a021f6ef0346450a70411fbedd55ebf4c08c81a50e5"
+    },
+    {
+      "example": "icui.xml",
+      "source": "Caja de herramientas FE_V19_(v2026)/Ejemplificaciones/XMLs de ejemplo/ejemplificacionICUI.xml",
+      "sha256": "7d70d5c5c2aa6f3af1e9488de7d1641ee0cdc5be3915c13642b14e9c6a18fb9a"
+    },
+    {
+      "example": "withholding.xml",
+      "source": "Caja de herramientas FE_V19_(v2026)/Ejemplificaciones/XMLs de ejemplo/EmisorAutoretenedor.xml",
+      "sha256": "d91b4b83b2f02bcde03549c28860563dd8182b8365504f82789eb59221aa8707"
+    }
+  ]
+}

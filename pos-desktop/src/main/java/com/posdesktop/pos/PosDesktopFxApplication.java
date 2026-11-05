@@ -513,7 +513,8 @@ public class PosDesktopFxApplication extends Application {
             if (Set.of("Cierre", "Separados", "Movimientos").contains(key)) {
                 button.visibleProperty().bind(electronicInvoicingEnabled.not());
                 button.managedProperty().bind(button.visibleProperty());
-            } else if ("Configuración Dataico".equals(key)) {
+            } else if (isElectronicOnlyScreen(key)) {
+                button.setWrapText(true);
                 button.visibleProperty().bind(electronicInvoicingEnabled);
                 button.managedProperty().bind(button.visibleProperty());
             }
@@ -524,7 +525,7 @@ public class PosDesktopFxApplication extends Application {
             ((ToggleButton) navButtons.getChildren().get(0)).setSelected(true);
         }
         electronicInvoiceToggle.selectedProperty().addListener((observable, previous, enabled) -> {
-            if (!enabled && "Configuración Dataico".equals(currentScreenKey)) {
+            if (!enabled && isElectronicOnlyScreen(currentScreenKey)) {
                 ToggleButton target = navButtons.getChildren().stream().filter(Node::isVisible)
                         .map(node -> (ToggleButton) node).findFirst().orElse(null);
                 if (target != null) {
@@ -555,9 +556,25 @@ public class PosDesktopFxApplication extends Application {
         return sidebar;
     }
 
+    private static boolean isElectronicOnlyScreen(String key) {
+        return key != null && Set.of("Configuración Dataico", "Configuración electrónica", "Documentos fiscales").contains(key);
+    }
+
+    private Node createFiscalSettingsScreen() {
+        VBox root = createScreenContainer("Configuración electrónica", "Selecciona proveedor y configura DIAN por ambiente.");
+        root.getChildren().add(new com.posdesktop.pos.fiscal.FiscalSettingsPane(posApiClient));
+        return root;
+    }
+
+    private Node createFiscalDocumentsScreen() {
+        VBox root = createScreenContainer("Documentos fiscales", "Consulta snapshots, XML locales y el estado de los intentos de envío.");
+        root.getChildren().add(new com.posdesktop.pos.fiscal.FiscalDocumentsPane(posApiClient,hasPermission(PERM_VENTAS_EDIT)));
+        return root;
+    }
+
     private void showScreen(String key) {
-        if ("Configuración Dataico".equals(key) && !electronicInvoicingEnabled.get()) {
-            String fallback = screenFactories.keySet().stream().filter(value -> !"Configuración Dataico".equals(value))
+        if (isElectronicOnlyScreen(key) && !electronicInvoicingEnabled.get()) {
+            String fallback = screenFactories.keySet().stream().filter(value -> !isElectronicOnlyScreen(value))
                     .findFirst().orElse("Acceso");
             showScreen(fallback);
             return;
@@ -595,9 +612,11 @@ public class PosDesktopFxApplication extends Application {
         }
         if (hasPermission(PERM_VENTAS_VIEW)) {
             screenFactories.put("Facturas electrónicas", this::createElectronicInvoicesScreen);
+            screenFactories.put("Documentos fiscales", this::createFiscalDocumentsScreen);
         }
         if (authenticatedSession != null && authenticatedSession.roles() != null && authenticatedSession.roles().contains("ADMIN")) {
             screenFactories.put("Configuración Dataico", this::createDataicoSettingsScreen);
+            screenFactories.put("Configuración electrónica", this::createFiscalSettingsScreen);
         }
         if (screenFactories.isEmpty()) {
             screenFactories.put("Acceso", this::createNoAccessScreen);
@@ -2367,7 +2386,7 @@ public class PosDesktopFxApplication extends Application {
                     paymentMethod.getSelectionModel().select(SALES_PAYMENT_CASH);
                     if (!emitirFacturaElectronica) printReceiptCheck.setSelected(false);
                     setSalesStatusInfo(statusLabel, emitirFacturaElectronica
-                            ? "Enviando factura a Dataico..."
+                            ? "Procesando facturación electrónica..."
                             : "Venta " + response.numeroVenta() + " registrada correctamente.");
                     if (emitirFacturaElectronica) statusLabel.getProperties().put("electronic-status", true);
                     focusNewSale(clienteField, valorUnitarioField);
@@ -2377,8 +2396,22 @@ public class PosDesktopFxApplication extends Application {
                     if (emitirFacturaElectronica) {
                         PosApiClient.ClienteElectronicoResponse customer = clienteElectronico;
                         runAsync(
-                                () -> posApiClient.emitirFacturaElectronica(response.id(), customer.id()),
-                                electronicInvoice -> {
+                                () -> {
+                                    var provider = posApiClient.consultarProveedorFiscal();
+                                    if ("DIAN_DIRECT".equals(provider.provider())) return new ElectronicSaleOutcome(provider.provider(),null);
+                                    return new ElectronicSaleOutcome(provider.provider(),posApiClient.emitirFacturaElectronica(response.id(), customer.id()));
+                                },
+                                outcome -> {
+                                    if ("DIAN_DIRECT".equals(outcome.provider())) {
+                                        electronicPrint.close();
+                                        setElectronicSalesStatus(statusLabel,"Venta guardada. Completa el borrador DIAN.","status-warning");
+                                        com.posdesktop.pos.fiscal.FiscalDocumentsPane.showDraft(statusLabel.getScene().getWindow(),posApiClient,response,customer.id(),customer.nombreFactura(),draft -> {
+                                            setElectronicSalesStatus(statusLabel,"Borrador DIAN guardado. Sin firma ni envío.","status-warning");
+                                            statusLabel.setTooltip(new Tooltip("Documento " + draft.number() + " · Disponible en Documentos fiscales."));
+                                        });
+                                        return;
+                                    }
+                                    var electronicInvoice = outcome.invoice();
                                     setElectronicSalesStatus(statusLabel, "Factura enviada con éxito a Dataico.", "status-success");
                                     statusLabel.setTooltip(new Tooltip("Venta " + response.numeroVenta()
                                             + (electronicInvoice.numero() == null ? "" : " · Factura " + electronicInvoice.numero())
@@ -2395,7 +2428,7 @@ public class PosDesktopFxApplication extends Application {
                                     if (exception instanceof java.net.http.HttpTimeoutException) {
                                         setElectronicSalesStatus(statusLabel, "Envío pendiente de confirmar. Venta guardada.", "status-warning");
                                     } else {
-                                        setElectronicSalesStatus(statusLabel, "No se pudo enviar a Dataico. Venta guardada.", "status-error");
+                                        setElectronicSalesStatus(statusLabel, "No se pudo confirmar la facturación. Venta guardada.", "status-error");
                                     }
                                     statusLabel.setTooltip(new Tooltip("Venta " + response.numeroVenta() + "\n" + exception.getMessage()));
                                 }
@@ -2408,6 +2441,8 @@ public class PosDesktopFxApplication extends Application {
                 }
         );
     }
+
+    private record ElectronicSaleOutcome(String provider,PosApiClient.ResultadoFacturaElectronicaResponse invoice) { }
 
     private void focusNewSale(TextField customerField, TextField unitPriceField) {
         (electronicInvoicingEnabled.get() ? customerField : unitPriceField).requestFocus();

@@ -9,6 +9,7 @@ on:
       - ".dockerignore"
       - "pom.xml"
       - "pos-domain/**"
+      - "pos-invoicing/**"
       - "pos-api/**"
   workflow_dispatch:
 

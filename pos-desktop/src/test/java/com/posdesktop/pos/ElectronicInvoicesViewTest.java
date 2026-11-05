@@ -529,6 +529,122 @@ class ElectronicInvoicesViewTest {
     }
 
     private static Label label(VBox root, String selector) { return (Label) root.lookup(selector); }
+    @Test
+    void configuracionFiscalSeparaAmbientesLimpiaSecretosYNoDesborda() throws Exception {
+        AtomicReference<String> savedProvider=new AtomicReference<>();
+        AtomicReference<Boolean> fail=new AtomicReference<>(false);
+        HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/facturacion/",exchange->{String path=exchange.getRequestURI().getPath();String body;
+            if(path.equals("/facturacion/proveedor")) {
+                if("PUT".equals(exchange.getRequestMethod()))savedProvider.set(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));
+                body="{\"success\":true,\"data\":{\"provider\":\"DATAICO\",\"version\":0,\"directEmissionEnabled\":false}}";
+            } else {
+                String env=path.endsWith("PRODUCCION")?"PRODUCCION":"PRUEBAS";
+                body="{\"success\":true,\"data\":{\"environment\":\""+env+"\",\"version\":0,\"configuration\":null,\"technicalKeyConfigured\":false,\"softwarePinConfigured\":false,\"certificateConfigured\":false}}";
+            }
+            if(fail.get())body="{\"success\":false,\"message\":\"Error de prueba\"}";
+            try(exchange){byte[] bytes=body.getBytes(StandardCharsets.UTF_8);exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(fail.get()?500:200,bytes.length);exchange.getResponseBody().write(bytes);}
+        });server.start();
+        try {
+            VBox root=fx(()->{
+                var pane=new com.posdesktop.pos.fiscal.FiscalSettingsPane(new PosApiClient("http://127.0.0.1:"+server.getAddress().getPort()));
+                VBox view=new VBox(pane);Scene scene=new Scene(view,1150,800);scene.getStylesheets().add(PosDesktopFxApplication.class.getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());view.resize(1150,800);view.applyCss();view.layout();return view;
+            });
+            waitUntil(()->!((Button)root.lookup("#dian-settings-save")).isDisabled()&&!((Button)root.lookup("#fiscal-provider-save")).isDisabled());
+            fx(()->{
+                ((TextField)root.lookup("#dian-nit")).setText("860324218");((PasswordField)root.lookup("#dian-software-pin")).setText("PIN-LOCAL-PRUEBA");
+                ((javafx.scene.control.ComboBox<?>)root.lookup("#fiscal-provider")).getSelectionModel().selectLast();((Button)root.lookup("#fiscal-provider-save")).fire();
+                snapshot(root,"fiscal-settings-wide",1150,1800);snapshot(root,"fiscal-settings-narrow",740,2400);
+                for(Node node:root.lookupAll(".fiscal-flow")) {FlowPane row=(FlowPane)node;for(Node child:row.getChildren())assertTrue(child.getBoundsInParent().getMaxX()<=row.getWidth()+1,"Los campos fiscales deben envolver a la siguiente fila.");}
+                return null;
+            });
+            waitUntil(()->savedProvider.get()!=null);assertTrue(savedProvider.get().contains("DIAN_DIRECT"));
+            fx(()->{((javafx.scene.control.ComboBox<?>)root.lookup("#dian-settings-environment")).getSelectionModel().selectLast();return null;});
+            waitUntil(()->((Label)root.lookup("#dian-settings-status")).getText().contains("PRODUCCION cargada"));
+            fx(()->{assertEquals("",((TextField)root.lookup("#dian-nit")).getText());assertEquals("",((PasswordField)root.lookup("#dian-software-pin")).getText());return null;});
+            fail.set(true);fx(()->{((Button)root.lookup("#dian-settings-reload")).fire();return null;});
+            waitUntil(()->((Label)root.lookup("#dian-settings-status")).getText().contains("No se pudo confirmar"));
+            assertTrue(fx(()->((Button)root.lookup("#dian-settings-save")).isDisabled()));
+        } finally {server.stop(0);}
+    }
+
+    @Test
+    void documentosFiscalesDistinguenBorradorDeIntentoYRespetanPermisoDeEdicion() throws Exception {
+        HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/facturacion/documentos",exchange->{String body="""
+            {"success":true,"data":[
+              {"id":"1","saleId":"s1","customerId":"c1","provider":"DATAICO","purpose":"ENVIO","environment":"PRUEBAS","number":"TEST1","customer":"Cliente de prueba","total":100,"state":"INCIERTO","createdAt":"2026-10-30T10:00:00"},
+              {"id":"2","saleId":"s2","customerId":"c2","provider":"DIAN_DIRECT","purpose":"BORRADOR","environment":"PRUEBAS","number":"TEST2","customer":"Cliente de prueba","total":100,"state":"BORRADOR_SIN_FIRMA","createdAt":"2026-10-30T10:00:00"}
+            ]}
+            """;try(exchange){byte[] bytes=body.getBytes(StandardCharsets.UTF_8);exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(200,bytes.length);exchange.getResponseBody().write(bytes);}});server.start();
+        try {
+            VBox root=fx(()->{var pane=new com.posdesktop.pos.fiscal.FiscalDocumentsPane(new PosApiClient("http://127.0.0.1:"+server.getAddress().getPort()),true);VBox view=new VBox(pane);Scene scene=new Scene(view,1150,740);scene.getStylesheets().add(PosDesktopFxApplication.class.getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());return view;});
+            waitUntil(()->!((Button)root.lookup("#fiscal-documents-reload")).isDisabled());
+            fx(()->{
+                var table=(javafx.scene.control.TableView<?>)root.lookup("#fiscal-documents-table");assertEquals(2,table.getItems().size());
+                table.getSelectionModel().selectFirst();assertFalse(((Button)root.lookup("#fiscal-attempt-consult")).isDisabled());assertTrue(((Button)root.lookup("#fiscal-attempt-retry")).isDisabled());
+                table.getSelectionModel().selectLast();assertTrue(((Button)root.lookup("#fiscal-attempt-consult")).isDisabled());assertTrue(((Button)root.lookup("#fiscal-attempt-retry")).isDisabled());
+                snapshot(root,"fiscal-documents-wide",1150,740);return null;
+            });
+        }finally{server.stop(0);}
+    }
+    @Test
+    void evidenciaPermiteFirmaDePruebaYVerificacionSinEnviarFactura()throws Exception {
+        var signed=new java.util.concurrent.atomic.AtomicBoolean();var verified=new java.util.concurrent.atomic.AtomicBoolean();
+        var unexpected=new java.util.concurrent.atomic.AtomicInteger();
+        HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        String summary="\"id\":\"local-1\",\"saleId\":\"sale\",\"customerId\":\"customer\",\"provider\":\"DIAN_DIRECT\",\"purpose\":\"BORRADOR\",\"environment\":\"PRUEBAS\",\"number\":\"PRUEBA1\",\"customer\":\"Cliente de prueba\",\"total\":100,\"createdAt\":\"2026-10-30T10:00:00\"";
+        server.createContext("/",exchange->{String path=exchange.getRequestURI().getPath(),body;
+            String s="{"+summary+",\"state\":\""+(signed.get()?"FIRMADO_LOCAL":"BORRADOR_SIN_FIRMA")+"\"}";
+            if(path.equals("/facturacion/documentos"))body="{\"success\":true,\"data\":["+s+"]}";
+            else if(path.equals("/facturacion/documentos/local-1"))body="{\"success\":true,\"data\":{\"summary\":"+s+",\"format\":\""+(signed.get()?"DIAN_SIGNED_LOCAL_V1":"DIAN_INVOICE_V1")+"\",\"snapshot\":\"{}\",\"xml\":\"<Invoice/>\",\"hash\":\"huella-local\",\"events\":[]}}";
+            else if(path.equals("/facturacion/documentos/local-1/firma-local")&&"POST".equals(exchange.getRequestMethod())){signed.set(true);body="{\"success\":true,\"data\":{\"id\":\"local-1\",\"number\":\"PRUEBA1\",\"state\":\"FIRMADO_LOCAL\",\"signatureValid\":true,\"trustVerified\":false,\"readyToTransmit\":false}}";}
+            else if(path.endsWith("/firma-local/validacion")){verified.set(true);body="{\"success\":true,\"data\":{\"valid\":true,\"trustVerified\":false,\"readyToTransmit\":false,\"issues\":[]}}";}
+            else{unexpected.incrementAndGet();body="{\"success\":false}";}
+            try(exchange){byte[] bytes=body.getBytes(StandardCharsets.UTF_8);exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(200,bytes.length);exchange.getResponseBody().write(bytes);}
+        });server.start();
+        try {
+            VBox root=fx(()->{VBox view=new VBox(new com.posdesktop.pos.fiscal.FiscalDocumentsPane(new PosApiClient("http://127.0.0.1:"+server.getAddress().getPort()),true));new Scene(view,1150,740);return view;});
+            waitUntil(()->!((Button)root.lookup("#fiscal-documents-reload")).isDisabled());
+            fx(()->{((javafx.scene.control.TableView<?>)root.lookup("#fiscal-documents-table")).getSelectionModel().selectFirst();((Button)root.lookup("#fiscal-document-view")).fire();return null;});
+            waitUntil(()->javafx.stage.Window.getWindows().stream().anyMatch(w->w.getScene().lookup("#fiscal-sign-local")!=null));
+            fx(()->{var window=javafx.stage.Window.getWindows().stream().filter(w->w.getScene().lookup("#fiscal-sign-local")!=null).findFirst().orElseThrow();
+                Button sign=(Button)window.getScene().lookup("#fiscal-sign-local");assertTrue(sign.isVisible());assertFalse(window.getScene().lookup("#fiscal-verify-local").isVisible());
+                snapshot((VBox)((javafx.scene.control.ScrollPane)window.getScene().getRoot()).getContent(),"fiscal-evidence-sign",900,680);sign.fire();return null;});
+            waitUntil(()->signed.get()&&!((Button)root.lookup("#fiscal-documents-reload")).isDisabled());
+            fx(()->{javafx.stage.Window.getWindows().stream().filter(w->w instanceof javafx.stage.Stage).toList().forEach(w->((javafx.stage.Stage)w).close());
+                ((javafx.scene.control.TableView<?>)root.lookup("#fiscal-documents-table")).getSelectionModel().selectFirst();((Button)root.lookup("#fiscal-document-view")).fire();return null;});
+            waitUntil(()->javafx.stage.Window.getWindows().stream().anyMatch(w->{var v=w.getScene().lookup("#fiscal-verify-local");return v!=null&&v.isVisible();}));
+            fx(()->{var window=javafx.stage.Window.getWindows().stream().filter(w->w.getScene().lookup("#fiscal-verify-local")!=null).findFirst().orElseThrow();assertFalse(window.getScene().lookup("#fiscal-sign-local").isVisible());((Button)window.getScene().lookup("#fiscal-verify-local")).fire();return null;});
+            waitUntil(verified::get);assertEquals(0,unexpected.get());
+        }finally{fx(()->{javafx.stage.Window.getWindows().stream().filter(w->w instanceof javafx.stage.Stage).toList().forEach(w->((javafx.stage.Stage)w).close());return null;});server.stop(0);}
+    }
+    private static void waitUntil(Callable<Boolean> condition) throws Exception {for(int i=0;i<150;i++){if(fx(condition))return;Thread.sleep(30);}fail("La vista fiscal no terminó de actualizarse.");}
+    @Test
+    void borradorDianExigeClasificacionExplicitaYGuardaSinPedirEnvio() throws Exception {
+        AtomicReference<String> sent=new AtomicReference<>(),saved=new AtomicReference<>();java.util.concurrent.atomic.AtomicInteger unexpected=new java.util.concurrent.atomic.AtomicInteger();
+        String saleId="11111111-1111-4111-8111-111111111111",customerId="22222222-2222-4222-8222-222222222222";
+        HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/",exchange->{String path=exchange.getRequestURI().getPath(),body;
+            if(path.equals("/facturacion/dian/preparacion/PRUEBAS"))body="{\"success\":true,\"data\":{\"environment\":\"PRUEBAS\",\"configurationVersion\":1,\"prefix\":\"PRUEBA\",\"previewNumber\":1,\"validFrom\":\"2026-01-01\",\"validUntil\":\"2026-12-31\",\"issuerName\":\"EMPRESA FICTICIA\",\"secretsConfigured\":true}}";
+            else if(path.equals("/facturacion/ventas/"+saleId+"/borrador")){sent.set(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));body="{\"success\":true,\"data\":{\"id\":\"draft-1\",\"number\":\"PRUEBA1\",\"state\":\"BORRADOR_SIN_FIRMA\",\"xml\":\"<Invoice/>\",\"hash\":\"solo-prueba-ui\",\"readyToTransmit\":false}}";}
+            else {unexpected.incrementAndGet();body="{\"success\":false,\"message\":\"Ruta inesperada\"}";}
+            try(exchange){byte[] bytes=body.getBytes(StandardCharsets.UTF_8);exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(200,bytes.length);exchange.getResponseBody().write(bytes);}});server.start();
+        try{
+            VBox root=fx(()->{var detail=new PosApiClient.DetalleVentaResponse("detail",1,"ARTÍCULO DE PRUEBA",java.math.BigDecimal.ONE,new java.math.BigDecimal("100"),new java.math.BigDecimal("100"),new java.math.BigDecimal("100"));
+                var sale=new PosApiClient.VentaRegistradaResponse(saleId,"VTA-PRUEBA",java.time.LocalDateTime.of(2026,10,30,10,30),new java.math.BigDecimal("100"),new java.math.BigDecimal("100"),new java.math.BigDecimal("100"),java.math.BigDecimal.ZERO,1,java.util.List.of(detail));
+                var pane=new com.posdesktop.pos.fiscal.DianDraftPane(new PosApiClient("http://127.0.0.1:"+server.getAddress().getPort()),sale,customerId,"Cliente de prueba",r->saved.set(r.state()));
+                VBox view=new VBox(pane);Scene scene=new Scene(view,1040,840);scene.getStylesheets().add(PosDesktopFxApplication.class.getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());view.resize(1040,840);view.applyCss();view.layout();return view;});
+            waitUntil(()->!((Button)root.lookup("#dian-draft-generate")).isDisabled());
+            fx(()->{((Button)root.lookup("#dian-draft-generate")).fire();assertNull(sent.get());
+                ((TextField)root.lookup("#dian-customer-duties")).setText("R-99-PN");
+                ((javafx.scene.control.ComboBox<?>)root.lookup("#dian-customer-tax")).getSelectionModel().selectLast();
+                for(String id:new String[]{"#dian-payment-form","#dian-payment-means","#dian-line-unit"})((javafx.scene.control.ComboBox<?>)root.lookup(id)).getSelectionModel().selectFirst();
+                ((javafx.scene.control.ComboBox<?>)root.lookup("#dian-line-treatment-1")).getSelectionModel().selectLast();
+                snapshot(root,"dian-draft-form",1040,900);((Button)root.lookup("#dian-draft-generate")).fire();return null;});
+            waitUntil(()->saved.get()!=null);assertEquals("BORRADOR_SIN_FIRMA",saved.get());assertTrue(sent.get().contains("EXCLUDED"));assertTrue(sent.get().contains(customerId));assertEquals(0,unexpected.get());
+        }finally{server.stop(0);}
+    }
     private static Button boton(VBox root) { return (Button) root.lookup(".electronic-invoice-filter-action"); }
 
     private static void esperarConsulta(VBox root) throws Exception {

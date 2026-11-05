@@ -1,0 +1,2670 @@
+adjustment	00	Descuento no condicionado *
+adjustment	01	Descuento condicionado **
+adjustment	02	Recargo no condicionado *
+adjustment	03	Recargo condicionado **
+country	AD	Andorra
+country	AE	Emiratos Árabes Unidos
+country	AF	Afganistán
+country	AG	Antigua y Barbuda
+country	AI	Anguila
+country	AL	Albania
+country	AM	Armenia
+country	AO	Angola
+country	AQ	Antártida
+country	AR	Argentina
+country	AS	Samoa Americana
+country	AT	Austria
+country	AU	Australia
+country	AW	Aruba
+country	AX	Åland
+country	AZ	Azerbaiyán
+country	BA	Bosnia y Herzegovina
+country	BB	Barbados
+country	BD	Bangladés
+country	BE	Bélgica
+country	BF	Burkina Faso
+country	BG	Bulgaria
+country	BH	Baréin
+country	BI	Burundi
+country	BJ	Benín
+country	BL	San Bartolomé
+country	BM	Bermudas
+country	BN	Brunéi
+country	BO	Bolivia
+country	BQ	Bonaire, San Eustaquio y Saba
+country	BR	Brasil
+country	BS	Bahamas
+country	BT	Bután
+country	BV	Isla Bouvet
+country	BW	Botsuana
+country	BY	Bielorrusia
+country	BZ	Belice
+country	CA	Canadá
+country	CC	Islas Cocos
+country	CD	República Democrática del Congo
+country	CF	República Centroafricana
+country	CG	República del Congo
+country	CH	Suiza
+country	CI	Costa de Marfil
+country	CK	Islas Cook
+country	CL	Chile
+country	CM	Camerún
+country	CN	China
+country	CO	Colombia
+country	CR	Costa Rica
+country	CU	Cuba
+country	CV	Cabo Verde
+country	CW	Curazao
+country	CX	Isla de Navidad
+country	CY	Chipre
+country	CZ	República Checa
+country	DE	Alemania
+country	DJ	Yibuti
+country	DK	Dinamarca
+country	DM	Dominica
+country	DO	República Dominicana
+country	DZ	Argelia
+country	EC	Ecuador
+country	EE	Estonia
+country	EG	Egipto
+country	EH	República Árabe Saharaui Democrática
+country	ER	Eritrea
+country	ES	España
+country	ET	Etiopía
+country	FI	Finlandia
+country	FJ	Fiyi
+country	FK	Islas Malvinas
+country	FM	Micronesia
+country	FO	Islas Feroe
+country	FR	Francia
+country	GA	Gabón
+country	GB	Reino Unido
+country	GD	Granada
+country	GE	Georgia
+country	GF	Guayana Francesa
+country	GG	Guernsey
+country	GH	Ghana
+country	GI	Gibraltar
+country	GL	Groenlandia
+country	GM	Gambia
+country	GN	Guinea
+country	GP	Guadalupe
+country	GQ	Guinea Ecuatorial
+country	GR	Grecia
+country	GS	Islas Georgias del Sur y Sandwich del Sur
+country	GT	Guatemala
+country	GU	Guam
+country	GW	Guinea-Bisáu
+country	GY	Guyana
+country	HK	Hong Kong
+country	HM	Islas Heard y McDonald
+country	HN	Honduras
+country	HR	Croacia
+country	HT	Haití
+country	HU	Hungría
+country	ID	Indonesia
+country	IE	Irlanda
+country	IL	Israel
+country	IM	Isla de Man
+country	IN	India
+country	IO	Territorio Británico del Océano Índico
+country	IQ	Irak
+country	IR	Irán
+country	IS	Islandia
+country	IT	Italia
+country	JE	Jersey
+country	JM	Jamaica
+country	JO	Jordania
+country	JP	Japón
+country	KE	Kenia
+country	KG	Kirguistán
+country	KH	Camboya
+country	KI	Kiribati
+country	KM	Comoras
+country	KN	San Cristóbal y Nieves
+country	KP	Corea del Norte
+country	KR	Corea del Sur
+country	KW	Kuwait
+country	KY	Islas Caimán
+country	KZ	Kazajistán
+country	LA	Laos
+country	LB	Líbano
+country	LC	Santa Lucía
+country	LI	Liechtenstein
+country	LK	Sri Lanka
+country	LR	Liberia
+country	LS	Lesoto
+country	LT	Lituania
+country	LU	Luxemburgo
+country	LV	Letonia
+country	LY	Libia
+country	MA	Marruecos
+country	MC	Mónaco
+country	MD	Moldavia
+country	ME	Montenegro
+country	MF	San Martín
+country	MG	Madagascar
+country	MH	Islas Marshall
+country	MK	Macedonia
+country	ML	Malí
+country	MM	Myanmar
+country	MN	Mongolia
+country	MO	Macao
+country	MP	Islas Marianas del Norte
+country	MQ	Martinica
+country	MR	Mauritania
+country	MS	Montserrat
+country	MT	Malta
+country	MU	Mauricio
+country	MV	Maldivas
+country	MW	Malaui
+country	MX	México
+country	MY	Malasia
+country	MZ	Mozambique
+country	NA	Namibia
+country	NC	Nueva Caledonia
+country	NE	Níger
+country	NF	Norfolk
+country	NG	Nigeria
+country	NI	Nicaragua
+country	NL	Países Bajos
+country	NO	Noruega
+country	NP	Nepal
+country	NR	Nauru
+country	NZ	Nueva Zelanda
+country	OM	Omán
+country	PA	Panamá
+country	PE	Perú
+country	PF	Polinesia Francesa
+country	PG	Papúa Nueva Guinea
+country	PH	Filipinas
+country	PK	Pakistán
+country	PL	Polonia
+country	PM	San Pedro y Miquelón
+country	PN	Islas Pitcairn
+country	PR	Puerto Rico
+country	PS	Palestina
+country	PT	Portugal
+country	PW	Palaos
+country	PY	Paraguay
+country	QA	Catar
+country	RE	Reunión
+country	RO	Rumania
+country	RS	Serbia
+country	RU	Rusia
+country	RW	Ruanda
+country	SA	Arabia Saudita
+country	SB	Islas Salomón
+country	SC	Seychelles
+country	SD	Sudán
+country	SE	Suecia
+country	SG	Singapur
+country	SH	Santa Elena, Ascensión y Tristán de Acuña
+country	SI	Eslovenia
+country	SJ	Svalbard y Jan Mayen
+country	SK	Eslovaquia
+country	SL	Sierra Leona
+country	SM	San Marino
+country	SN	Senegal
+country	SO	Somalia
+country	SR	Surinam
+country	SS	Sudán del Sur
+country	ST	Santo Tomé y Príncipe
+country	SV	El Salvador
+country	SX	Sint Maarten
+country	SY	Siria
+country	SZ	Suazilandia
+country	TC	Islas Turcas y Caicos
+country	TD	Chad
+country	TF	Tierras Australes y Antárticas Francesas
+country	TG	Togo
+country	TH	Tailandia
+country	TJ	Tayikistán
+country	TK	Tokelau
+country	TL	Timor Oriental
+country	TM	Turkmenistán
+country	TN	Túnez
+country	TO	Tonga
+country	TR	Turquía
+country	TT	Trinidad y Tobago
+country	TV	Tuvalu
+country	TW	Taiwán (República de China)
+country	TZ	Tanzania
+country	UA	Ucrania
+country	UG	Uganda
+country	UM	Islas ultramarinas de Estados Unidos
+country	UN	Niue
+country	US	Estados Unidos
+country	UY	Uruguay
+country	UZ	Uzbekistán
+country	VA	Vaticano, Ciudad del
+country	VC	San Vicente y las Granadinas
+country	VE	Venezuela
+country	VG	Islas Vírgenes Británicas
+country	VI	Islas Vírgenes de los Estados Unidos
+country	VN	Vietnam
+country	VU	Vanuatu
+country	WF	Wallis y Futuna
+country	WS	Samoa
+country	YE	Yemen
+country	YT	Mayotte
+country	ZA	Sudáfrica
+country	ZM	Zambia
+country	ZW	Zimbabue
+department	05	Antioquia
+department	08	Atlántico
+department	11	Bogotá
+department	13	Bolívar
+department	15	Boyacá
+department	17	Caldas
+department	18	Caquetá
+department	19	Cauca
+department	20	Cesar
+department	23	Córdoba
+department	25	Cundinamarca
+department	27	Chocó
+department	41	Huila
+department	44	La Guajira
+department	47	Magdalena
+department	50	Meta
+department	52	Nariño
+department	54	Norte de Santander
+department	63	Quindío
+department	66	Risaralda
+department	68	Santander
+department	70	Sucre
+department	73	Tolima
+department	76	Valle del Cauca
+department	81	Arauca
+department	85	Casanare
+department	86	Putumayo
+department	88	San Andrés y Providencia
+department	91	Amazonas
+department	94	Guainía
+department	95	Guaviare
+department	97	Vaupés
+department	99	Vichada
+document	01	Factura electrónica de Venta
+document	02	Factura electrónica de venta -exportación
+document	03	Instrumento electrónico de transmisión – tipo 03
+document	04	Factura electrónica de Venta - tipo 04
+document	91	Nota Crédito
+document	92	Nota Débito
+document	96	Eventos (ApplicationResponse)
+environment	1	Producción
+environment	2	Pruebas
+ibua-2023	0	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2023	18	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2023	35	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2024	0	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2024	28	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2024	55	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2025	0	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2025	38	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2025	65	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2026	0	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2026	40	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+ibua-2026	68	Tarifa nominal COP por 100 ml; clasificacion explicita del producto requerida
+icui-2023	10	Tarifa porcentual ICUI publicada
+icui-2024	15	Tarifa porcentual ICUI publicada
+icui-2025	20	Tarifa porcentual ICUI publicada
+icui-2026	20	Tarifa porcentual ICUI publicada
+identification	10	Certificado de nacido vivo
+identification	11	Registro civil
+identification	12	Tarjeta de identidad
+identification	13	Cédula de ciudadanía
+identification	21	Tarjeta de extranjería **
+identification	22	Cédula de extranjería **
+identification	31	NIT
+identification	41	Pasaporte
+identification	42	Documento de identificación extranjero**
+identification	47	PEP (Permiso Especial de Permanencia)
+identification	48	PPT (Permiso Protección Temporal)
+identification	50	NIT de otro país***
+identification	91	NUIP *
+inc-rate	16	Tarifa porcentual publicada; aplicabilidad no inferida
+inc-rate	2	Tarifa porcentual publicada; aplicabilidad no inferida
+inc-rate	4	Tarifa porcentual publicada; aplicabilidad no inferida
+inc-rate	8	Tarifa porcentual publicada; aplicabilidad no inferida
+municipality	05001	MEDELLÍN
+municipality	05002	ABEJORRAL
+municipality	05004	ABRIAQUÍ
+municipality	05021	ALEJANDRÍA
+municipality	05030	AMAGÁ
+municipality	05031	AMALFI
+municipality	05034	ANDES
+municipality	05036	ANGELÓPOLIS
+municipality	05038	ANGOSTURA
+municipality	05040	ANORÍ
+municipality	05042	SANTA FÉ DE ANTIOQUIA
+municipality	05044	ANZÁ
+municipality	05045	APARTADÓ
+municipality	05051	ARBOLETES
+municipality	05055	ARGELIA
+municipality	05059	ARMENIA
+municipality	05079	BARBOSA
+municipality	05086	BELMIRA
+municipality	05088	BELLO
+municipality	05091	BETANIA
+municipality	05093	BETULIA
+municipality	05101	CIUDAD BOLÍVAR
+municipality	05107	BRICEÑO
+municipality	05113	BURITICÁ
+municipality	05120	CÁCERES
+municipality	05125	CAICEDO
+municipality	05129	CALDAS
+municipality	05134	CAMPAMENTO
+municipality	05138	CAÑASGORDAS
+municipality	05142	CARACOLÍ
+municipality	05145	CARAMANTA
+municipality	05147	CAREPA
+municipality	05148	EL CARMEN DE VIBORAL
+municipality	05150	CAROLINA
+municipality	05154	CAUCASIA
+municipality	05172	CHIGORODÓ
+municipality	05190	CISNEROS
+municipality	05197	COCORNÁ
+municipality	05206	CONCEPCIÓN
+municipality	05209	CONCORDIA
+municipality	05212	COPACABANA
+municipality	05234	DABEIBA
+municipality	05237	DONMATÍAS
+municipality	05240	EBÉJICO
+municipality	05250	EL BAGRE
+municipality	05264	ENTRERRÍOS
+municipality	05266	ENVIGADO
+municipality	05282	FREDONIA
+municipality	05284	FRONTINO
+municipality	05306	GIRALDO
+municipality	05308	GIRARDOTA
+municipality	05310	GÓMEZ PLATA
+municipality	05313	GRANADA
+municipality	05315	GUADALUPE
+municipality	05318	GUARNE
+municipality	05321	GUATAPÉ
+municipality	05347	HELICONIA
+municipality	05353	HISPANIA
+municipality	05360	ITAGÜÍ
+municipality	05361	ITUANGO
+municipality	05364	JARDÍN
+municipality	05368	JERICÓ
+municipality	05376	LA CEJA
+municipality	05380	LA ESTRELLA
+municipality	05390	LA PINTADA
+municipality	05400	LA UNIÓN
+municipality	05411	LIBORINA
+municipality	05425	MACEO
+municipality	05440	MARINILLA
+municipality	05467	MONTEBELLO
+municipality	05475	MURINDÓ
+municipality	05480	MUTATÁ
+municipality	05483	NARIÑO
+municipality	05490	NECOCLÍ
+municipality	05495	NECHÍ
+municipality	05501	OLAYA
+municipality	05541	PEÑOL
+municipality	05543	PEQUE
+municipality	05576	PUEBLORRICO
+municipality	05579	PUERTO BERRÍO
+municipality	05585	PUERTO NARE
+municipality	05591	PUERTO TRIUNFO
+municipality	05604	REMEDIOS
+municipality	05607	RETIRO
+municipality	05615	RIONEGRO
+municipality	05628	SABANALARGA
+municipality	05631	SABANETA
+municipality	05642	SALGAR
+municipality	05647	SAN ANDRÉS DE CUERQUÍA
+municipality	05649	SAN CARLOS
+municipality	05652	SAN FRANCISCO
+municipality	05656	SAN JERÓNIMO
+municipality	05658	SAN JOSÉ DE LA MONTAÑA
+municipality	05659	SAN JUAN DE URABÁ
+municipality	05660	SAN LUIS
+municipality	05664	SAN PEDRO DE LOS MILAGROS
+municipality	05665	SAN PEDRO DE URABÁ
+municipality	05667	SAN RAFAEL
+municipality	05670	SAN ROQUE
+municipality	05674	SAN VICENTE FERRER
+municipality	05679	SANTA BÁRBARA
+municipality	05686	SANTA ROSA DE OSOS
+municipality	05690	SANTO DOMINGO
+municipality	05697	EL SANTUARIO
+municipality	05736	SEGOVIA
+municipality	05756	SONSÓN
+municipality	05761	SOPETRÁN
+municipality	05789	TÁMESIS
+municipality	05790	TARAZÁ
+municipality	05792	TARSO
+municipality	05809	TITIRIBÍ
+municipality	05819	TOLEDO
+municipality	05837	TURBO
+municipality	05842	URAMITA
+municipality	05847	URRAO
+municipality	05854	VALDIVIA
+municipality	05856	VALPARAÍSO
+municipality	05858	VEGACHÍ
+municipality	05861	VENECIA
+municipality	05873	VIGÍA DEL FUERTE
+municipality	05885	YALÍ
+municipality	05887	YARUMAL
+municipality	05890	YOLOMBÓ
+municipality	05893	YONDÓ
+municipality	05895	ZARAGOZA
+municipality	08001	BARRANQUILLA
+municipality	08078	BARANOA
+municipality	08137	CAMPO DE LA CRUZ
+municipality	08141	CANDELARIA
+municipality	08296	GALAPA
+municipality	08372	JUAN DE ACOSTA
+municipality	08421	LURUACO
+municipality	08433	MALAMBO
+municipality	08436	MANATÍ
+municipality	08520	PALMAR DE VARELA
+municipality	08549	PIOJÓ
+municipality	08558	POLONUEVO
+municipality	08560	PONEDERA
+municipality	08573	PUERTO COLOMBIA
+municipality	08606	REPELÓN
+municipality	08634	SABANAGRANDE
+municipality	08638	SABANALARGA
+municipality	08675	SANTA LUCÍA
+municipality	08685	SANTO TOMÁS
+municipality	08758	SOLEDAD
+municipality	08770	SUAN
+municipality	08832	TUBARÁ
+municipality	08849	USIACURÍ
+municipality	11001	BOGOTÁ, D.C.
+municipality	13001	CARTAGENA DE INDIAS
+municipality	13006	ACHÍ
+municipality	13030	ALTOS DEL ROSARIO
+municipality	13042	ARENAL
+municipality	13052	ARJONA
+municipality	13062	ARROYOHONDO
+municipality	13074	BARRANCO DE LOBA
+municipality	13140	CALAMAR
+municipality	13160	CANTAGALLO
+municipality	13188	CICUCO
+municipality	13212	CÓRDOBA
+municipality	13222	CLEMENCIA
+municipality	13244	EL CARMEN DE BOLÍVAR
+municipality	13248	EL GUAMO
+municipality	13268	EL PEÑÓN
+municipality	13300	HATILLO DE LOBA
+municipality	13430	MAGANGUÉ
+municipality	13433	MAHATES
+municipality	13440	MARGARITA
+municipality	13442	MARÍA LA BAJA
+municipality	13458	MONTECRISTO
+municipality	13468	MOMPÓS
+municipality	13473	MORALES
+municipality	13490	NOROSÍ
+municipality	13549	PINILLOS
+municipality	13580	REGIDOR
+municipality	13600	RÍO VIEJO
+municipality	13620	SAN CRISTÓBAL
+municipality	13647	SAN ESTANISLAO
+municipality	13650	SAN FERNANDO
+municipality	13654	SAN JACINTO
+municipality	13655	SAN JACINTO DEL CAUCA
+municipality	13657	SAN JUAN NEPOMUCENO
+municipality	13667	SAN MARTÍN DE LOBA
+municipality	13670	SAN PABLO SUR
+municipality	13673	SANTA CATALINA
+municipality	13683	SANTA ROSA DE LIMA
+municipality	13688	SANTA ROSA DEL SUR
+municipality	13744	SIMITÍ
+municipality	13760	SOPLAVIENTO
+municipality	13780	TALAIGUA NUEVO
+municipality	13810	TIQUISIO
+municipality	13836	TURBACO
+municipality	13838	TURBANÁ
+municipality	13873	VILLANUEVA
+municipality	13894	ZAMBRANO
+municipality	15001	TUNJA
+municipality	15022	ALMEIDA
+municipality	15047	AQUITANIA
+municipality	15051	ARCABUCO
+municipality	15087	BELÉN
+municipality	15090	BERBEO
+municipality	15092	BETÉITIVA
+municipality	15097	BOAVITA
+municipality	15104	BOYACÁ
+municipality	15106	BRICEÑO
+municipality	15109	BUENAVISTA
+municipality	15114	BUSBANZÁ
+municipality	15131	CALDAS
+municipality	15135	CAMPOHERMOSO
+municipality	15162	CERINZA
+municipality	15172	CHINAVITA
+municipality	15176	CHIQUINQUIRÁ
+municipality	15180	CHISCAS
+municipality	15183	CHITA
+municipality	15185	CHITARAQUE
+municipality	15187	CHIVATÁ
+municipality	15189	CIÉNEGA
+municipality	15204	CÓMBITA
+municipality	15212	COPER
+municipality	15215	CORRALES
+municipality	15218	COVARACHÍA
+municipality	15223	CUBARÁ
+municipality	15224	CUCAITA
+municipality	15226	CUÍTIVA
+municipality	15232	CHÍQUIZA
+municipality	15236	CHIVOR
+municipality	15238	DUITAMA
+municipality	15244	EL COCUY
+municipality	15248	EL ESPINO
+municipality	15272	FIRAVITOBA
+municipality	15276	FLORESTA
+municipality	15293	GACHANTIVÁ
+municipality	15296	GÁMEZA
+municipality	15299	GARAGOA
+municipality	15317	GUACAMAYAS
+municipality	15322	GUATEQUE
+municipality	15325	GUAYATÁ
+municipality	15332	GÜICÁN DE LA SIERRA
+municipality	15362	IZA
+municipality	15367	JENESANO
+municipality	15368	JERICÓ
+municipality	15377	LABRANZAGRANDE
+municipality	15380	LA CAPILLA
+municipality	15401	LA VICTORIA
+municipality	15403	LA UVITA
+municipality	15407	VILLA DE LEYVA
+municipality	15425	MACANAL
+municipality	15442	MARIPÍ
+municipality	15455	MIRAFLORES
+municipality	15464	MONGUA
+municipality	15466	MONGUÍ
+municipality	15469	MONIQUIRÁ
+municipality	15476	MOTAVITA
+municipality	15480	MUZO
+municipality	15491	NOBSA
+municipality	15494	NUEVO COLÓN
+municipality	15500	OICATÁ
+municipality	15507	OTANCHE
+municipality	15511	PACHAVITA
+municipality	15514	PÁEZ
+municipality	15516	PAIPA
+municipality	15518	PAJARITO
+municipality	15522	PANQUEBA
+municipality	15531	PAUNA
+municipality	15533	PAYA
+municipality	15537	PAZ DE RÍO
+municipality	15542	PESCA
+municipality	15550	PISBA
+municipality	15572	PUERTO BOYACÁ
+municipality	15580	QUÍPAMA
+municipality	15599	RAMIRIQUÍ
+municipality	15600	RÁQUIRA
+municipality	15621	RONDÓN
+municipality	15632	SABOYÁ
+municipality	15638	SÁCHICA
+municipality	15646	SAMACÁ
+municipality	15660	SAN EDUARDO
+municipality	15664	SAN JOSÉ DE PARE
+municipality	15667	SAN LUIS DE GACENO
+municipality	15673	SAN MATEO
+municipality	15676	SAN MIGUEL DE SEMA
+municipality	15681	SAN PABLO DE BORBUR
+municipality	15686	SANTANA
+municipality	15690	SANTA MARÍA
+municipality	15693	SANTA ROSA DE VITERBO
+municipality	15696	SANTA SOFÍA
+municipality	15720	SATIVANORTE
+municipality	15723	SATIVASUR
+municipality	15740	SIACHOQUE
+municipality	15753	SOATÁ
+municipality	15755	SOCOTÁ
+municipality	15757	SOCHA
+municipality	15759	SOGAMOSO
+municipality	15761	SOMONDOCO
+municipality	15762	SORA
+municipality	15763	SOTAQUIRÁ
+municipality	15764	SORACÁ
+municipality	15774	SUSACÓN
+municipality	15776	SUTAMARCHÁN
+municipality	15778	SUTATENZA
+municipality	15790	TASCO
+municipality	15798	TENZA
+municipality	15804	TIBANÁ
+municipality	15806	TIBASOSA
+municipality	15808	TINJACÁ
+municipality	15810	TIPACOQUE
+municipality	15814	TOCA
+municipality	15816	TOGÜÍ
+municipality	15820	TÓPAGA
+municipality	15822	TOTA
+municipality	15832	TUNUNGUÁ
+municipality	15835	TURMEQUÉ
+municipality	15837	TUTA
+municipality	15839	TUTAZÁ
+municipality	15842	ÚMBITA
+municipality	15861	VENTAQUEMADA
+municipality	15879	VIRACACHÁ
+municipality	15897	ZETAQUIRA
+municipality	17001	MANIZALES
+municipality	17013	AGUADAS
+municipality	17042	ANSERMA
+municipality	17050	ARANZAZU
+municipality	17088	BELALCÁZAR
+municipality	17174	CHINCHINÁ
+municipality	17272	FILADELFIA
+municipality	17380	LA DORADA
+municipality	17388	LA MERCED
+municipality	17433	MANZANARES
+municipality	17442	MARMATO
+municipality	17444	MARQUETALIA
+municipality	17446	MARULANDA
+municipality	17486	NEIRA
+municipality	17495	NORCASIA
+municipality	17513	PÁCORA
+municipality	17524	PALESTINA
+municipality	17541	PENSILVANIA
+municipality	17614	RIOSUCIO
+municipality	17616	RISARALDA
+municipality	17653	SALAMINA
+municipality	17662	SAMANÁ
+municipality	17665	SAN JOSÉ
+municipality	17777	SUPÍA
+municipality	17867	VICTORIA
+municipality	17873	VILLAMARÍA
+municipality	17877	VITERBO
+municipality	18001	FLORENCIA
+municipality	18029	ALBANIA
+municipality	18094	BELÉN DE LOS ANDAQUÍES
+municipality	18150	CARTAGENA DEL CHAIRÁ
+municipality	18205	CURILLO
+municipality	18247	EL DONCELLO
+municipality	18256	EL PAUJÍL
+municipality	18410	LA MONTAÑITA
+municipality	18460	MILÁN
+municipality	18479	MORELIA
+municipality	18592	PUERTO RICO
+municipality	18610	SAN JOSÉ DEL FRAGUA
+municipality	18753	SAN VICENTE DEL CAGUÁN
+municipality	18756	SOLANO
+municipality	18785	SOLITA
+municipality	18860	VALPARAÍSO
+municipality	19001	POPAYÁN
+municipality	19022	ALMAGUER
+municipality	19050	ARGELIA
+municipality	19075	BALBOA
+municipality	19100	BOLÍVAR
+municipality	19110	BUENOS AIRES
+municipality	19130	CAJIBÍO
+municipality	19137	CALDONO
+municipality	19142	CALOTO
+municipality	19212	CORINTO
+municipality	19256	EL TAMBO
+municipality	19290	FLORENCIA
+municipality	19300	GUACHENÉ
+municipality	19318	GUAPÍ
+municipality	19355	INZÁ
+municipality	19364	JAMBALÓ
+municipality	19392	LA SIERRA
+municipality	19397	LA VEGA
+municipality	19418	LÓPEZ DE MICAY
+municipality	19450	MERCADERES
+municipality	19455	MIRANDA
+municipality	19473	MORALES
+municipality	19513	PADILLA
+municipality	19517	PÁEZ - BELALCAZAR
+municipality	19532	PATÍA – EL BORDO
+municipality	19533	PIAMONTE
+municipality	19548	PIENDAMÓ – TUNÍA
+municipality	19573	PUERTO TEJADA
+municipality	19585	PURACÉ - COCONUCO
+municipality	19622	ROSAS
+municipality	19693	SAN SEBASTIÁN
+municipality	19698	SANTANDER DE QUILICHAO
+municipality	19701	SANTA ROSA
+municipality	19743	SILVIA
+municipality	19760	SOTARA
+municipality	19780	SUÁREZ
+municipality	19785	SUCRE
+municipality	19807	TIMBÍO
+municipality	19809	TIMBIQUÍ
+municipality	19821	TORIBÍO
+municipality	19824	TOTORÓ
+municipality	19845	VILLA RICA
+municipality	20001	VALLEDUPAR
+municipality	20011	AGUACHICA
+municipality	20013	AGUSTÍN CODAZZI
+municipality	20032	ASTREA
+municipality	20045	BECERRIL
+municipality	20060	BOSCONIA
+municipality	20175	CHIMICHAGUA
+municipality	20178	CHIRIGUANÁ
+municipality	20228	CURUMANÍ
+municipality	20238	EL COPEY
+municipality	20250	EL PASO
+municipality	20295	GAMARRA
+municipality	20310	GONZÁLEZ
+municipality	20383	LA GLORIA
+municipality	20400	LA JAGUA DE IBIRICO
+municipality	20443	MANAURE BALCÓN DEL CESAR
+municipality	20517	PAILITAS
+municipality	20550	PELAYA
+municipality	20570	PUEBLO BELLO
+municipality	20614	RÍO DE ORO
+municipality	20621	LA PAZ
+municipality	20710	SAN ALBERTO
+municipality	20750	SAN DIEGO
+municipality	20770	SAN MARTÍN
+municipality	20787	TAMALAMEQUE
+municipality	23001	MONTERÍA
+municipality	23068	AYAPEL
+municipality	23079	BUENAVISTA
+municipality	23090	CANALETE
+municipality	23162	CERETÉ
+municipality	23168	CHIMÁ
+municipality	23182	CHINÚ
+municipality	23189	CIÉNAGA DE ORO
+municipality	23300	COTORRA
+municipality	23350	LA APARTADA
+municipality	23417	LORICA
+municipality	23419	LOS CÓRDOBAS
+municipality	23464	MOMIL
+municipality	23466	MONTELÍBANO
+municipality	23500	MOÑITOS
+municipality	23555	PLANETA RICA
+municipality	23570	PUEBLO NUEVO
+municipality	23574	PUERTO ESCONDIDO
+municipality	23580	PUERTO LIBERTADOR
+municipality	23586	PURÍSIMA DE LA CONCEPCIÓN
+municipality	23660	SAHAGÚN
+municipality	23670	SAN ANDRÉS DE SOTAVENTO
+municipality	23672	SAN ANTERO
+municipality	23675	SAN BERNARDO DEL VIENTO
+municipality	23678	SAN CARLOS
+municipality	23682	SAN JOSÉ DE URÉ
+municipality	23686	SAN PELAYO
+municipality	23807	TIERRALTA
+municipality	23815	TUCHÍN
+municipality	23855	VALENCIA
+municipality	25001	AGUA DE DIOS
+municipality	25019	ALBÁN
+municipality	25035	ANAPOIMA
+municipality	25040	ANOLAIMA
+municipality	25053	ARBELÁEZ
+municipality	25086	BELTRÁN
+municipality	25095	BITUIMA
+municipality	25099	BOJACÁ
+municipality	25120	CABRERA
+municipality	25123	CACHIPAY
+municipality	25126	CAJICÁ
+municipality	25148	CAPARRAPÍ
+municipality	25151	CÁQUEZA
+municipality	25154	CARMEN DE CARUPA
+municipality	25168	CHAGUANÍ
+municipality	25175	CHÍA
+municipality	25178	CHIPAQUE
+municipality	25181	CHOACHÍ
+municipality	25183	CHOCONTÁ
+municipality	25200	COGUA
+municipality	25214	COTA
+municipality	25224	CUCUNUBÁ
+municipality	25245	EL COLEGIO
+municipality	25258	EL PEÑÓN
+municipality	25260	EL ROSAL
+municipality	25269	FACATATIVÁ
+municipality	25279	FÓMEQUE
+municipality	25281	FOSCA
+municipality	25286	FUNZA
+municipality	25288	FÚQUENE
+municipality	25290	FUSAGASUGÁ
+municipality	25293	GACHALÁ
+municipality	25295	GACHANCIPÁ
+municipality	25297	GACHETÁ
+municipality	25299	GAMA
+municipality	25307	GIRARDOT
+municipality	25312	GRANADA
+municipality	25317	GUACHETÁ
+municipality	25320	GUADUAS
+municipality	25322	GUASCA
+municipality	25324	GUATAQUÍ
+municipality	25326	GUATAVITA
+municipality	25328	GUAYABAL DE SÍQUIMA
+municipality	25335	GUAYABETAL
+municipality	25339	GUTIÉRREZ
+municipality	25368	JERUSALÉN
+municipality	25372	JUNÍN
+municipality	25377	LA CALERA
+municipality	25386	LA MESA
+municipality	25394	LA PALMA
+municipality	25398	LA PEÑA
+municipality	25402	LA VEGA
+municipality	25407	LENGUAZAQUE
+municipality	25426	MACHETÁ
+municipality	25430	MADRID
+municipality	25436	MANTA
+municipality	25438	MEDINA
+municipality	25473	MOSQUERA
+municipality	25483	NARIÑO
+municipality	25486	NEMOCÓN
+municipality	25488	NILO
+municipality	25489	NIMAIMA
+municipality	25491	NOCAIMA
+municipality	25506	VENECIA
+municipality	25513	PACHO
+municipality	25518	PAIME
+municipality	25524	PANDI
+municipality	25530	PARATEBUENO
+municipality	25535	PASCA
+municipality	25572	PUERTO SALGAR
+municipality	25580	PULÍ
+municipality	25592	QUEBRADANEGRA
+municipality	25594	QUETAME
+municipality	25596	QUIPILE
+municipality	25599	APULO
+municipality	25612	RICAURTE
+municipality	25645	SAN ANTONIO DEL TEQUENDAMA
+municipality	25649	SAN BERNARDO
+municipality	25653	SAN CAYETANO
+municipality	25658	SAN FRANCISCO
+municipality	25662	SAN JUAN DE RIOSECO
+municipality	25718	SASAIMA
+municipality	25736	SESQUILÉ
+municipality	25740	SIBATÉ
+municipality	25743	SILVANIA
+municipality	25745	SIMIJACA
+municipality	25754	SOACHA
+municipality	25758	SOPÓ
+municipality	25769	SUBACHOQUE
+municipality	25772	SUESCA
+municipality	25777	SUPATÁ
+municipality	25779	SUSA
+municipality	25781	SUTATAUSA
+municipality	25785	TABIO
+municipality	25793	TAUSA
+municipality	25797	TENA
+municipality	25799	TENJO
+municipality	25805	TIBACUY
+municipality	25807	TIBIRITA
+municipality	25815	TOCAIMA
+municipality	25817	TOCANCIPÁ
+municipality	25823	TOPAIPÍ
+municipality	25839	UBALÁ
+municipality	25841	UBAQUE
+municipality	25843	VILLA DE SAN DIEGO DE UBATÉ
+municipality	25845	UNE
+municipality	25851	ÚTICA
+municipality	25862	VERGARA
+municipality	25867	VIANÍ
+municipality	25871	VILLAGÓMEZ
+municipality	25873	VILLAPINZÓN
+municipality	25875	VILLETA
+municipality	25878	VIOTÁ
+municipality	25885	YACOPÍ
+municipality	25898	ZIPACÓN
+municipality	25899	ZIPAQUIRÁ
+municipality	27001	QUIBDÓ
+municipality	27006	ACANDÍ
+municipality	27025	ALTO BAUDÓ (PIE DE PATÓ)
+municipality	27050	ATRATO (YUTO)
+municipality	27073	BAGADÓ
+municipality	27075	BAHÍA SOLANO (MUTIS)
+municipality	27077	BAJO BAUDÓ (PIZARRO)
+municipality	27086	BÉLEN DE BAJIRA
+municipality	27099	BOJAYÁ (BELLA VISTA)
+municipality	27135	EL CANTÓN DEL SAN PABLO
+municipality	27150	CARMEN DEL DARIÉN
+municipality	27160	CÉRTEGUI
+municipality	27205	CONDOTO
+municipality	27245	EL CARMEN DE ATRATO
+municipality	27250	EL LITORAL DEL SAN JUAN
+municipality	27361	ISTMINA
+municipality	27372	JURADÓ
+municipality	27413	LLORÓ
+municipality	27425	MEDIO ATRATO (BETÉ)
+municipality	27430	MEDIO BAUDÓ
+municipality	27450	MEDIO SAN JUAN (ANDAGOYA)
+municipality	27491	NÓVITA
+municipality	27493	NUEVO BÉLEN DE BAJIRA
+municipality	27495	NUQUÍ
+municipality	27580	RÍO IRÓ (SANTA RITA)
+municipality	27600	RÍO QUITO (PAIMADÓ)
+municipality	27615	RIOSUCIO
+municipality	27660	SAN JOSÉ DEL PALMAR
+municipality	27745	SIPÍ
+municipality	27787	TADÓ
+municipality	27800	UNGUÍA
+municipality	27810	UNIÓN PANAMERICANA (LAS ÁNIMAS)
+municipality	41001	NEIVA
+municipality	41006	ACEVEDO
+municipality	41013	AGRADO
+municipality	41016	AIPE
+municipality	41020	ALGECIRAS
+municipality	41026	ALTAMIRA
+municipality	41078	BARAYA
+municipality	41132	CAMPOALEGRE
+municipality	41206	COLOMBIA
+municipality	41244	ELÍAS
+municipality	41298	GARZÓN
+municipality	41306	GIGANTE
+municipality	41319	GUADALUPE
+municipality	41349	HOBO
+municipality	41357	ÍQUIRA
+municipality	41359	ISNOS
+municipality	41378	LA ARGENTINA (LA PLATA VIEJA)
+municipality	41396	LA PLATA
+municipality	41483	NÁTAGA
+municipality	41503	OPORAPA
+municipality	41518	PAICOL
+municipality	41524	PALERMO
+municipality	41530	PALESTINA
+municipality	41548	PITAL
+municipality	41551	PITALITO
+municipality	41615	RIVERA
+municipality	41660	SALADOBLANCO
+municipality	41668	SAN AGUSTÍN
+municipality	41676	SANTA MARÍA
+municipality	41770	SUAZA
+municipality	41791	TARQUI
+municipality	41797	TESALIA (CARNICERÍAS)
+municipality	41799	TELLO
+municipality	41801	TERUEL
+municipality	41807	TIMANÁ
+municipality	41872	VILLAVIEJA
+municipality	41885	YAGUARÁ
+municipality	44001	RIOHACHA
+municipality	44035	ALBANIA
+municipality	44078	BARRANCAS
+municipality	44090	DIBULLA
+municipality	44098	DISTRACCIÓN
+municipality	44110	EL MOLINO
+municipality	44279	FONSECA
+municipality	44378	HATONUEVO
+municipality	44420	LA JAGUA DEL PILAR
+municipality	44430	MAICAO
+municipality	44560	MANAURE
+municipality	44650	SAN JUAN DEL CESAR
+municipality	44847	URIBIA
+municipality	44855	URUMITA
+municipality	44874	VILLANUEVA
+municipality	47001	SANTA MARTA
+municipality	47030	ALGARROBO
+municipality	47053	ARACATACA
+municipality	47058	ARIGUANÍ
+municipality	47161	CERRO DE SAN ANTONIO
+municipality	47170	CHIBOLO
+municipality	47189	CIÉNAGA
+municipality	47205	CONCORDIA
+municipality	47245	EL BANCO
+municipality	47258	EL PIÑÓN
+municipality	47268	EL RETÉN
+municipality	47288	FUNDACIÓN
+municipality	47318	GUAMAL
+municipality	47460	NUEVA GRANADA
+municipality	47541	PEDRAZA
+municipality	47545	PIJIÑO DEL CARMEN
+municipality	47551	PIVIJAY
+municipality	47555	PLATO
+municipality	47570	PUEBLOVIEJO
+municipality	47605	REMOLINO
+municipality	47660	SABANAS DE SAN ÁNGEL
+municipality	47675	SALAMINA
+municipality	47692	SAN SEBASTIÁN DE BUENAVISTA
+municipality	47703	SAN ZENÓN
+municipality	47707	SANTA ANA
+municipality	47720	SANTA BÁRBARA DE PINTO
+municipality	47745	SITIONUEVO
+municipality	47798	TENERIFE
+municipality	47960	ZAPAYÁN
+municipality	47980	ZONA BANANERA
+municipality	50001	VILLAVICENCIO
+municipality	50006	ACACÍAS
+municipality	50110	BARRANCA DE UPÍA
+municipality	50124	CABUYARO
+municipality	50150	CASTILLA LA NUEVA
+municipality	50223	CUBARRAL
+municipality	50226	CUMARAL
+municipality	50245	EL CALVARIO
+municipality	50251	EL CASTILLO
+municipality	50270	EL DORADO
+municipality	50287	FUENTEDEORO
+municipality	50313	GRANADA
+municipality	50318	GUAMAL
+municipality	50325	MAPIRIPÁN
+municipality	50330	MESETAS
+municipality	50350	LA MACARENA
+municipality	50370	URIBE
+municipality	50400	LEJANÍAS
+municipality	50450	PUERTO CONCORDIA
+municipality	50568	PUERTO GAITÁN
+municipality	50573	PUERTO LÓPEZ
+municipality	50577	PUERTO LLERAS
+municipality	50590	PUERTO RICO
+municipality	50606	RESTREPO
+municipality	50680	SAN CARLOS DE GUAROA
+municipality	50683	SAN JUAN DE ARAMA
+municipality	50686	SAN JUANITO
+municipality	50689	SAN MARTÍN DE LOS LLANOS
+municipality	50711	VISTAHERMOSA
+municipality	52001	PASTO
+municipality	52019	ALBÁN (SAN JOSÉ)
+municipality	52022	ALDANA
+municipality	52036	ANCUYÁ
+municipality	52051	ARBOLEDA
+municipality	52079	BARBACOAS
+municipality	52083	BELÉN
+municipality	52110	BUESACO
+municipality	52203	COLÓN (GÉNOVA)
+municipality	52207	CONSACÁ
+municipality	52210	CONTADERO
+municipality	52215	CÓRDOBA
+municipality	52224	CUASPÚD
+municipality	52227	CUMBAL
+municipality	52233	CUMBITARA
+municipality	52240	CHACHAGÜÍ
+municipality	52250	EL CHARCO
+municipality	52254	EL PEÑOL
+municipality	52256	EL ROSARIO
+municipality	52258	EL TABLÓN DE GÓMEZ
+municipality	52260	EL TAMBO
+municipality	52287	FUNES
+municipality	52317	GUACHUCAL
+municipality	52320	GUAITARILLA
+municipality	52323	GUALMATÁN
+municipality	52352	ILES
+municipality	52354	IMUÉS
+municipality	52356	IPIALES
+municipality	52378	LA CRUZ
+municipality	52381	LA FLORIDA
+municipality	52385	LA LLANADA
+municipality	52390	LA TOLA
+municipality	52399	LA UNIÓN
+municipality	52405	LEIVA
+municipality	52411	LINARES
+municipality	52418	LOS ANDES (SOTOMAYOR)
+municipality	52427	MAGÜÍ (PAYÁN)
+municipality	52435	MALLAMA (PIEDRANCHA)
+municipality	52473	MOSQUERA
+municipality	52480	NARIÑO
+municipality	52490	OLAYA HERRERA
+municipality	52506	OSPINA
+municipality	52520	FRANCISCO PIZARRO
+municipality	52540	POLICARPA
+municipality	52560	POTOSÍ
+municipality	52565	PROVIDENCIA
+municipality	52573	PUERRES
+municipality	52585	PUPIALES
+municipality	52612	RICAURTE
+municipality	52621	ROBERTO PAYÁN (SAN JOSÉ)
+municipality	52678	SAMANIEGO
+municipality	52683	SANDONÁ
+municipality	52685	SAN BERNARDO
+municipality	52687	SAN LORENZO
+municipality	52693	SAN PABLO
+municipality	52694	SAN PEDRO DE CARTAGO
+municipality	52696	SANTA BÁRBARA
+municipality	52699	SANTACRUZ
+municipality	52720	SAPUYES
+municipality	52786	TAMINANGO
+municipality	52788	TANGUA
+municipality	52835	SAN ANDRÉS DE TUMACO
+municipality	52838	TÚQUERRES
+municipality	52885	YACUANQUER
+municipality	54001	CÚCUTA
+municipality	54003	ÁBREGO
+municipality	54051	ARBOLEDAS
+municipality	54099	BOCHALEMA
+municipality	54109	BUCARASICA
+municipality	54125	CÁCOTA DE VELASCO
+municipality	54128	CÁCHIRA
+municipality	54172	CHINÁCOTA
+municipality	54174	CHITAGÁ
+municipality	54206	CONVENCIÓN
+municipality	54223	CUCUTILLA
+municipality	54239	DURANIA
+municipality	54245	EL CARMEN
+municipality	54250	EL TARRA
+municipality	54261	EL ZULIA
+municipality	54313	GRAMALOTE
+municipality	54344	HACARÍ
+municipality	54347	HERRÁN
+municipality	54377	LABATECA
+municipality	54385	LA ESPERANZA
+municipality	54398	LA PLAYA DE BELÉN
+municipality	54405	LOS PATIOS
+municipality	54418	LOURDES
+municipality	54480	MUTISCUA
+municipality	54498	OCAÑA
+municipality	54518	PAMPLONA
+municipality	54520	PAMPLONITA
+municipality	54553	PUERTO SANTANDER
+municipality	54599	RAGONVALIA
+municipality	54660	SALAZAR DE LAS PALMAS
+municipality	54670	SAN CALIXTO
+municipality	54673	SAN CAYETANO
+municipality	54680	SANTIAGO
+municipality	54720	SARDINATA
+municipality	54743	SANTO DOMINGO DE SILOS
+municipality	54800	TEORAMA
+municipality	54810	TIBÚ
+municipality	54820	TOLEDO
+municipality	54871	VILLA CARO
+municipality	54874	VILLA DEL ROSARIO
+municipality	63001	ARMENIA
+municipality	63111	BUENAVISTA
+municipality	63130	CALARCÁ
+municipality	63190	CIRCASIA
+municipality	63212	CÓRDOBA
+municipality	63272	FILANDIA
+municipality	63302	GÉNOVA
+municipality	63401	LA TEBAIDA
+municipality	63470	MONTENEGRO
+municipality	63548	PIJAO
+municipality	63594	QUIMBAYA
+municipality	63690	SALENTO
+municipality	66001	PEREIRA
+municipality	66045	APÍA
+municipality	66075	BALBOA
+municipality	66088	BELÉN DE UMBRÍA
+municipality	66170	DOSQUEBRADAS
+municipality	66318	GUÁTICA
+municipality	66383	LA CELIA
+municipality	66400	LA VIRGINIA
+municipality	66440	MARSELLA
+municipality	66456	MISTRATÓ
+municipality	66572	PUEBLO RICO
+municipality	66594	QUINCHÍA
+municipality	66682	SANTA ROSA DE CABAL
+municipality	66687	SANTUARIO
+municipality	68001	BUCARAMANGA
+municipality	68013	AGUADA
+municipality	68020	ALBANIA
+municipality	68051	ARATOCA
+municipality	68077	BARBOSA
+municipality	68079	BARICHARA
+municipality	68081	BARRANCABERMEJA
+municipality	68092	BETULIA
+municipality	68101	BOLÍVAR
+municipality	68121	CABRERA
+municipality	68132	CALIFORNIA
+municipality	68147	CAPITANEJO
+municipality	68152	CARCASÍ
+municipality	68160	CEPITÁ
+municipality	68162	CERRITO
+municipality	68167	CHARALÁ
+municipality	68169	CHARTA
+municipality	68176	CHIMA
+municipality	68179	CHIPATÁ
+municipality	68190	CIMITARRA
+municipality	68207	CONCEPCIÓN
+municipality	68209	CONFINES
+municipality	68211	CONTRATACIÓN
+municipality	68217	COROMORO
+municipality	68229	CURITÍ
+municipality	68235	EL CARMEN DE CHUCURÍ
+municipality	68245	EL GUACAMAYO
+municipality	68250	EL PEÑÓN
+municipality	68255	EL PLAYÓN
+municipality	68264	ENCINO
+municipality	68266	ENCISO
+municipality	68271	FLORIÁN
+municipality	68276	FLORIDABLANCA
+municipality	68296	GALÁN
+municipality	68298	GÁMBITA
+municipality	68307	GIRÓN
+municipality	68318	GUACA
+municipality	68320	GUADALUPE
+municipality	68322	GUAPOTÁ
+municipality	68324	GUAVATÁ
+municipality	68327	GÜEPSA
+municipality	68344	HATO
+municipality	68368	JESÚS MARÍA
+municipality	68370	JORDÁN
+municipality	68377	LA BELLEZA
+municipality	68385	LANDÁZURI
+municipality	68397	LA PAZ
+municipality	68406	LEBRIJA
+municipality	68418	LOS SANTOS
+municipality	68425	MACARAVITA
+municipality	68432	MÁLAGA
+municipality	68444	MATANZA
+municipality	68464	MOGOTES
+municipality	68468	MOLAGAVITA
+municipality	68498	OCAMONTE
+municipality	68500	OIBA
+municipality	68502	ONZAGA
+municipality	68522	PALMAR
+municipality	68524	PALMAS DEL SOCORRO
+municipality	68533	PÁRAMO
+municipality	68547	PIEDECUESTA
+municipality	68549	PINCHOTE
+municipality	68572	PUENTE NACIONAL
+municipality	68573	PUERTO PARRA
+municipality	68575	PUERTO WILCHES
+municipality	68615	RIONEGRO
+municipality	68655	SABANA DE TORRES
+municipality	68669	SAN ANDRÉS
+municipality	68673	SAN BENITO
+municipality	68679	SAN GIL
+municipality	68682	SAN JOAQUÍN
+municipality	68684	SAN JOSÉ DE MIRANDA
+municipality	68686	SAN MIGUEL
+municipality	68689	SAN VICENTE DE CHUCURÍ
+municipality	68705	SANTA BÁRBARA
+municipality	68720	SANTA HELENA DEL OPÓN
+municipality	68745	SIMACOTA
+municipality	68755	SOCORRO
+municipality	68770	SUAITA
+municipality	68773	SUCRE
+municipality	68780	SURATÁ
+municipality	68820	TONA
+municipality	68855	VALLE DE SAN JOSÉ
+municipality	68861	VÉLEZ
+municipality	68867	VETAS
+municipality	68872	VILLANUEVA
+municipality	68895	ZAPATOCA
+municipality	70001	SINCELEJO
+municipality	70110	BUENAVISTA
+municipality	70124	CAIMITO
+municipality	70204	COLOSÓ
+municipality	70215	COROZAL
+municipality	70221	COVEÑAS
+municipality	70230	CHALÁN
+municipality	70233	EL ROBLE
+municipality	70235	GALERAS
+municipality	70265	GUARANDA
+municipality	70400	LA UNIÓN
+municipality	70418	LOS PALMITOS
+municipality	70429	MAJAGUAL
+municipality	70473	MORROA
+municipality	70508	OVEJAS
+municipality	70523	PALMITO
+municipality	70670	SAMPUÉS
+municipality	70678	SAN BENITO ABAD
+municipality	70702	SAN JUAN DE BETULIA
+municipality	70708	SAN MARCOS
+municipality	70713	SAN ONOFRE
+municipality	70717	SAN PEDRO
+municipality	70742	SAN LUIS DE SINCÉ
+municipality	70771	SUCRE
+municipality	70820	SANTIAGO DE TOLÚ
+municipality	70823	TOLÚ VIEJO
+municipality	73001	IBAGUÉ
+municipality	73024	ALPUJARRA
+municipality	73026	ALVARADO
+municipality	73030	AMBALEMA
+municipality	73043	ANZOÁTEGUI
+municipality	73055	ARMERO (GUAYABAL)
+municipality	73067	ATACO
+municipality	73124	CAJAMARCA
+municipality	73148	CARMEN DE APICALÁ
+municipality	73152	CASABIANCA
+municipality	73168	CHAPARRAL
+municipality	73200	COELLO
+municipality	73217	COYAIMA
+municipality	73226	CUNDAY
+municipality	73236	DOLORES
+municipality	73268	ESPINAL
+municipality	73270	FALAN
+municipality	73275	FLANDES
+municipality	73283	FRESNO
+municipality	73319	GUAMO
+municipality	73347	HERVEO
+municipality	73349	HONDA
+municipality	73352	ICONONZO
+municipality	73408	LÉRIDA
+municipality	73411	LÍBANO
+municipality	73443	SAN SEBASTIÁN DE MARIQUITA
+municipality	73449	MELGAR
+municipality	73461	MURILLO
+municipality	73483	NATAGAIMA
+municipality	73504	ORTEGA
+municipality	73520	PALOCABILDO
+municipality	73547	PIEDRAS
+municipality	73555	PLANADAS
+municipality	73563	PRADO
+municipality	73585	PURIFICACIÓN
+municipality	73616	RIOBLANCO
+municipality	73622	RONCESVALLES
+municipality	73624	ROVIRA
+municipality	73671	SALDAÑA
+municipality	73675	SAN ANTONIO
+municipality	73678	SAN LUIS
+municipality	73686	SANTA ISABEL
+municipality	73770	SUÁREZ
+municipality	73854	VALLE DE SAN JUAN
+municipality	73861	VENADILLO
+municipality	73870	VILLAHERMOSA
+municipality	73873	VILLARRICA
+municipality	76001	CALI
+municipality	76020	ALCALÁ
+municipality	76036	ANDALUCÍA
+municipality	76041	ANSERMANUEVO
+municipality	76054	ARGELIA
+municipality	76100	BOLÍVAR
+municipality	76109	BUENAVENTURA
+municipality	76111	GUADALAJARA DE BUGA
+municipality	76113	BUGALAGRANDE
+municipality	76122	CAICEDONIA
+municipality	76126	CALIMA (DARIEN)
+municipality	76130	CANDELARIA
+municipality	76147	CARTAGO
+municipality	76233	DAGUA
+municipality	76243	EL ÁGUILA
+municipality	76246	EL CAIRO
+municipality	76248	EL CERRITO
+municipality	76250	EL DOVIO
+municipality	76275	FLORIDA
+municipality	76306	GINEBRA
+municipality	76318	GUACARÍ
+municipality	76364	JAMUNDÍ
+municipality	76377	LA CUMBRE
+municipality	76400	LA UNIÓN
+municipality	76403	LA VICTORIA
+municipality	76497	OBANDO
+municipality	76520	PALMIRA
+municipality	76563	PRADERA
+municipality	76606	RESTREPO
+municipality	76616	RIOFRÍO
+municipality	76622	ROLDANILLO
+municipality	76670	SAN PEDRO
+municipality	76736	SEVILLA
+municipality	76823	TORO
+municipality	76828	TRUJILLO
+municipality	76834	TULUÁ
+municipality	76845	ULLOA
+municipality	76863	VERSALLES
+municipality	76869	VIJES
+municipality	76890	YOTOCO
+municipality	76892	YUMBO
+municipality	76895	ZARZAL
+municipality	81001	ARAUCA
+municipality	81065	ARAUQUITA
+municipality	81220	CRAVO NORTE
+municipality	81300	FORTUL
+municipality	81591	PUERTO RONDÓN
+municipality	81736	SARAVENA
+municipality	81794	TAME
+municipality	85001	YOPAL
+municipality	85010	AGUAZUL
+municipality	85015	CHÁMEZA
+municipality	85125	HATO COROZAL
+municipality	85136	LA SALINA
+municipality	85139	MANÍ
+municipality	85162	MONTERREY
+municipality	85225	NUNCHÍA
+municipality	85230	OROCUÉ
+municipality	85250	PAZ DE ARIPORO
+municipality	85263	PORE
+municipality	85279	RECETOR
+municipality	85300	SABANALARGA
+municipality	85315	SÁCAMA
+municipality	85325	SAN LUIS DE PALENQUE
+municipality	85400	TÁMARA
+municipality	85410	TAURAMENA
+municipality	85430	TRINIDAD
+municipality	85440	VILLANUEVA
+municipality	86001	MOCOA
+municipality	86219	COLÓN
+municipality	86320	ORITO
+municipality	86568	PUERTO ASÍS
+municipality	86569	PUERTO CAICEDO
+municipality	86571	PUERTO GUZMÁN
+municipality	86573	PUERTO LEGUÍZAMO
+municipality	86749	SIBUNDOY
+municipality	86755	SAN FRANCISCO
+municipality	86757	SAN MIGUEL
+municipality	86760	SANTIAGO
+municipality	86865	VALLE DEL GUAMUEZ
+municipality	86885	VILLAGARZÓN
+municipality	88001	SAN ANDRÉS
+municipality	88564	PROVIDENCIA
+municipality	91001	LETICIA
+municipality	91263	EL ENCANTO
+municipality	91405	LA CHORRERA
+municipality	91407	LA PEDRERA
+municipality	91430	LA VICTORIA
+municipality	91460	MIRITÍ – PARANÁ
+municipality	91530	PUERTO ALEGRÍA
+municipality	91536	PUERTO ARICA
+municipality	91540	PUERTO NARIÑO
+municipality	91669	PUERTO SANTANDER
+municipality	91798	TARAPACÁ
+municipality	94001	INÍRIDA
+municipality	94343	BARRANCOMINAS
+municipality	94663	MAPIRIPANA
+municipality	94883	SAN FELIPE
+municipality	94884	PUERTO COLOMBIA
+municipality	94885	LA GUADALUPE
+municipality	94886	CACAHUAL
+municipality	94887	PANA PANA
+municipality	94888	MORICHAL NUEVO
+municipality	95001	SAN JOSÉ DEL GUAVIARE
+municipality	95015	CALAMAR
+municipality	95025	EL RETORNO
+municipality	95200	MIRAFLORES
+municipality	97001	MITÚ
+municipality	97161	CARURÚ
+municipality	97511	PACOA
+municipality	97666	TARAIRA
+municipality	97777	PAPUNAHUA
+municipality	97889	YAVARATÉ
+municipality	99001	PUERTO CARREÑO
+municipality	99524	LA PRIMAVERA
+municipality	99624	SANTA ROSALÍA
+municipality	99773	CUMARIBO
+operation	09	AIU
+operation	10	Estándar *
+operation	11	Mandatos
+operation	12	Transporte**
+operation	14	Notariios
+operation	15	Compra Divisas
+operation	16	Venta Divisas
+organization	1	Persona Jurídica y asimiladas
+organization	2	Persona Natural y asimiladas
+party-tax	01	IVA
+party-tax	04	INC
+party-tax	ZA	IVA e INC
+party-tax	ZZ	No aplica *
+payment-form	1	Contado
+payment-form	2	Crédito
+payment-means	1	Instrumento no definido
+payment-means	10	Efectivo
+payment-means	11	Reversión Crédito Ahorro
+payment-means	12	Reversión Débito Ahorro
+payment-means	13	Crédito Ahorro
+payment-means	14	Débito Ahorro
+payment-means	15	Bookentry Crédito
+payment-means	16	Bookentry Débito
+payment-means	17	Desembolso Crédito (CCD)
+payment-means	18	Desembolso (CCD) débito
+payment-means	19	Crédito Pago negocio corporativo (CTP)
+payment-means	2	Crédito ACH
+payment-means	20	Cheque
+payment-means	21	Poyecto bancario
+payment-means	22	Proyecto bancario certificado
+payment-means	23	Cheque bancario de gerencia
+payment-means	24	Nota cambiaria esperando aceptación
+payment-means	25	Cheque certificado
+payment-means	26	Cheque Local
+payment-means	27	Débito Pago Neogcio Corporativo (CTP)
+payment-means	28	Crédito Negocio Intercambio Corporativo (CTX)
+payment-means	29	Débito Negocio Intercambio Corporativo (CTX)
+payment-means	3	Débito ACH
+payment-means	30	Transferencia Crédito
+payment-means	31	Transferencia Débito
+payment-means	32	Desembolso Crédito plus (CCD+)
+payment-means	33	Desembolso Débito plus (CCD+)
+payment-means	34	Pago y depósito pre acordado (PPD)
+payment-means	35	Desembolso Crédito (CCD)
+payment-means	36	Desembolso Débito (CCD)
+payment-means	37	Pago Negocio Corporativo Ahorros Crédito (CTP)
+payment-means	38	Pago Negocio Corporativo Ahorros Débito (CTP)
+payment-means	39	Crédito Intercambio Corporativo (CTX)
+payment-means	4	Reversión débito de demanda ACH
+payment-means	40	Débito Intercambio Corporativo (CTX)
+payment-means	41	Desembolso Crédito plus (CCD+)
+payment-means	42	Consiganción bancaria
+payment-means	43	Desembolso Débito plus (CCD+)
+payment-means	44	Nota cambiaria
+payment-means	45	Transferencia Crédito Bancario
+payment-means	46	Transferencia Débito Interbancario
+payment-means	47	Transferencia Débito Bancaria
+payment-means	48	Tarjeta Crédito
+payment-means	49	Tarjeta Débito
+payment-means	5	Reversión crédito de demanda ACH
+payment-means	50	Postgiro
+payment-means	51	Telex estándar bancario
+payment-means	52	Pago comercial urgente
+payment-means	53	Pago Tesorería Urgente
+payment-means	6	Crédito de demanda ACH
+payment-means	60	Nota promisoria
+payment-means	61	Nota promisoria firmada por el acreedor
+payment-means	62	Nota promisoria firmada por el acreedor, avalada por el banco
+payment-means	63	Nota promisoria firmada por el acreedor, avalada por un tercero
+payment-means	64	Nota promisoria firmada pro el banco
+payment-means	65	Nota promisoria firmada por un banco avalada por otro banco
+payment-means	66	Nota promisoria firmada
+payment-means	67	Nota promisoria firmada por un tercero avalada por un banco
+payment-means	7	Débito de demanda ACH
+payment-means	70	Retiro de nota por el por el acreedor
+payment-means	71	Bonos
+payment-means	72	Vales
+payment-means	74	Retiro de nota por el por el acreedor sobre un banco
+payment-means	75	Retiro de nota por el acreedor, avalada por otro banco
+payment-means	76	Retiro de nota por el acreedor, sobre un banco avalada por un tercero
+payment-means	77	Retiro de una nota por el acreedor sobre un tercero
+payment-means	78	Retiro de una nota por el acreedor sobre un tercero avalada por un banco
+payment-means	9	Clearing Nacional o Regional
+payment-means	91	Nota bancaria transferible
+payment-means	92	Cheque local transferible
+payment-means	93	Giro referenciado
+payment-means	94	Giro urgente
+payment-means	95	Giro formato abierto
+payment-means	96	Método de pago solicitado no usuado
+payment-means	97	Clearing entre partners
+payment-means	ZZZ	Otro*
+responsibility	O-13	Gran contribuyente
+responsibility	O-15	Autorretenedor
+responsibility	O-23	Agente de retención IVA
+responsibility	O-47	Régimen simple de tributación
+responsibility	R-99-PN	No aplica – Otros *
+rete-income-rate	0.1	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	0.5	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	1	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	1.5	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	10	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	11	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	2	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	2.5	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	20	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	3	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	3.5	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	4	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	6	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-income-rate	7	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-vat-rate	100	Tarifa porcentual publicada; aplicabilidad no inferida
+rete-vat-rate	15	Tarifa porcentual publicada; aplicabilidad no inferida
+tax	01	IVA
+tax	02	IC
+tax	03	ICA
+tax	04	INC
+tax	05	ReteIVA
+tax	06	ReteRenta
+tax	07	ReteICA
+tax	08	IC Porcentual
+tax	20	FtoHorticultura
+tax	21	Timbre
+tax	22	INC Bolsas
+tax	23	INCarbono
+tax	24	INCombustibles
+tax	25	Sobretasa Combustibles
+tax	26	Sordicom
+tax	30	IC Datos
+tax	32	ICL
+tax	33	INPP
+tax	34	IBUA
+tax	35	ICUI
+tax	36	ADV
+unit	10	Grupo
+unit	11	Equipar
+unit	13	Ración
+unit	14	Disparo
+unit	15	Palo
+unit	16	tambor de ciento quince kg
+unit	17	tambor de cien libras
+unit	18	tambor de cincuenta y cinco galones (US)
+unit	19	camión cisterna
+unit	1B	recuento de coches
+unit	1C	recuento de locomotoras
+unit	1D	recuento de cabos
+unit	1E	carro vacio
+unit	1F	millas de tren
+unit	1G	uso de combustible galón (US)
+unit	1H	milla del caboose
+unit	1I	tipo de interés fijo
+unit	1J	tonelada milla
+unit	1K	milla locomotora
+unit	1L	recuento total de coches
+unit	1M	milla de coche total
+unit	1X	cuarto de milla
+unit	20	contenedor de veinte pies
+unit	21	contenedor de cuarenta pies
+unit	22	decilitro por gramo
+unit	23	gramo por centímetro cúbico
+unit	24	libra teórica
+unit	25	gramo por centímetro cuadrado
+unit	26	tonelada real
+unit	27	tonelada teórica
+unit	28	kilogramo por metro cuadrado
+unit	29	libra por mil pies cuadrados
+unit	2B	radianes por segundo al cuadrado
+unit	2C	Röntgen
+unit	2I	Unidad térmica británica por hora.
+unit	2J	centímetro cúbico por segundo
+unit	2K	pie cúbico por hora
+unit	2L	pie cúbico por minuto
+unit	2M	centímetro por segundo
+unit	2N	Decibel
+unit	2P	Kilobyte
+unit	2Q	Kilobecquerel
+unit	2R	Kilocurie
+unit	2U	Megagramo
+unit	2V	megagramo por hora
+unit	2W	compartimiento
+unit	2X	metro por minuto
+unit	2Y	Milliröntgen
+unit	2Z	Milivoltios
+unit	30	Día de potencia del caballo por tonelada métrica seca al aire.
+unit	31	coger peso
+unit	32	kilogramo por aire seco tonelada métrica
+unit	33	kilopascales metros cuadrados por gramo
+unit	34	kilopascales por milímetro
+unit	35	mililitros por centímetro cuadrado segundo
+unit	36	pies cúbicos por minuto por pie cuadrado
+unit	37	onza por pie cuadrado
+unit	38	onzas por pie cuadrado por 0,01 pulgadas
+unit	3B	Megajulio
+unit	3C	Manmonth
+unit	3E	libra por libra de producto
+unit	3G	libra por pieza de producto
+unit	3H	kilogramo por kilogramo de producto
+unit	3I	kilogramo por pieza de producto
+unit	4	spray pequeño
+unit	40	mililitro por segundo
+unit	41	mililitro por minuto
+unit	43	bolsa súper a granel
+unit	44	bolsa a granel de quinientos kg
+unit	45	bolsa a granel de trescientos kg
+unit	46	bolsa a granel de cincuenta libras
+unit	47	bolsa de cincuenta libras
+unit	48	carga de automóviles a granel
+unit	4B	Gorra
+unit	4C	Centistokes
+unit	4E	paquete de veinte
+unit	4G	Microlitro
+unit	4H	Micrómetro
+unit	4K	Miliamperio
+unit	4L	Megabyte
+unit	4M	miligramo por hora
+unit	4N	megabecquerel
+unit	4P	newton por metro
+unit	4Q	onza pulgada
+unit	4R	pie onza
+unit	4T	Picofarad
+unit	4U	libra por hora
+unit	4W	tonelada (US) por hora
+unit	4X	kilolitro por hora
+unit	5	Levantar
+unit	53	kilogramos teóricos
+unit	54	tonelada teórica
+unit	56	Sitas
+unit	57	Malla
+unit	58	kilogramo neto
+unit	59	parte por millón
+unit	5B	Lote
+unit	5C	galón (US) por mil
+unit	5E	MMSCF / día
+unit	5F	libras por mil
+unit	5G	Bomba
+unit	5H	Escenario
+unit	5I	pie cúbico estándar
+unit	5J	potencia hidráulica de caballos
+unit	5K	contar por minuto
+unit	5P	nivel sísmico
+unit	5Q	nfor sismica
+unit	60	porcentaje de peso
+unit	61	parte por billón (US)
+unit	62	porcentaje por 1000 horas
+unit	63	tasa de fracaso en el tiempo
+unit	64	libra por pulgada cuadrada, calibre
+unit	66	Oersted
+unit	69	prueba de escala específica
+unit	71	voltio amperio por libra
+unit	72	vatio por libra
+unit	73	amperio tum por centímetro
+unit	74	Milipascal
+unit	76	Gauss
+unit	77	mili pulgadas
+unit	78	Kilogauss
+unit	8	Lote calor
+unit	80	libras por pulgada cuadrada absoluta
+unit	81	Enrique
+unit	84	kilopound por pulgada cuadrada
+unit	85	fuerza libra pie
+unit	87	libra por pie cúbico
+unit	89	Equilibrio
+unit	90	Saybold segundo universal
+unit	91	Alimenta
+unit	92	calorías por centímetro cúbico
+unit	93	calorías por gramo
+unit	94	Unidad
+unit	95	veinte mil galones (US) de carros
+unit	96	diez mil galones (US) de carros
+unit	97	tambor de diez kg
+unit	98	tambor de quince kg
+unit	A1	15 calorías C
+unit	A10	amperio metro cuadrado por joule segundo
+unit	A11	Ã ¥ ngström
+unit	A12	unidad astronómica
+unit	A13	Attojoule
+unit	A14	Granero
+unit	A15	granero por electrón voltio
+unit	A16	granero por voltio de electrones esteradiano,
+unit	A17	granero por sterdian
+unit	A18	becquerel por kilogramo
+unit	A19	becquerel por metro cúbico
+unit	A2	amperio por centímetro
+unit	A20	Unidad térmica británica por segundo pie cuadrado grado Rankin
+unit	A21	Unidad térmica británica por libra grado Rankin
+unit	A22	Unidad térmica británica por segundo pie grado Rankin
+unit	A23	Unidad térmica británica por hora pie cuadrado grado Rankin
+unit	A24	candela por metro cuadrado
+unit	A25	cheval vapeur
+unit	A26	medidor de culombio
+unit	A27	medidor de culombio al cuadrado por voltio
+unit	A28	Coulomb por centímetro cúbico
+unit	A29	Coulomb por metro cúbico
+unit	A3	amperio por milímetro
+unit	A30	Coulomb por milímetro cúbico
+unit	A31	Coulomb por kilogramo segundo
+unit	A32	Coulomb por mol
+unit	A33	Coulomb por centímetro cuadrado
+unit	A34	Coulomb por metro cuadrado
+unit	A35	Coulomb por milímetro cuadrado
+unit	A36	centímetro cúbico por mol
+unit	A37	nformaci cúbico por mol
+unit	A38	metro cúbico por coulomb
+unit	A39	metro cúbico por kilogramo
+unit	A4	amperio por centímetro cuadrado
+unit	A40	metro cúbico por mol
+unit	A41	amperio por metro cuadrado
+unit	A42	curie por kilogramo
+unit	A43	tonelaje de peso muerto
+unit	A44	Decalitro
+unit	A45	Decámetro
+unit	A47	Decitex
+unit	A48	grado Rankin
+unit	A49	Negador
+unit	A5	amperio metro cuadrado
+unit	A50	dyn segundo por centímetro cúbico
+unit	A51	dina segundo por centímetro
+unit	A52	dina segundo por centímetro al quinto
+unit	A53	Electronvolt
+unit	A54	electronvoltio por metro
+unit	A55	metro electronvolt cuadrado
+unit	A56	electronvoltio de metro cuadrado por kilogramo
+unit	A57	Ergio
+unit	A58	erg por centímetro
+unit	A6	amperio por metro cuadrado kelvin al cuadrado
+unit	A60	erg por centímetro cúbico
+unit	A61	erg por gramo
+unit	A62	erg por gramo de segundo
+unit	A63	erg por segundo
+unit	A64	erg por segundo centímetro cuadrado
+unit	A65	erg por centímetro cuadrado segundo
+unit	A66	erg centímetro cuadrado
+unit	A67	ergímetro cuadrado por gramo
+unit	A68	Exajulio
+unit	A69	faradio por metro
+unit	A7	amperio por milímetro cuadrado
+unit	A70	Femtojoule
+unit	A71	Femtometro
+unit	A73	pie por segundo al cuadrado
+unit	A74	pie-fuerza de la libra por segundo
+unit	A75	tonelada de carga
+unit	A76	Galón
+unit	A77	Unidad de desplazamiento CGS gaussiana
+unit	A78	Unidad gaussiana CGS de corriente eléctrica.
+unit	A79	Unidad Gaussian CGS de carga eléctrica.
+unit	A8	amperio segundo
+unit	A80	Unidad Gaussian CGS de intensidad de campo eléctrico.
+unit	A81	Unidad Gaussian CGS de polarización eléctrica.
+unit	A82	Unidad Gaussian CGS de potencial eléctrico.
+unit	A83	Unidad Gaussiana CGS de magnetización.
+unit	A84	gigacoulomb por metro cúbico
+unit	A85	Gigaelectronvolt
+unit	A86	Gigahercios
+unit	A87	Gigaohm
+unit	A88	medidor de gigaohm
+unit	A89	Gigapascal
+unit	A9	Tarifa
+unit	A90	Gigavatios
+unit	A91	Gon
+unit	A93	gramo por metro cúbico
+unit	A94	gramo por mol
+unit	A95	Gris
+unit	A96	gris por segundo
+unit	A97	Hectopascal
+unit	A98	Henry por metro
+unit	AA	Bola
+unit	AB	paquete a granel
+unit	ACR	Acre
+unit	AD	Byte
+unit	AE	amperio por metro
+unit	AH	minuto adicional
+unit	AI	minuto promedio por llamada
+unit	AJ	Policía
+unit	AK	Braza
+unit	AL	nfor de acceso
+unit	AM	Ampolla
+unit	AMH	hora amperio
+unit	AMP	Amperio
+unit	ANA	Año
+unit	AP	solo libra de aluminio
+unit	APZ	onza troy o onza de boticarios
+unit	AQ	Unidad de factor antihemofílico (AHF)
+unit	AR	Supositorio
+unit	ASM	fuerza alcohólica en masa
+unit	ASU	fuerza alcohólica por volumen
+unit	ATM	ambiente estándar
+unit	ATT	ambiente técnico
+unit	AV	Cápsula
+unit	AW	vial lleno de polvo
+unit	AZ	Unidad térmica británica por libra
+unit	B0	Btu por pie cúbico
+unit	B1	barril (US) por día
+unit	B11	julios por kilogramo kelvin
+unit	B12	julios por metro
+unit	B13	julios por metro cuadrado
+unit	B14	julios por metro a la cuarta potencia
+unit	B15	julios por mol
+unit	B16	julios por mol kelvin
+unit	B18	joule segundo
+unit	B2	Litera
+unit	B20	joule metro cuadrado por kilogramo
+unit	B21	kelvin por vatio
+unit	B22	Kiloampere
+unit	B23	kiloampere por metro cuadrado
+unit	B24	kiloampere por metro
+unit	B25	kilobecquerel por kilogramo
+unit	B26	Kilocoulomb
+unit	B27	kilocoulomb por metro cúbico
+unit	B28	kilocoulomb por metro cuadrado
+unit	B29	kiloelectronvolt
+unit	B3	libra de bateo
+unit	B31	kilogramo metro por segundo
+unit	B32	kilogramo metro cuadrado
+unit	B33	kilogramo metro cuadrado por segundo
+unit	B34	kilogramo por decímetro cúbico
+unit	B35	kilogramo por litro
+unit	B36	caloría termoquímica por gramo
+unit	B37	kilogramo de fuerza
+unit	B38	metro de fuerza de kilogramo
+unit	B39	metro de fuerza de kilogramo por segundo
+unit	B4	barril, imperial
+unit	B40	kilogramo de fuerza por metro cuadrado
+unit	B41	kilojoule per kelvin
+unit	B42	kilojoule por kilogramo
+unit	B43	kilojoule por kilogramo kelvin
+unit	B44	kilojoule por mol
+unit	B45	Kilomol
+unit	B46	kilomol por metro cúbico
+unit	B47	Kilonewton
+unit	B48	medidor de kilonewton
+unit	B49	Kiloohm
+unit	B5	Palanquilla
+unit	B50	medidor de kiloohm
+unit	B51	Kilopond
+unit	B52	Kilosegundo
+unit	B53	Kilosiemens
+unit	B54	kilosiemens por metro
+unit	B55	kilovoltios por metro
+unit	B56	kiloveber por metro
+unit	B57	año luz
+unit	B58	litro por mol
+unit	B59	hora lumen
+unit	B6	Bollo
+unit	B60	lumen por metro cuadrado
+unit	B61	lumen por vatio
+unit	B62	lumen segundo
+unit	B63	hora de lux
+unit	B64	lux segundo
+unit	B65	Maxwell
+unit	B66	megaamperios por metro cuadrado
+unit	B67	megabecquerel por kilogramo
+unit	B69	megacoulomb por metro cúbico
+unit	B7	Ciclo
+unit	B70	megacoulomb por metro cuadrado
+unit	B71	megaelectronvolt
+unit	B72	megagramo por metro cúbico
+unit	B73	Meganewton
+unit	B74	medidor de meganewton
+unit	B75	Megaohm
+unit	B76	metro megaohm
+unit	B77	megasiemens por metro
+unit	B78	Megavoltio
+unit	B79	megavolt por metro
+unit	B8	julios por metro cúbico
+unit	B81	metro recíproco cuadrado recíproco segundo
+unit	B83	metro a la cuarta potencia
+unit	B84	Microamperios
+unit	B85	Microbar
+unit	B86	Microcoulomb
+unit	B87	microcoulomb por metro cúbico
+unit	B88	microcoulomb por metro cuadrado
+unit	B89	microfarada por metro
+unit	B9	Batt
+unit	B90	Microhenry
+unit	B91	microhenry por metro
+unit	B92	Micronewton
+unit	B93	medidor de micronewton
+unit	B94	Microohm
+unit	B95	medidor de microohmios
+unit	B96	Micropascal
+unit	B97	Microradiano
+unit	B98	Microsegundo
+unit	B99	Microsiemens
+unit	BAR	Bar
+unit	BB	caja base
+unit	BD	Tablero
+unit	BFT	pie de tabla
+unit	BG	Bolso
+unit	BH	Cepillo
+unit	BHP	potencia al freno
+unit	BIL	trillón de dólares
+unit	BJ	Cangilón
+unit	BK	Cesta
+unit	BL	Bala
+unit	BLD	barril seco
+unit	BLL	barril (EE. UU.) (petróleo, etc.)
+unit	BO	botella
+unit	BP	cien pies de tabla
+unit	BQL	becquerel
+unit	BR	bar
+unit	BT	tornillo
+unit	BTU	Unidad Térmica Británica
+unit	BUA	bushel (EE. UU.)
+unit	BUI	bushel (Reino Unido)
+unit	BW	peso base
+unit	BX	caja
+unit	BZ	millones de BTUs
+unit	C0	llamada
+unit	C1	producto compuesto libra (peso total)
+unit	C10	millifarad
+unit	C11	miligal
+unit	C12	miligramo por metro
+unit	C13	miligray
+unit	C14	milihenry
+unit	C15	milijoule
+unit	C16	milímetro por segundo
+unit	C17	milímetro cuadrado por segundo
+unit	C18	milimol
+unit	C19	mol por kilogramo
+unit	C2	carset
+unit	C20	millinewton
+unit	C22	millinewton por metro
+unit	C23	medidor de miliohm
+unit	C24	segundo milipascal
+unit	C25	miliradian
+unit	C26	milisegundo
+unit	C27	milisiemens
+unit	C28	milisievert
+unit	C29	millitesla
+unit	C3	microvoltios por metro
+unit	C30	milivoltios por metro
+unit	C31	milivatios
+unit	C32	milivatios por metro cuadrado
+unit	C33	milliweber
+unit	C34	Topo
+unit	C35	mol por decímetro cúbico
+unit	C36	mol por metro cúbico
+unit	C38	mol por litro
+unit	C39	Nanoampere
+unit	C4	partido de carga
+unit	C40	nanocoulomb
+unit	C41	nanofarad
+unit	C42	nanofarad por metro
+unit	C43	nanohenry
+unit	C44	nanohenry por metro
+unit	C45	nanometro
+unit	C46	medidor de nanoohm
+unit	C47	nanosegundo
+unit	C48	nanotesla
+unit	C49	nanovatio
+unit	C5	costo
+unit	C50	neper
+unit	C51	neper por segundo
+unit	C52	picometro
+unit	C53	metro de newton segundo
+unit	C54	newton metro cuadrado kilogramo cuadrado
+unit	C55	newton por metro cuadrado
+unit	C56	newton por milímetro cuadrado
+unit	C57	newton segundo
+unit	C58	newton segundo por metro
+unit	C59	octava
+unit	C6	célula
+unit	C60	ohm centímetro
+unit	C61	ohm metro
+unit	C62	uno
+unit	C63	parsec
+unit	C64	pascal por kelvin
+unit	C65	segundo pascal
+unit	C66	segundo pascal por metro cúbico
+unit	C67	segundo pascal por metro
+unit	C68	petajoule
+unit	C69	telefono
+unit	C7	centipoise
+unit	C70	picoampere
+unit	C71	picocoulomb
+unit	C72	picofarad por metro
+unit	C73	picohenry
+unit	C75	picowatt
+unit	C76	picowatt por metro cuadrado
+unit	C77	medidor de libras
+unit	C78	fuerza de libra
+unit	C8	Millicoulomb por kilogramo
+unit	C80	rad
+unit	C81	radián
+unit	C82	medidor de radianes al cuadrado por mol
+unit	C83	medidor de radianes al cuadrado por kilogramo
+unit	C84	radian por metro
+unit	C85	â € ngstr recíproco “m
+unit	C86	metro cúbico recíproco
+unit	C87	metro cúbico recíproco por segundo
+unit	C88	voltios de electrones recíprocos por metro cúbico
+unit	C89	Henry Recíproco
+unit	C9	grupo de bobina
+unit	C90	Joule recíproco por metro cúbico
+unit	C91	kelvin recíproco o kelvin al poder menos uno
+unit	C92	medidor recíproco
+unit	C93	metro cuadrado recíproco
+unit	C94	minuto recíproco
+unit	C95	mole recíproco
+unit	C96	Pascal recíproco o pascal a la potencia menos uno.
+unit	C97	segundo recíproco
+unit	C98	segundo recíproco por metro cúbico
+unit	C99	segundo recíproco por metro cuadrado
+unit	CA	Caja
+unit	CCT	Capacidad de carga en toneladas métricas.
+unit	CDL	candela
+unit	CE	cada uno por mes
+unit	CEL	grado Celsius
+unit	CEN	cien
+unit	CG	tarjeta
+unit	CGM	centigramo
+unit	CH	envase
+unit	CJ	cono
+unit	CK	conector
+unit	CKG	Coulomb por kilogramo
+unit	CL	bobina
+unit	CLF	cientos de licencia
+unit	CLT	centilitro
+unit	CMK	centímetro cuadrado
+unit	CMQ	centímetro cúbico
+unit	CMT	centímetro
+unit	CNP	paquete de cien
+unit	CNT	Cental (Reino Unido)
+unit	CO	garrafón
+unit	COMO	Surtido
+unit	COU	culombio
+unit	CQ	cartucho
+unit	CR	caja
+unit	CS	caso
+unit	CT	caja de cartón
+unit	CTM	quilate métrico
+unit	CU	vaso
+unit	CUR	curie
+unit	CV	cubrir
+unit	CWA	cien libras (quintales) / cien pesos (US)
+unit	CWI	cien pesos (Reino Unido)
+unit	CY	cilindro
+unit	CZ	combo
+unit	D1	segundo recíproco por esteradiano
+unit	D10	siemens por metro
+unit	D12	siemens metro cuadrado por mol
+unit	D13	sievert
+unit	D14	mil yardas lineales
+unit	D15	sone
+unit	D16	centímetro cuadrado por ergio
+unit	D17	centímetro cuadrado por erg esterlina
+unit	D18	metro kelvin
+unit	D19	kelvin metro cuadrado por vatio
+unit	D2	segundo recíproco por metros cuadrados esteradianos
+unit	D20	metro cuadrado por julio
+unit	D21	metro cuadrado por kilogramo
+unit	D22	metro cuadrado por mol
+unit	D23	pluma gramo (proteína)
+unit	D24	metro cuadrado por esterilizador
+unit	D25	metro cuadrado por julios esteradianos
+unit	D26	metro cuadrado por voltio segundo
+unit	D27	esteradiano
+unit	D28	sifón
+unit	D29	terahercios
+unit	D30	terajulio
+unit	D31	teravatio
+unit	D32	hora de teravatio
+unit	D33	tesla
+unit	D34	Texas
+unit	D35	caloría termoquímica
+unit	D37	caloría termoquímica por gramo kelvin
+unit	D38	calorías termoquímicas por segundo centímetro kelvin
+unit	D39	calorías termoquímicas por segundo centímetro cuadrado kelvin
+unit	D40	mil litros
+unit	D41	tonelada por metro cúbico
+unit	D42	año tropical
+unit	D43	unidad de masa atómica unificada
+unit	D44	var
+unit	D45	voltios al cuadrado por kelvin al cuadrado
+unit	D46	voltio – amperio
+unit	D47	voltio por centímetro
+unit	D48	voltio por kelvin
+unit	D49	milivoltios por kelvin
+unit	D5	kilogramo por centímetro cuadrado
+unit	D50	voltios por metro
+unit	D51	voltios por milímetro
+unit	D52	vatios por kelvin
+unit	D53	vatios por metro kelvin
+unit	D54	vatios por metro cuadrado
+unit	D55	vatios por metro cuadrado kelvin
+unit	D56	vatios por metro cuadrado de kelvin a la cuarta potencia
+unit	D57	vatios por steradian
+unit	D58	vatios por metro cuadrado esterlino
+unit	D59	weber por metro
+unit	D6	röntgen por segundo
+unit	D60	weber por milímetro
+unit	D61	minuto
+unit	D62	segundo
+unit	D63	libro
+unit	D64	bloquear
+unit	D65	redondo
+unit	D66	casete
+unit	D67	dólar por hora
+unit	D69	pulgada a la cuarta potencia
+unit	D7	Sandwich
+unit	D70	Tabla Internacional (IT) caloría
+unit	D71	Tabla Internacional (IT) calorías por segundo centímetro kelvin
+unit	D72	Tabla Internacional (IT) calorías por segundo centímetro cuadrado kelvin
+unit	D73	joule metro cuadrado
+unit	D74	kilogramo por mol
+unit	D75	Tabla Internacional (IT) calorías por gramo
+unit	D76	Tabla Internacional (IT) calorías por gramo kelvin
+unit	D77	megacoulomb
+unit	D79	haz
+unit	D8	puntaje de drenaje
+unit	D80	microwatt
+unit	D81	microtesla
+unit	D82	microvoltio
+unit	D83	medidor de millinewton
+unit	D85	microwatt por metro cuadrado
+unit	D86	Millicoulomb
+unit	D87	milimol por kilogramo
+unit	D88	millicoulomb por metro cúbico
+unit	D89	millicoulomb por metro cuadrado
+unit	D9	dina por centímetro cuadrado
+unit	D90	metro cúbico (neto)
+unit	D91	movimiento rápido del ojo
+unit	D92	banda
+unit	D93	segundo por metro cúbico
+unit	D94	segundo por metro cúbico radianes
+unit	D95	julios por gramo
+unit	D96	libra bruta
+unit	D97	carga de palet / unidad
+unit	D98	libra de masa
+unit	D99	manga
+unit	DAA	despreciar
+unit	DAD	diez dias
+unit	DAY	día
+unit	DB	libra seca
+unit	DC	disco
+unit	DD	la licenciatura
+unit	DE	acuerdo
+unit	DEC	década
+unit	DG	decigramo
+unit	DI	dispensador
+unit	DJ	decagramo
+unit	DLT	decilitro
+unit	DMK	nformaci cuadrado
+unit	DMQ	decímetro cúbico
+unit	DMT	decímetro
+unit	DN	medidor de decinewton
+unit	DPC	docena pieza
+unit	DPR	docena par
+unit	DPT	tonelaje de desplazamiento
+unit	DQ	registro de datos
+unit	DR	tambor
+unit	DRA	dram (US)
+unit	DRI	dram (Reino Unido)
+unit	DRL	docena rollo
+unit	DRM	dracma (Reino Unido)
+unit	DS	monitor
+unit	DT	tonelada seca
+unit	DTN	Decitonne
+unit	DU	dina
+unit	DWT	pennyweight
+unit	DX	dina por centímetro
+unit	DY	libro de directorio
+unit	DZN	docena
+unit	DZP	paquete de doce
+unit	E2	cinturón
+unit	E3	remolque
+unit	E4	kilogramo bruto
+unit	E5	tonelada métrica larga
+unit	EA	cada
+unit	EB	casilla de correo electrónico
+unit	EN	onza por yarda cuadrada
+unit	EP	paquete de once
+unit	EQ	galón equivalente
+unit	EV	sobre
+unit	F1	mil pies cúbicos por día
+unit	F9	Fibra por centímetro cúbico de aire
+unit	FAH	grado Fahrenheit
+unit	FAR	faradio
+unit	FB	campo
+unit	FC	mil pies cúbicos
+unit	FD	millón de partículas por pie cúbico
+unit	FE	pie de pista
+unit	FF	cien metros cúbicos
+unit	FG	parche transdérmico
+unit	FH	micromol
+unit	FL	tonelada en escamas
+unit	FM	millones de pies cúbicos
+unit	FOT	pie
+unit	FP	libra por pie cuadrado
+unit	FR	pie por minuto
+unit	FS	pie por segundo
+unit	FTK	pie cuadrado
+unit	FTQ	pie cubico
+unit	G2	US galones por minuto
+unit	G3	Galon imperial por minuto
+unit	G7	hoja de microficha
+unit	GB	galón (US) por día
+unit	GBQ	gigabecquerel
+unit	GC	gramo por 100 gramo
+unit	GD	barril bruto
+unit	GE	libra por galón (US)
+unit	GF	gramo por metro (gramo por 100 centímetros)
+unit	GFI	gramo de isótopo fisionable
+unit	GGR	gramo
+unit	GH	medio galón (EE. UU.)
+unit	GIA	branquias
+unit	GII	Gill (Reino Unido)
+unit	GJ	gramo por mililitro
+unit	GL	gramo por litro
+unit	GLD	galón seco (EE. UU.)
+unit	GLI	galón (Reino Unido)
+unit	GLL	galón
+unit	GM	gramo por metro cuadrado
+unit	GN	galón bruto
+unit	GO	miligramos por metro cuadrado
+unit	GP	miligramo por metro cúbico
+unit	GQ	microgramos por metro cúbico
+unit	GRM	gramo
+unit	GRN	grano
+unit	GRO	bruto
+unit	GRT	tonelada de registro bruto
+unit	GT	tonelada bruta
+unit	GV	gigajoule
+unit	GW	galón por mil pies cúbicos
+unit	GWH	hora de gigavatios
+unit	GY	patio bruto
+unit	GZ	sistema de medición
+unit	H1	media página – electrónica
+unit	H2	medio litro
+unit	HA	madeja
+unit	HAR	hectárea
+unit	HBA	hectobar
+unit	HBX	cien cajas
+unit	HC	cien cuentas
+unit	HD	media docena
+unit	HF	cien pies
+unit	HGM	hectogramo
+unit	HH	cien pies cúbicos
+unit	HI	cien hojas
+unit	HIU	cien unidades internacionales
+unit	HJ	caballo métrico
+unit	HK	cien kilogramos
+unit	HL	cien pies (lineales)
+unit	HLT	hectolitro
+unit	HM	milla por hora
+unit	HMQ	millones de metros cúbicos
+unit	HMT	hectómetro
+unit	HN	milímetro convencional de mercurio
+unit	HO	cien onzas troy
+unit	HP	milímetro convencional de agua
+unit	HPA	hectolitro de alcohol puro
+unit	HS	cien pies cuadrados
+unit	HT	media hora
+unit	HTZ	hertz
+unit	HUR	Hora
+unit	HY	cien yardas
+unit	IA	pulgada libra
+unit	IC	contar por pulgada
+unit	IE	persona
+unit	IF	pulgadas de agua
+unit	II	columna pulgada
+unit	IL	pulgada por minuto
+unit	IM	impresión
+unit	INH	pulgada
+unit	INK	pulgada cuadrada
+unit	INQ	pulgada en cubos
+unit	IP	póliza de seguros
+unit	IT	conteo por centímetro
+unit	ITS	piedra (Reino Unido)
+unit	IU	pulgada por segundo (velocidad lineal)
+unit	IV	pulgada por segundo al cuadrado (aceleración)
+unit	J2	julios por kilogramo
+unit	JB	jumbo
+unit	JE	joule por kelvin
+unit	JG	jarra
+unit	JK	megajulio por kilogramo
+unit	JM	megajulio por metro cúbico
+unit	JO	articulación
+unit	JOU	joule
+unit	JR	tarro
+unit	K1	demanda de kilovatios
+unit	K2	kilovoltios amperios reactivos de demanda
+unit	K3	kilovoltio amperio hora reactiva
+unit	K5	amperios kilovoltios (reactivos)
+unit	K6	kilolitro
+unit	KA	pastel
+unit	KB	kilocharacter
+unit	KBA	kilobar
+unit	KD	kilogramo decimal
+unit	KEL	kelvin
+unit	KF	kilopacket
+unit	KG	barrilete
+unit	KGM	kilogramo
+unit	KGS	kilogramo por segundo
+unit	KHZ	kilohercio
+unit	KI	Kilogramo por milímetro de ancho
+unit	KJ	kilosegmento
+unit	KJO	kilojoule
+unit	KL	kilogramo por metro
+unit	KMH	kilómetro por hora
+unit	KMK	kilometro cuadrado
+unit	KMQ	kilogramo por metro cúbico
+unit	KNI	kilogramo de nitrógeno
+unit	KNS	kilogramo de sustancia nombrada
+unit	KNT	nudo
+unit	KO	Milliequivalencia de potasa cáustica por gramo de producto.
+unit	KPA	kilopascal
+unit	KPH	kilogramo de hidróxido de potasio (potasa cáustica)
+unit	KPO	kilogramo de óxido de potasio
+unit	KPP	kilogramo de pentóxido de fósforo (anhídrido fosfórico)
+unit	KR	KilorÃ¶ntgen
+unit	KS	mil libras por pulgada cuadrada
+unit	KSD	kilogramo de sustancia 90% seca
+unit	KSH	kilogramo de hidróxido de sodio (soda cáustica)
+unit	KT	equipo
+unit	KTM	kilómetro
+unit	KTN	kilotonne
+unit	KUR	kilogramo de uranio
+unit	KVA	kilovoltio – ampere
+unit	KVR	kilovar
+unit	KVT	kilovoltio
+unit	KW	kilogramos por milímetro
+unit	KWH	kilovatios hora
+unit	KWT	kilovatio
+unit	KX	mililitro por kilogramo
+unit	L2	litro por minuto
+unit	LA	libra por pulgada cúbica
+unit	LBR	libra
+unit	LBT	libra troy
+unit	LC	centímetro lineal
+unit	LD	litro por día
+unit	LE	lite
+unit	LEF	hoja
+unit	LF	pie lineal
+unit	LH	hora de trabajo
+unit	LI	pulgada lineal
+unit	LJ	spray grande
+unit	LK	enlazar
+unit	LM	metro lineal
+unit	LN	longitud
+unit	LO	mucho
+unit	LP	libra liquida
+unit	LPA	litro de alcohol puro
+unit	LR	capa
+unit	LS	Suma global
+unit	LTN	ton (Reino Unido) o longton (EE. UU.)
+unit	LTR	litro
+unit	LUM	lumen
+unit	LUN	mes
+unit	LUX	lux
+unit	LX	yarda lineal por libra
+unit	LY	yarda lineal
+unit	M0	cinta magnética
+unit	M1	miligramos por litro
+unit	M4	valor monetario
+unit	M5	microcurie
+unit	M7	micropulgada
+unit	M9	millones de Btu por 1000 pies cúbicos
+unit	MA	máquina por unidad
+unit	MAL	mega litro
+unit	MAM	megametro
+unit	MAW	megavatio
+unit	MBE	mil equivalentes de ladrillo estándar
+unit	MBF	mil pies de tabla
+unit	MBR	milibar
+unit	MC	microgramo
+unit	MCU	milicurie
+unit	MD	aire seco tonelada métrica
+unit	MF	miligramo por pie cuadrado por lado
+unit	MG	miligramo
+unit	MHZ	megahercio
+unit	MIK	milla cuadrada
+unit	MIL	mil
+unit	MIN	minuto
+unit	MIO	millón
+unit	MIU	millones de unidades internacionales
+unit	MK	miligramo por pulgada cuadrada
+unit	MLD	mil millones
+unit	MLT	mililitro
+unit	MMK	milímetro cuadrado
+unit	MMQ	milímetro cúbico
+unit	MMT	milímetro
+unit	MNI	milla nautica
+unit	MPA	megapascal
+unit	MQ	mil metros
+unit	MQH	metro cúbico por hora
+unit	MQS	metro cúbico por segundo
+unit	MSK	metro por segundo al cuadrado
+unit	MT	estera
+unit	MTK	metro cuadrado
+unit	MTQ	Metro cúbico
+unit	MTR	metro
+unit	MTS	metro por segundo
+unit	MV	número de mults
+unit	MVA	megavolt – ampere
+unit	MWH	megavatios hora (1000 kW.h)
+unit	N1	calorías de la pluma
+unit	N2	número de líneas
+unit	N3	punto de impresión
+unit	NA	miligramo por kilogramo
+unit	NAR	número de artículos
+unit	NB	barcaza
+unit	NBB	número de bobinas
+unit	NC	coche
+unit	NCL	número de celdas
+unit	ND	barril neto
+unit	NE	litro neto
+unit	NEW	newton
+unit	NF	mensaje
+unit	NG	galón neto (nosotros)
+unit	NH	hora del mensaje
+unit	NI	galón imperial neto
+unit	NIU	número de unidades internacionales
+unit	NJ	número de pantallas
+unit	NL	carga
+unit	NMP	número de paquetes
+unit	NN	entrenar
+unit	NPL	número de parcelas
+unit	NPR	número de pares
+unit	NQ	mho
+unit	NR	micromho
+unit	NRL	número de rollos
+unit	NT	tonelada neta
+unit	NTT	registro neto de toneladas
+unit	NU	medidor de newton
+unit	NV	vehículo
+unit	NX	parte por mil
+unit	NY	libra por aire seco tonelada métrica
+unit	OA	panel
+unit	OCS	Puntuación
+unit	OHM	ohm
+unit	ONZ	onza av
+unit	OP	Dos paquetes
+unit	OT	hora extra
+unit	OZA	onza líquida (US)
+unit	OZI	onza líquida (Reino Unido)
+unit	P0	pagina – electronica
+unit	P1	por ciento
+unit	P2	libra por pie
+unit	P3	paquete de tres
+unit	P4	paquete de cuatro
+unit	P5	paquete de cinco
+unit	P6	paquete de seis
+unit	P7	paquete de siete
+unit	P8	paquete de ocho
+unit	P9	paquete de nueve
+unit	PA	paquete
+unit	PAL	pascal
+unit	PB	par de pulgadas
+unit	PD	fuerza de libra por pulgada cuadrada
+unit	PE	equivalente en libras
+unit	PF	palet (ascensor)
+unit	PG	plato
+unit	PGL	galón de prueba
+unit	PK	paquete
+unit	PL	cubo
+unit	PM	porcentaje de libra
+unit	PN	libra neta
+unit	PO	libra por pulgada de longitud
+unit	PQ	página por pulgada
+unit	PR	par
+unit	PT	pinta
+unit	PTD	pinta seca
+unit	PTI	pinta (Reino Unido)
+unit	PTL	pinta liquida (US)
+unit	PU	bandeja / paquete de bandeja
+unit	PV	media pinta (US)
+unit	PW	libra por pulgada de ancho
+unit	PY	Peck Dry (US)
+unit	PZ	Peck Dry (Reino Unido)
+unit	Q3	comida
+unit	QA	página – facsímil
+unit	QAN	cuarto (de un año)
+unit	QB	página – copia impresa
+unit	QD	cuarto de docena
+unit	QH	un cuarto de hora
+unit	QK	cuarto de kilogramo
+unit	QR	mano de papel
+unit	QT	cuarto de galón (US)
+unit	QTD	cuarto seco (EE. UU.)
+unit	QTI	cuarto de galón (Reino Unido)
+unit	QTL	cuarto líquido (US)
+unit	QTR	cuarto (UK)
+unit	R1	pica
+unit	R4	caloría
+unit	R9	mil metros cúbicos
+unit	RA	estante
+unit	RD	barra
+unit	RG	anillo
+unit	RH	hora de funcionamiento o de funcionamiento
+unit	RK	medida métrica rollo
+unit	RL	carrete
+unit	RM	resma
+unit	RN	medida métrica de resma
+unit	RO	rodar
+unit	RP	libra por resma
+unit	RPM	revoluciones por minuto
+unit	RPS	revoluciones por segundo
+unit	RS	Reiniciar
+unit	RT	ingreso tonelada milla
+unit	RU	correr
+unit	S3	pie cuadrado por segundo
+unit	S4	metro cuadrado por segundo
+unit	S5	sesenta cuartos de pulgada
+unit	S6	sesión
+unit	S7	unidad de almacenamiento
+unit	S8	unidad de publicidad estándar
+unit	SA	saco
+unit	SAN	medio año (6 meses)
+unit	SCR	escrúpulo
+unit	SD	libra solida
+unit	SE	sección
+unit	SEC	segundo
+unit	SER	Haz
+unit	SET	conjunto
+unit	SG	segmento
+unit	SHT	tonelada de envío
+unit	SIE	siemens
+unit	SK	camión cisterna dividido
+unit	SL	hoja de deslizamiento
+unit	SMI	milla (milla estatutaria)
+unit	SN	varilla cuadrada
+unit	SO	madeja
+unit	SON	Son
+unit	SP	paquete de estante
+unit	SQ	cuadrado
+unit	SR	tira
+unit	SS	hoja métrica medida
+unit	SST	corto estándar (7200 partidos)
+unit	ST	hoja
+unit	STN	tonelada (US) o tonelada corta (UK / US)
+unit	SV	patinar
+unit	SX	envío
+unit	T0	Línea de telecomunicaciones en servicio.
+unit	T1	mil libras brutas
+unit	T3	mil piezas
+unit	T4	bolsa de mil
+unit	T5	caja de mil
+unit	T6	mil galones (US)
+unit	T7	mil impresiones
+unit	T8	mil pulgadas lineales
+unit	TA	décimo pie cúbico
+unit	TAH	Kiloampere hora (mil amperios hora)
+unit	TC	camion
+unit	TD	termia
+unit	TE	totalizador
+unit	TF	diez metros cuadrados
+unit	TI	mil pulgadas cuadradas
+unit	TJ	mil centímetros cuadrados
+unit	TK	tanque, rectangular
+unit	TL	mil pies (lineales)
+unit	TN	estaño
+unit	TNE	tonelada (tonelada métrica)
+unit	TNP	número de partes
+unit	TP	paquete de diez
+unit	TPR	diez pares
+unit	TQ	mil pies
+unit	TQD	mil metros cúbicos por día
+unit	TR	diez pies cuadrados
+unit	TRL	trillón (EUR)
+unit	TS	mil pies cuadrados
+unit	TSD	tonelada de sustancia 90% seca
+unit	TSH	tonelada de vapor por hora
+unit	TT	mil metros lineales
+unit	TU	tubo
+unit	TV	mil kilogramos
+unit	TW	mil hojas
+unit	TY	tanque, cilíndrico
+unit	U1	tratamiento
+unit	U2	tableta
+unit	UA	torr
+unit	UB	Línea de telecomunicaciones en servicio promedio.
+unit	UC	puerto de telecomunicaciones
+unit	UD	décimo minuto
+unit	UE	décima hora
+unit	UF	uso por línea de telecomunicación promedio
+unit	UH	diez mil yardas
+unit	UM	millones de unidades
+unit	VA	voltio amperio por kilogramo
+unit	VI	frasco
+unit	VLT	voltio
+unit	VQ	abultar
+unit	VS	visitar
+unit	W2	kilo mojado
+unit	W4	dos semanas
+unit	WA	vatio por kilogramo
+unit	WB	libra mojada
+unit	WCD	cable
+unit	WE	tonelada mojada
+unit	WEB	weber
+unit	WEE	semana
+unit	WG	galon de vino
+unit	WH	rueda
+unit	WHR	vatios hora
+unit	WI	peso por pulgada cuadrada
+unit	WM	mes de trabajo
+unit	WR	envolver
+unit	WSD	estándar
+unit	WTT	vatio
+unit	WW	mililitro de agua
+unit	X1	cadena
+unit	YDK	yarda cuadrada
+unit	YDQ	Yarda cúbica
+unit	YL	cien yardas lineales
+unit	YRD	yarda
+unit	YT	diez yardas
+unit	Z1	van de elevación
+unit	Z2	pecho
+unit	Z3	barril
+unit	Z4	pipa
+unit	Z5	arrastrar
+unit	Z6	punto de conferencia
+unit	Z8	línea de noticias de ágata
+unit	ZP	página
+unit	ZZ	mutuamente definido
+vat-rate	0	Tarifa porcentual publicada; aplicabilidad no inferida
+vat-rate	16	Tarifa porcentual publicada; aplicabilidad no inferida
+vat-rate	19	Tarifa porcentual publicada; aplicabilidad no inferida
+vat-rate	5	Tarifa porcentual publicada; aplicabilidad no inferida

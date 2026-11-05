@@ -3,6 +3,7 @@ FROM maven:3.9.11-eclipse-temurin-25 AS build
 WORKDIR /workspace
 
 COPY pom.xml ./
+COPY pos-invoicing/pom.xml pos-invoicing/pom.xml
 COPY pos-domain/pom.xml pos-domain/pom.xml
 COPY pos-api/pom.xml pos-api/pom.xml
 COPY pos-desktop/pom.xml pos-desktop/pom.xml
@@ -10,6 +11,7 @@ COPY pos-desktop/pom.xml pos-desktop/pom.xml
 RUN mvn -B -pl pos-api -am dependency:go-offline
 
 COPY pos-domain/src pos-domain/src
+COPY pos-invoicing/src pos-invoicing/src
 COPY pos-api/src pos-api/src
 
 RUN mvn -B -pl pos-api -am clean package -DskipTests \

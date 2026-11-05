@@ -13,6 +13,7 @@
     <description>Raiz multi-modulo para API, dominio y POS desktop</description>
 
     <modules>
+        <module>pos-invoicing</module>
         <module>pos-domain</module>
         <module>pos-api</module>
         <module>pos-desktop</module>

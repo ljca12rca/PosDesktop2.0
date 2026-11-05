@@ -59,6 +59,7 @@ public class FacturasElectronicasAccionesService {
     private FacturaElectronica factura(UUID id) {
         FacturaElectronica factura = facturas.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe la factura electrónica seleccionada."));
+        if (!"DATAICO".equals(factura.getProveedor())) throw new IllegalArgumentException("Este documento no pertenece a Dataico.");
         if (factura.getIdentificadorDataico() == null || factura.getIdentificadorDataico().isBlank()) {
             throw new IllegalArgumentException("La factura no tiene un identificador de Dataico para realizar el envío.");
         }

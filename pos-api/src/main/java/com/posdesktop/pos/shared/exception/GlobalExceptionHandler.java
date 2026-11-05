@@ -16,6 +16,26 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> invalidJson(org.springframework.http.converter.HttpMessageNotReadableException error, HttpServletRequest request) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of("Revisa el formato y los campos de la solicitud.",request.getRequestURI(),List.of()));
+    }
+    @ExceptionHandler(com.posdesktop.pos.facturacion.electronica.fiscal.FiscalConfigurationException.class)
+    public ResponseEntity<ApiErrorResponse> fiscalConfiguration(RuntimeException error, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ApiErrorResponse.of(error.getMessage(), request.getRequestURI(), List.of()));
+    }
+    @ExceptionHandler(com.posdesktop.pos.facturacion.electronica.fiscal.FiscalConflictException.class)
+    public ResponseEntity<ApiErrorResponse> fiscalConflict(RuntimeException error, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiErrorResponse.of(error.getMessage(), request.getRequestURI(), List.of()));
+    }
+    @ExceptionHandler(com.posdesktop.pos.invoicing.domain.InvoiceValidationException.class)
+    public ResponseEntity<ApiErrorResponse> fiscalValidation(RuntimeException error, HttpServletRequest request) {
+        return ResponseEntity.badRequest().body(ApiErrorResponse.of(error.getMessage(), request.getRequestURI(), List.of()));
+    }
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<ApiErrorResponse> fiscalDisabled(RuntimeException error, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(ApiErrorResponse.of(error.getMessage(), request.getRequestURI(), List.of()));
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(

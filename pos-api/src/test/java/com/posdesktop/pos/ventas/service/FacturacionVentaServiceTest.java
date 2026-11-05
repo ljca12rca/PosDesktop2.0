@@ -18,6 +18,9 @@ import com.posdesktop.pos.facturacion.electronica.domain.DocumentoElectronico;
 import com.posdesktop.pos.facturacion.electronica.domain.ResultadoEmisionDocumento;
 import com.posdesktop.pos.facturacion.electronica.infraestructura.dataico.DataicoApiException;
 import com.posdesktop.pos.facturacion.electronica.infraestructura.dataico.DataicoInvoiceMapper;
+import com.posdesktop.pos.facturacion.electronica.fiscal.*;
+import com.posdesktop.pos.repositorio.relacional.*;
+import com.posdesktop.pos.modelo.relacional.*;
 import com.posdesktop.pos.modelo.relacional.ClienteElectronico;
 import com.posdesktop.pos.modelo.relacional.DataicoConsecutivo;
 import com.posdesktop.pos.modelo.relacional.DetalleVenta;
@@ -42,11 +45,15 @@ class FacturacionVentaServiceTest {
     private final FacturaElectronicaRepositorio facturas = mock(FacturaElectronicaRepositorio.class);
     private final DataicoConsecutivoRepositorio consecutivos = mock(DataicoConsecutivoRepositorio.class);
     private final DataicoConfiguracionService configuracion = mock(DataicoConfiguracionService.class);
-    private final DataicoProperties properties = new DataicoProperties(true, null, null, null, null,
+    private final DataicoProperties properties = new DataicoProperties(true, null, null, null, "token-ficticio-test",
             "FEE", "18760000001", "1789500096", true, "PRODUCCION",
             Duration.ofSeconds(5), Duration.ofSeconds(30));
-    private final FacturacionVentaService service = new FacturacionVentaService(
-            ventas, clientes, dataico, configuracion, facturas, consecutivos);
+    private final FiscalProviderSettingsRepository providers = mock(FiscalProviderSettingsRepository.class);
+    private final FiscalDocumentRepository documents = mock(FiscalDocumentRepository.class);
+    private final FiscalOperationRepository operations = mock(FiscalOperationRepository.class);
+    private final FiscalEventRepository events = mock(FiscalEventRepository.class);
+    private final FiscalEmissionTransactions transactions = new FiscalEmissionTransactions(ventas,clientes,facturas,consecutivos,configuracion,providers,documents,operations,events,new FiscalJson());
+    private final FacturacionVentaService service = new FacturacionVentaService(transactions,new DataicoFiscalSender(dataico,configuracion));
     private final UUID ventaId = UUID.randomUUID();
     private final UUID clienteId = UUID.randomUUID();
 
@@ -55,7 +62,7 @@ class FacturacionVentaServiceTest {
         DataicoConsecutivo anterior = preparar(1789500100L);
         DataicoConsecutivo nuevo = new DataicoConsecutivo("ABC", 50L);
         when(consecutivos.findByPrefijoForUpdate("ABC")).thenReturn(Optional.of(nuevo));
-        when(configuracion.paraEmision()).thenReturn(new DataicoProperties(true, null, null, null, null,
+        when(configuracion.paraEmision()).thenReturn(new DataicoProperties(true, null, null, null, "token-ficticio-test",
                 "ABC", "987654", "1", false, "PRUEBAS", Duration.ofSeconds(5), Duration.ofSeconds(30)));
         cuandoDataicoAcepta("50");
 
@@ -113,7 +120,7 @@ class FacturacionVentaServiceTest {
     }
 
     @Test
-    void emiteConElConsecutivoCorregidoYAvanzaSoloTrasRecibirRespuesta() {
+    void reservaElConsecutivoAntesDeContactarAlProveedor() {
         DataicoConsecutivo consecutivo = preparar(994500001L);
         cuandoDataicoAcepta("994500001");
 
@@ -130,7 +137,8 @@ class FacturacionVentaServiceTest {
     void reintentaUnaVezConElNumeroSugeridoPorDataicoSinMaximoLocal() {
         DataicoConsecutivo consecutivo = preparar(994500001L);
         when(dataico.emitir(eq("dataico"), any())).thenThrow(new DataicoApiException(
-                "El siguiente número 'FEE1789500095'", new RuntimeException()))
+                "El siguiente número 'FEE1789500095'", org.springframework.web.client.HttpServerErrorException.create(
+                        org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,"Error",org.springframework.http.HttpHeaders.EMPTY,new byte[0],java.nio.charset.StandardCharsets.UTF_8)))
                 .thenReturn(new ResultadoEmisionDocumento("dataico", "id-prueba", "1789500095",
                         "DIAN_NO_ENVIADO", null, null, null, "Creada", null));
 
@@ -144,7 +152,7 @@ class FacturacionVentaServiceTest {
     }
 
     @Test
-    void propagaElRechazoRealDeDataicoSinAvanzarElConsecutivo() {
+    void propagaResultadoInciertoPeroConservaLaReservaParaNoDuplicar() {
         DataicoConsecutivo consecutivo = preparar(1789500095L);
         DataicoApiException rechazo = new DataicoApiException("Dataico respondió 500: rechazo de resolución", new RuntimeException());
         when(dataico.emitir(eq("dataico"), any())).thenThrow(rechazo);
@@ -153,9 +161,8 @@ class FacturacionVentaServiceTest {
                 .isSameAs(rechazo);
 
         verify(dataico).emitir(eq("dataico"), any());
-        verifyNoInteractions(facturas);
-        verify(consecutivos, never()).save(any());
-        assertThat(consecutivo.getSiguienteNumero()).isEqualTo(1789500095L);
+        verify(facturas, never()).saveAndFlush(any());
+        assertThat(consecutivo.getSiguienteNumero()).isEqualTo(1789500096L);
     }
 
     @Test
@@ -208,8 +215,14 @@ class FacturacionVentaServiceTest {
     }
 
     private DataicoConsecutivo preparar(long numero) {
+        when(providers.lockSettings()).thenReturn(Optional.of(new FiscalProviderSettings()));
+        Map<UUID,FiscalOperation> operationStore=new java.util.HashMap<>();
+        when(operations.lockOperation(any())).thenAnswer(i->Optional.ofNullable(operationStore.get(i.getArgument(0))));
+        when(operations.saveAndFlush(any())).thenAnswer(i->{FiscalOperation operation=i.getArgument(0);operationStore.put(operation.getVentaId(),operation);return operation;});
+        when(documents.saveAndFlush(any())).thenAnswer(i->i.getArgument(0));
         when(configuracion.paraEmision()).thenReturn(properties);
         ClienteElectronico cliente = new ClienteElectronico();
+        org.springframework.test.util.ReflectionTestUtils.setField(cliente,"id",clienteId);
         cliente.setTipoPersona("NATURAL");
         cliente.setTipoIdentificacion("CC");
         cliente.setIdentificacion("123456789");
@@ -220,6 +233,7 @@ class FacturacionVentaServiceTest {
         cliente.setDepartamentoCodigoDane("05");
         cliente.setCiudadCodigoDane("001");
         Venta venta = new Venta();
+        org.springframework.test.util.ReflectionTestUtils.setField(venta,"id",ventaId);
         venta.setNumeroVenta("VTA-PRUEBA");
         DetalleVenta detalle = new DetalleVenta();
         detalle.setDescripcion("Artículo de prueba");
@@ -228,6 +242,7 @@ class FacturacionVentaServiceTest {
         venta.getDetalles().add(detalle);
         DataicoConsecutivo consecutivo = new DataicoConsecutivo("FEE", numero);
         when(ventas.findById(ventaId)).thenReturn(Optional.of(venta));
+        when(ventas.findForFiscalUpdate(ventaId)).thenReturn(Optional.of(venta));
         when(clientes.findById(clienteId)).thenReturn(Optional.of(cliente));
         when(consecutivos.findByPrefijoForUpdate("FEE")).thenReturn(Optional.of(consecutivo));
         return consecutivo;

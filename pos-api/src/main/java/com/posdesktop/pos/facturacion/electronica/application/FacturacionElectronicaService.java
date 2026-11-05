@@ -16,6 +16,11 @@ public class FacturacionElectronicaService {
     }
 
     public ResultadoEmisionDocumento emitir(String codigoProveedor, DocumentoElectronico documento) {
+        // La seleccion activa se comprueba transaccionalmente al preparar la venta.
+        // Documentos ya asignados a Dataico conservan su proveedor aunque cambie la seleccion.
+        if (!"dataico".equalsIgnoreCase(codigoProveedor)) {
+            throw new UnsupportedOperationException("DIAN_DIRECT no esta habilitado para emision. No se enviara a ningun proveedor.");
+        }
         return proveedor(codigoProveedor).emitir(documento);
     }
 

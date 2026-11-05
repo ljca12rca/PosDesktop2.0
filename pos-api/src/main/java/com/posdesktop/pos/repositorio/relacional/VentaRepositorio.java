@@ -7,6 +7,10 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface VentaRepositorio extends JpaRepository<Venta, UUID> {
+    java.util.Optional<Venta> findByNumeroVenta(String numeroVenta);
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select v from Venta v where v.id = :id")
+    java.util.Optional<Venta> findForFiscalUpdate(UUID id);
 
     List<Venta> findByFechaVentaBetween(LocalDateTime inicio, LocalDateTime fin);
 

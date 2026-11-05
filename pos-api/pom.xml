@@ -17,6 +17,11 @@
     <dependencies>
         <dependency>
             <groupId>com.posdesktop</groupId>
+            <artifactId>pos-invoicing</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.posdesktop</groupId>
             <artifactId>pos-domain</artifactId>
             <version>${project.version}</version>
         </dependency>

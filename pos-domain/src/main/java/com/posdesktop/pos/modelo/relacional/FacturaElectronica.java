@@ -14,6 +14,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "facturas_electronicas")
 public class FacturaElectronica extends EntidadAuditable {
+    @Column(nullable = false, length = 20) private String proveedor = "DATAICO";
+    public String getProveedor() { return proveedor; }
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
     @Column(name = "venta_id", nullable = false, unique = true) private UUID ventaId;
     @Column(name = "fecha_emision", nullable = false) private LocalDateTime fechaEmision;

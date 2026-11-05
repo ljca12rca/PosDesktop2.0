@@ -100,6 +100,49 @@ public final class PosApiClient {
         return get("/configuracion/dataico", new TypeReference<ApiResponseEnvelope<ConfiguracionDataicoResponse>>() { }).data();
     }
 
+    public FiscalProviderResponse consultarProveedorFiscal() {
+        return get("/facturacion/proveedor",new TypeReference<ApiResponseEnvelope<FiscalProviderResponse>>() { }).data();
+    }
+    public FiscalProviderResponse guardarProveedorFiscal(String provider,long version) {
+        return put("/facturacion/proveedor",new SaveFiscalProvider(provider,version),new TypeReference<ApiResponseEnvelope<FiscalProviderResponse>>() { },ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
+    }
+    public DianSettingsResponse consultarConfiguracionDian(String environment) {
+        return get("/facturacion/dian/configuracion/"+encode(environment),new TypeReference<ApiResponseEnvelope<DianSettingsResponse>>() { }).data();
+    }
+    public DianSettingsResponse guardarConfiguracionDian(String environment,SaveDianSettings request) {
+        return put("/facturacion/dian/configuracion/"+encode(environment),request,new TypeReference<ApiResponseEnvelope<DianSettingsResponse>>() { },ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
+    }
+    public DianPreparation prepararBorradorDian(String environment) {
+        return get("/facturacion/dian/preparacion/"+encode(environment),new TypeReference<ApiResponseEnvelope<DianPreparation>>() { }).data();
+    }
+    public DianDraftResult generarBorradorDian(String saleId,DianDraftRequest request) {
+        return post("/facturacion/ventas/"+encode(saleId)+"/borrador",request,new TypeReference<ApiResponseEnvelope<DianDraftResult>>() { },ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
+    }
+    public List<FiscalDocumentSummary> listarDocumentosFiscales() {
+        return get("/facturacion/documentos",new TypeReference<ApiResponseEnvelope<List<FiscalDocumentSummary>>>() { }).data();
+    }
+    public FiscalDocumentDetail consultarDocumentoFiscal(String id) {
+        return get("/facturacion/documentos/"+encode(id),new TypeReference<ApiResponseEnvelope<FiscalDocumentDetail>>() { }).data();
+    }
+    public FiscalSignatureResult firmarDocumentoLocal(String id) {
+        return post("/facturacion/documentos/"+encode(id)+"/firma-local",new EmptyRequest(),new TypeReference<ApiResponseEnvelope<FiscalSignatureResult>>() { },ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
+    }
+    public FiscalSignatureValidation validarFirmaLocal(String id) {
+        return get("/facturacion/documentos/"+encode(id)+"/firma-local/validacion",new TypeReference<ApiResponseEnvelope<FiscalSignatureValidation>>() { }).data();
+    }
+    public ResultadoFacturaElectronicaResponse consultarIntentoFiscal(String saleId) {
+        return post("/ventas/"+encode(saleId)+"/factura-electronica/consultar-intento",new EmptyRequest(),new TypeReference<ApiResponseEnvelope<ResultadoFacturaElectronicaResponse>>() { },ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
+    }
+    public ResultadoFacturaElectronicaResponse reintentarFacturaFiscal(String saleId,String customerId) {
+        return post("/ventas/"+encode(saleId)+"/factura-electronica/reintentar",new EmitirFacturaElectronicaRequest(customerId),new TypeReference<ApiResponseEnvelope<ResultadoFacturaElectronicaResponse>>() { },ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
+    }
+    public VentaRegistradaResponse consultarVentaFiscal(String saleId) {
+        String path;
+        try { java.util.UUID.fromString(saleId);path="/facturacion/ventas/"+encode(saleId); }
+        catch(IllegalArgumentException error) {path="/facturacion/ventas/por-numero?numero="+encode(saleId);}
+        return get(path,new TypeReference<ApiResponseEnvelope<VentaRegistradaResponse>>() { }).data();
+    }
+
     public ConfiguracionDataicoResponse guardarConfiguracionDataico(GuardarConfiguracionDataicoRequest request) {
         return put("/configuracion/dataico", request,
                 new TypeReference<ApiResponseEnvelope<ConfiguracionDataicoResponse>>() { }, ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
@@ -698,6 +741,28 @@ public final class PosApiClient {
 
     public record EmitirFacturaElectronicaRequest(String clienteId) {
     }
+
+    public record FiscalProviderResponse(String provider,long version,boolean directEmissionEnabled) { }
+    public record SaveFiscalProvider(String provider,long version) { }
+    public record DianAddress(String street,String cityCode,String cityName,String departmentCode,String departmentName,String countryCode) { }
+    public record DianParty(String identificationType,String identification,String checkDigit,String name,String taxResponsibilities,String taxSchemeId,String taxSchemeName,DianAddress address) { }
+    public record DianNumbering(String prefix,String resolution,LocalDate validFrom,LocalDate validUntil,long rangeFrom,long rangeUntil) { }
+    public record DianConfiguration(String softwareName,String softwareId,String testSetId,String providerNit,String providerDv,DianParty issuer,String issuerOrganization,DianNumbering numbering,long previewNumber) { }
+    public record DianSettingsResponse(String environment,long version,DianConfiguration configuration,boolean technicalKeyConfigured,boolean softwarePinConfigured,boolean certificateConfigured) { }
+    public record SaveDianSettings(long version,DianConfiguration configuration,String technicalKey,String softwarePin,String certificateBase64,String certificatePassword) {
+        @Override public String toString() { return "SaveDianSettings[secrets=REDACTED]"; }
+    }
+    public record DianPreparation(String environment,long configurationVersion,String prefix,long previewNumber,LocalDate validFrom,LocalDate validUntil,String issuerName,boolean secretsConfigured) { }
+    public record DianTax(String treatment,String schemeId,String schemeName,BigDecimal percent,Object perUnit) { }
+    public record DianLineClassification(int order,String unitCode,List<DianTax> taxes) { }
+    public record DianDraftRequest(String customerId,String environment,long configurationVersion,long number,String customerResponsibilities,String customerTaxScheme,
+            String paymentForm,String paymentMeans,LocalDate dueDate,List<DianLineClassification> lines,List<Object> adjustments,List<Object> withholdings) { }
+    public record DianDraftResult(String id,String number,String state,String xml,String cufe,String hash,boolean readyToTransmit) { }
+    public record FiscalDocumentSummary(String id,String saleId,String customerId,String provider,String purpose,String environment,String number,String customer,BigDecimal total,String state,LocalDateTime createdAt) { }
+    public record FiscalEvent(String type,String detail,LocalDateTime createdAt) { }
+    public record FiscalDocumentDetail(FiscalDocumentSummary summary,String format,String snapshot,String xml,String hash,List<FiscalEvent> events) { }
+    public record FiscalSignatureResult(String id,String number,String state,boolean signatureValid,boolean trustVerified,boolean readyToTransmit) { }
+    public record FiscalSignatureValidation(boolean valid,boolean trustVerified,boolean readyToTransmit,String certificateSha256,List<String> issues) { }
 
     public record ConfiguracionDataicoResponse(
             String prefijo, String resolucion, Long siguienteNumero, String ambiente, boolean flexible,

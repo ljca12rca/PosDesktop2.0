@@ -129,10 +129,23 @@ public class VentasController {
             HttpServletRequest httpRequest
     ) {
         return ApiResponse.success(
-                "Factura electrónica enviada a Dataico.",
+                "Solicitud de facturacion procesada.",
                 httpRequest.getRequestURI(),
                 facturacionVentaService.emitir(ventaId, request.clienteId())
         );
+    }
+
+    @PostMapping("/{ventaId}/factura-electronica/reintentar")
+    @RequiresPermissions(PermisosSistema.VENTAS_EDIT)
+    public ApiResponse<ResultadoFacturaElectronicaVentaResponse> reintentarFactura(@PathVariable UUID ventaId,
+            @Valid @RequestBody EmitirFacturaElectronicaRequest body, HttpServletRequest request) {
+        return ApiResponse.success("Reintento procesado.",request.getRequestURI(),facturacionVentaService.reintentar(ventaId,body.clienteId()));
+    }
+
+    @PostMapping("/{ventaId}/factura-electronica/consultar-intento")
+    @RequiresPermissions(PermisosSistema.VENTAS_EDIT)
+    public ApiResponse<ResultadoFacturaElectronicaVentaResponse> consultarIntento(@PathVariable UUID ventaId,HttpServletRequest request) {
+        return ApiResponse.success("Intento consultado.",request.getRequestURI(),facturacionVentaService.consultarIntento(ventaId));
     }
 
     @PostMapping("/facturas-electronicas/{facturaId}/dian")
