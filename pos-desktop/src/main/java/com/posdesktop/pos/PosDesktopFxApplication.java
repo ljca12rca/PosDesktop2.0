@@ -85,7 +85,7 @@ import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
-import javafx.scene.control.cell.TextFieldTableCell;
+import com.posdesktop.pos.control.ArticuloAutocompleteCell;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
@@ -2143,7 +2143,9 @@ public class PosDesktopFxApplication extends Application {
         bindTableHeightToScene(table, 0.32, 170, 280);
         TableColumn<SaleDraftRow, String> articleColumn = new TableColumn<>("Articulo");
         articleColumn.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().articulo()));
-        articleColumn.setCellFactory(TextFieldTableCell.forTableColumn());
+        articleColumn.setCellFactory(column -> new ArticuloAutocompleteCell<>(
+                SaleDraftRow::valorUnitario, posApiClient::sugerirArticulos,
+                valorUnitarioField::requestFocus));
         articleColumn.setOnEditCommit(event -> {
             String article = optionalText(event.getNewValue());
             SaleDraftRow row = event.getRowValue();
@@ -2154,8 +2156,6 @@ public class PosDesktopFxApplication extends Application {
             if (article == null) {
                 table.refresh();
             }
-            // El editor nativo devuelve primero el foco a la tabla al confirmar: moverlo al campo después.
-            Platform.runLater(valorUnitarioField::requestFocus);
         });
         table.getColumns().addAll(
                 articleColumn,
@@ -2195,7 +2195,7 @@ public class PosDesktopFxApplication extends Application {
 
             cantidadField.setText("1");
             valorUnitarioField.clear();
-            setSalesStatusInfo(statusLabel, "Articulo agregado a la tabla. Total actualizado en pantalla.");
+            setSalesStatusInfo(statusLabel, "Artículo agregado. Doble clic en su nombre para ver sugerencias o escribir uno nuevo.");
             if (electronicInvoicingEnabled.get()) {
                 int rowIndex = context.rows().size() - 1;
                 Platform.runLater(() -> {

@@ -1,6 +1,7 @@
 package com.posdesktop.pos.ventas.service;
 
 import com.posdesktop.pos.cierres.service.CierreDiarioAutoSyncService;
+import com.posdesktop.pos.articulos.service.SugerenciasArticulosService;
 import com.posdesktop.pos.modelo.relacional.CierreDiario;
 import com.posdesktop.pos.modelo.enumeraciones.EstadoCierreDiario;
 import com.posdesktop.pos.modelo.enumeraciones.MedioPagoVenta;
@@ -35,17 +36,20 @@ public class VentasService {
     private final VentaRepositorio ventaRepositorio;
     private final CierreDiarioRepositorio cierreDiarioRepositorio;
     private final CierreDiarioAutoSyncService cierreDiarioAutoSyncService;
+    private final SugerenciasArticulosService sugerenciasArticulosService;
     private final String localSalesPrefix;
 
     public VentasService(
             VentaRepositorio ventaRepositorio,
             CierreDiarioRepositorio cierreDiarioRepositorio,
             CierreDiarioAutoSyncService cierreDiarioAutoSyncService,
+            SugerenciasArticulosService sugerenciasArticulosService,
             @Value("${pos.ventas.local-prefix:VTA}") String localSalesPrefix
     ) {
         this.ventaRepositorio = ventaRepositorio;
         this.cierreDiarioRepositorio = cierreDiarioRepositorio;
         this.cierreDiarioAutoSyncService = cierreDiarioAutoSyncService;
+        this.sugerenciasArticulosService = sugerenciasArticulosService;
         this.localSalesPrefix = localSalesPrefix == null || localSalesPrefix.isBlank() ? "VTA" : localSalesPrefix.trim();
     }
 
@@ -70,6 +74,12 @@ public class VentasService {
             venta.agregarDetalle(detalle);
         }
 
+        // Referencia auxiliar: sigue siendo un detalle manual, sin movimientos de inventario.
+        // Orden estable para que cajas concurrentes inserten nombres en el mismo orden.
+        venta.getDetalles().stream().sorted(java.util.Comparator.comparing(detalle -> detalle.getDescripcion()
+                        .trim().replaceAll("\\s+", " ").toLowerCase(java.util.Locale.ROOT)))
+                .forEach(detalle -> detalle.setArticulo(sugerenciasArticulosService.aprender(
+                        detalle.getDescripcion(), detalle.getPrecioUnitario())));
         return mapearVenta(guardarVenta(venta, fechaOperacion, cierreDelDia, request.montoRecibido()));
     }
 
