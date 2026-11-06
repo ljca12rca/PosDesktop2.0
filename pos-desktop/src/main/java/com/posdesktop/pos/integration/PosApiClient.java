@@ -130,6 +130,13 @@ public final class PosApiClient {
     public FiscalSignatureValidation validarFirmaLocal(String id) {
         return get("/facturacion/documentos/"+encode(id)+"/firma-local/validacion",new TypeReference<ApiResponseEnvelope<FiscalSignatureValidation>>() { }).data();
     }
+    public List<AdjustmentCandidate> buscarFacturasAjuste(String query){return get("/ajustes/facturas?buscar="+encode(query),new TypeReference<ApiResponseEnvelope<List<AdjustmentCandidate>>>(){}).data();}
+    public AdjustmentSource consultarOrigenAjuste(String provider,String id){return get("/ajustes/facturas/"+encode(provider)+"/"+encode(id),new TypeReference<ApiResponseEnvelope<AdjustmentSource>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public AdjustmentQuote revisarAjuste(AdjustmentRequest r){return post("/ajustes/revisar",r,new TypeReference<ApiResponseEnvelope<AdjustmentQuote>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public AdjustmentSummary guardarAjuste(AdjustmentRequest r){return post("/ajustes",r,new TypeReference<ApiResponseEnvelope<AdjustmentSummary>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public List<AdjustmentSummary> listarAjustes(){return get("/ajustes",new TypeReference<ApiResponseEnvelope<List<AdjustmentSummary>>>(){}).data();}
+    public AdjustmentSummary accionAjuste(String id,String action){if(!List.of("enviar","consultar","descartar").contains(action))throw new IllegalArgumentException("Accion invalida.");return post("/ajustes/"+encode(id)+"/"+action,new EmptyRequest(),new TypeReference<ApiResponseEnvelope<AdjustmentSummary>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public AdjustmentNumbering guardarNumeracionAjuste(String provider,String id,AdjustmentConfigure r){return put("/ajustes/numeracion/"+encode(provider)+"/"+encode(id),r,new TypeReference<ApiResponseEnvelope<AdjustmentNumbering>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
     public ResultadoFacturaElectronicaResponse consultarIntentoFiscal(String saleId) {
         return post("/ventas/"+encode(saleId)+"/factura-electronica/consultar-intento",new EmptyRequest(),new TypeReference<ApiResponseEnvelope<ResultadoFacturaElectronicaResponse>>() { },ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();
     }
@@ -385,9 +392,12 @@ public final class PosApiClient {
     }
 
     private <T> ApiResponseEnvelope<T> get(String path, TypeReference<ApiResponseEnvelope<T>> typeReference) {
+        return get(path,typeReference,API_REQUEST_TIMEOUT);
+    }
+    private <T> ApiResponseEnvelope<T> get(String path, TypeReference<ApiResponseEnvelope<T>> typeReference,Duration timeout) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + path))
-                .timeout(API_REQUEST_TIMEOUT)
+                .timeout(timeout)
                 .GET()
                 .header("Accept", "application/json");
         applyAuthHeader(builder);
@@ -763,6 +773,16 @@ public final class PosApiClient {
     public record FiscalDocumentDetail(FiscalDocumentSummary summary,String format,String snapshot,String xml,String hash,List<FiscalEvent> events) { }
     public record FiscalSignatureResult(String id,String number,String state,boolean signatureValid,boolean trustVerified,boolean readyToTransmit) { }
     public record FiscalSignatureValidation(boolean valid,boolean trustVerified,boolean readyToTransmit,String certificateSha256,List<String> issues) { }
+    public record AdjustmentCandidate(String id,String provider,String number,String customer,String environment,BigDecimal total){@Override public String toString(){return number+" · "+customer+" · "+("DATAICO".equals(provider)?"Dataico":"DIAN prueba");}}
+    public record AdjustmentLine(int order,String description,BigDecimal originalQuantity,BigDecimal available,BigDecimal unitPrice,String taxes) { }
+    public record AdjustmentSource(String id,String provider,String environment,String number,String customer,String sourceHash,BigDecimal total,List<AdjustmentLine> lines,AdjustmentNumbering numbering) { }
+    public record AdjustmentNumbering(boolean configured,long version,String creditPrefix,long creditNext,String debitPrefix,long debitNext) { }
+    public record AdjustmentConfigure(long version,String creditPrefix,long creditNext,String debitPrefix,long debitNext) { }
+    public record AdjustmentSelection(int order,BigDecimal quantity,BigDecimal unitIncrease) { }
+    public record AdjustmentRequest(String requestId,String provider,String sourceId,String sourceHash,String kind,String observation,List<AdjustmentSelection> lines) { }
+    public record AdjustmentPlan(String kind,List<Object> allocations,BigDecimal net,BigDecimal tax,BigDecimal total) { }
+    public record AdjustmentQuote(String number,AdjustmentPlan plan) { }
+    public record AdjustmentSummary(String id,String documentId,String sourceNumber,String number,String provider,String environment,String kind,String state,BigDecimal total,LocalDateTime createdAt,String dianStatus,String pdfUrl,String message) { }
 
     public record ConfiguracionDataicoResponse(
             String prefijo, String resolucion, Long siguienteNumero, String ambiente, boolean flexible,

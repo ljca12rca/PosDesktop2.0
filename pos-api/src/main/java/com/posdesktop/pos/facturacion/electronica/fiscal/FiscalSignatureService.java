@@ -28,7 +28,7 @@ public class FiscalSignatureService {
     @Transactional
     public Result sign(UUID id) {
         var source=document(id);
-        if(!"DIAN_DIRECT".equals(source.getProveedor())||!"BORRADOR".equals(source.getProposito())||!"DIAN_INVOICE_V1".equals(source.getFormato()))
+        if(!"DIAN_DIRECT".equals(source.getProveedor())||!"BORRADOR".equals(source.getProposito())||!Set.of("DIAN_INVOICE_V1","DIAN_CREDIT_NOTE_V1","DIAN_DEBIT_NOTE_V1").contains(source.getFormato()))
             throw new IllegalArgumentException("Selecciona un borrador DIAN sin firma.");
         if(!"PRUEBAS".equals(source.getAmbiente()))throw new IllegalArgumentException("La firma local de esta etapa solo esta habilitada en PRUEBAS.");
         checkHash(source);

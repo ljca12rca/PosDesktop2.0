@@ -33,8 +33,12 @@ public final class OfflineUblValidator {
     /** Perfil con correccion local explicita de coID2Type/@schemeID. Ver docs/dian19-rules.md. */
     public static OfflineUblValidator dian19() { return new OfflineUblValidator(true, true); }
     public static OfflineUblValidator dian19Published() { return new OfflineUblValidator(true, false); }
+    public static OfflineUblValidator dian19Note(boolean credit) { return new OfflineUblValidator(true,true,credit?"CreditNote":"DebitNote"); }
 
     private OfflineUblValidator(boolean dian, boolean corrected) {
+        this(dian,corrected,"Invoice");
+    }
+    private OfflineUblValidator(boolean dian, boolean corrected,String document) {
         String prefix = dian ? "/dian19/xsd/" : "/ubl21/";
         String rootUri = "classpath:" + prefix;
         try {
@@ -47,7 +51,7 @@ public final class OfflineUblValidator {
                 if (!resolved.toString().startsWith(rootUri)) throw new IllegalArgumentException("Importacion XSD fuera de la lista local.");
                 return new LocalInput(resolved.toString(), resource(resolved.getPath()));
             });
-            String root = prefix + "maindoc/UBL-Invoice-2.1.xsd";
+            String root = prefix + "maindoc/UBL-"+document+"-2.1.xsd";
             String extensionName = corrected ? "DIAN_UBL_Structures-profile19.xsd" : "DIAN_UBL_Structures.xsd";
             try (InputStream input = resource(root);
                  InputStream extension = dian ? resource(prefix + "maindoc/" + extensionName) : InputStream.nullInputStream()) {

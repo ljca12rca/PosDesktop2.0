@@ -33,6 +33,15 @@ public final class DianIdentifiers {
         update(digest, softwareId); secrets.update(digest, false); update(digest, invoiceNumber);
         return HexFormat.of().formatHex(digest.digest());
     }
+    /** Anexo 1.9, 11.4.3–11.4.6: notas usan PIN, no clave tecnica. */
+    public static String cude(CufeInput input,DianSecrets secrets) {
+        MessageDigest digest=sha384();
+        update(digest,input.number(),input.date(),input.time(),amount(input.net()),"01",amount(input.vat()),"04",amount(input.consumption()),"03",amount(input.municipal()),amount(input.payable()),input.issuerNit(),input.customerId());
+        secrets.update(digest,false);update(digest,input.environment());return HexFormat.of().formatHex(digest.digest());
+    }
+    public static String cude(FiscalInvoice note,InvoiceCalculator.Totals totals,DianProfile profile,DianSecrets secrets) {
+        return cude(new CufeInput(note.number(),note.issuedAt().toLocalDate().toString(),note.issuedAt().format(DateTimeFormatter.ofPattern("HH:mm:ssXXX")),totals.net(),tax(totals,"01"),tax(totals,"04"),tax(totals,"03"),totals.payable(),note.issuer().identification(),note.customer().identification(),profile.environment().code()),secrets);
+    }
     private static BigDecimal tax(InvoiceCalculator.Totals totals, String scheme) {
         return totals.lines().stream().flatMap(l -> l.taxes().stream()).filter(t -> scheme.equals(t.tax().schemeId()))
                 .map(InvoiceCalculator.TaxAmount::amount).reduce(BigDecimal.ZERO, BigDecimal::add);

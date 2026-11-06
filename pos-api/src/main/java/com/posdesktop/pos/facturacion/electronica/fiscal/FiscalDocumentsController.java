@@ -22,9 +22,10 @@ public class FiscalDocumentsController {
     private final com.posdesktop.pos.ventas.service.VentasService sales;
     private final VentaRepositorio saleRepository;
     private final FiscalSignatureService signatures;
+    private final FiscalAdjustmentRepository adjustments;
     public FiscalDocumentsController(FiscalDraftService drafts,FiscalDocumentRepository documents,FiscalOperationRepository operations,FiscalEventRepository events,
-            com.posdesktop.pos.ventas.service.VentasService sales,VentaRepositorio saleRepository,FiscalSignatureService signatures) {
-        this.drafts=drafts; this.documents=documents; this.operations=operations; this.events=events; this.sales=sales; this.saleRepository=saleRepository;this.signatures=signatures;
+            com.posdesktop.pos.ventas.service.VentasService sales,VentaRepositorio saleRepository,FiscalSignatureService signatures,FiscalAdjustmentRepository adjustments) {
+        this.drafts=drafts; this.documents=documents; this.operations=operations; this.events=events; this.sales=sales; this.saleRepository=saleRepository;this.signatures=signatures;this.adjustments=adjustments;
     }
     public record Summary(UUID id,UUID saleId,UUID customerId,String provider,String purpose,String environment,String number,String customer,
             BigDecimal total,String state,LocalDateTime createdAt) { }
@@ -58,17 +59,22 @@ public class FiscalDocumentsController {
     }
     @GetMapping("/documentos") @RequiresPermissions(PermisosSistema.VENTAS_VIEW)
     public ApiResponse<List<Summary>> documents(HttpServletRequest request) {
-        return ApiResponse.success("Ultimos 200 documentos fiscales.",request.getRequestURI(),documents.findTop200ByOrderByCreadoEnDesc().stream().map(this::summary).toList());
+        var found=documents.findTop200ByOrderByCreadoEnDesc();
+        var states=adjustments.findByDocumentIdIn(found.stream().map(FiscalDocumentRecord::getId).toList()).stream()
+                .collect(java.util.stream.Collectors.toMap(FiscalAdjustmentRecord::getDocumentId,FiscalAdjustmentRecord::getState));
+        return ApiResponse.success("Ultimos 200 documentos fiscales.",request.getRequestURI(),found.stream().map(d->summary(d,states.get(d.getId()))).toList());
     }
     @GetMapping("/documentos/{id}") @RequiresPermissions(PermisosSistema.VENTAS_VIEW)
     public ApiResponse<Detail> detail(@PathVariable UUID id,HttpServletRequest request) {
         var doc = documents.findById(id).orElseThrow(() -> new ResourceNotFoundException("No existe el documento fiscal."));
         var history = events.findByDocumentoIdOrderByCreadoEnAsc(id).stream().map(e -> new Event(e.getTipo(),e.getDetalle(),e.getCreadoEn())).toList();
-        return ApiResponse.success("Evidencia fiscal consultada.",request.getRequestURI(),new Detail(summary(doc),doc.getFormato(),doc.getSnapshotJson(),doc.getXml(),doc.getHuella(),history));
+        String adjustmentState=adjustments.findByDocumentId(id).map(FiscalAdjustmentRecord::getState).orElse(null);
+        return ApiResponse.success("Evidencia fiscal consultada.",request.getRequestURI(),new Detail(summary(doc,adjustmentState),doc.getFormato(),doc.getSnapshotJson(),doc.getXml(),doc.getHuella(),history));
     }
-    private Summary summary(FiscalDocumentRecord doc) {
+    private Summary summary(FiscalDocumentRecord doc,String adjustmentState) {
         String state = "BORRADOR".equals(doc.getProposito()) ? (FiscalSignatureService.FORMAT.equals(doc.getFormato()) ? "FIRMADO_LOCAL" : "BORRADOR_SIN_FIRMA") : operations.findById(doc.getVentaId())
                 .map(o -> doc.getId().equals(o.getDocumentoId()) ? o.getEstado() : "NUMERO_RECHAZADO").orElse("SIN_CONFIRMACION");
+        if(adjustmentState!=null)state=adjustmentState;
         return new Summary(doc.getId(),doc.getVentaId(),doc.getClienteId(),doc.getProveedor(),doc.getProposito(),doc.getAmbiente(),doc.getNumero(),doc.getClienteNombre(),doc.getTotal(),state,doc.getCreadoEn());
     }
 }

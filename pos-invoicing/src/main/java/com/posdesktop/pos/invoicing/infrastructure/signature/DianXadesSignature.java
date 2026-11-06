@@ -139,7 +139,7 @@ public final class DianXadesSignature {
             return new Validation(true,false,false,HexFormat.of().formatHex(sha256(cert.getEncoded())),List.of());
         }catch(Exception e){return new Validation(false,false,false,null,List.of("Firma local invalida o XML incompatible con el perfil XAdES implementado."));}
     }
-    private static void requireInvoice(Element root){check("Invoice".equals(root.getLocalName())&&"urn:oasis:names:specification:ubl:schema:xsd:Invoice-2".equals(root.getNamespaceURI()),"Solo se admiten facturas UBL.");}
+    private static void requireInvoice(Element root){check(Set.of("Invoice","CreditNote","DebitNote").contains(root.getLocalName())&&("urn:oasis:names:specification:ubl:schema:xsd:"+root.getLocalName()+"-2").equals(root.getNamespaceURI()),"Tipo de documento UBL no admitido.");}
     private static Document parse(String xml)throws Exception{if(xml==null||xml.length()>5_000_000)throw new IllegalArgumentException("XML demasiado grande.");return DianInvoiceDraftGenerator.parse(xml);}
     private static void registerIds(Element e,DOMValidateContext ctx,Set<String> ids){
         if(e.hasAttribute("Id")){String id=e.getAttribute("Id");check(!id.isBlank()&&ids.add(id),"Identificador duplicado.");ctx.setIdAttributeNS(e,null,"Id");}

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.posdesktop.pos.integration.PosApiClient;
 import com.sun.net.httpserver.HttpServer;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
@@ -591,6 +592,7 @@ class ElectronicInvoicesViewTest {
     @Test
     void evidenciaPermiteFirmaDePruebaYVerificacionSinEnviarFactura()throws Exception {
         var signed=new java.util.concurrent.atomic.AtomicBoolean();var verified=new java.util.concurrent.atomic.AtomicBoolean();
+        var releaseSignature = new CountDownLatch(1);
         var unexpected=new java.util.concurrent.atomic.AtomicInteger();
         HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         String summary="\"id\":\"local-1\",\"saleId\":\"sale\",\"customerId\":\"customer\",\"provider\":\"DIAN_DIRECT\",\"purpose\":\"BORRADOR\",\"environment\":\"PRUEBAS\",\"number\":\"PRUEBA1\",\"customer\":\"Cliente de prueba\",\"total\":100,\"createdAt\":\"2026-10-30T10:00:00\"";
@@ -598,7 +600,16 @@ class ElectronicInvoicesViewTest {
             String s="{"+summary+",\"state\":\""+(signed.get()?"FIRMADO_LOCAL":"BORRADOR_SIN_FIRMA")+"\"}";
             if(path.equals("/facturacion/documentos"))body="{\"success\":true,\"data\":["+s+"]}";
             else if(path.equals("/facturacion/documentos/local-1"))body="{\"success\":true,\"data\":{\"summary\":"+s+",\"format\":\""+(signed.get()?"DIAN_SIGNED_LOCAL_V1":"DIAN_INVOICE_V1")+"\",\"snapshot\":\"{}\",\"xml\":\"<Invoice/>\",\"hash\":\"huella-local\",\"events\":[]}}";
-            else if(path.equals("/facturacion/documentos/local-1/firma-local")&&"POST".equals(exchange.getRequestMethod())){signed.set(true);body="{\"success\":true,\"data\":{\"id\":\"local-1\",\"number\":\"PRUEBA1\",\"state\":\"FIRMADO_LOCAL\",\"signatureValid\":true,\"trustVerified\":false,\"readyToTransmit\":false}}";}
+            else if(path.equals("/facturacion/documentos/local-1/firma-local")&&"POST".equals(exchange.getRequestMethod())){
+                signed.set(true);
+                try {
+                    if (!releaseSignature.await(10, TimeUnit.SECONDS)) throw new IOException("No se liberó la respuesta de firma de prueba.");
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(error);
+                }
+                body="{\"success\":true,\"data\":{\"id\":\"local-1\",\"number\":\"PRUEBA1\",\"state\":\"FIRMADO_LOCAL\",\"signatureValid\":true,\"trustVerified\":false,\"readyToTransmit\":false}}";
+            }
             else if(path.endsWith("/firma-local/validacion")){verified.set(true);body="{\"success\":true,\"data\":{\"valid\":true,\"trustVerified\":false,\"readyToTransmit\":false,\"issues\":[]}}";}
             else{unexpected.incrementAndGet();body="{\"success\":false}";}
             try(exchange){byte[] bytes=body.getBytes(StandardCharsets.UTF_8);exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(200,bytes.length);exchange.getResponseBody().write(bytes);}
@@ -611,14 +622,70 @@ class ElectronicInvoicesViewTest {
             fx(()->{var window=javafx.stage.Window.getWindows().stream().filter(w->w.getScene().lookup("#fiscal-sign-local")!=null).findFirst().orElseThrow();
                 Button sign=(Button)window.getScene().lookup("#fiscal-sign-local");assertTrue(sign.isVisible());assertFalse(window.getScene().lookup("#fiscal-verify-local").isVisible());
                 snapshot((VBox)((javafx.scene.control.ScrollPane)window.getScene().getRoot()).getContent(),"fiscal-evidence-sign",900,680);sign.fire();return null;});
-            waitUntil(()->signed.get()&&!((Button)root.lookup("#fiscal-documents-reload")).isDisabled());
+            // El servidor ya firmó, pero su respuesta aún no ha actualizado la interfaz.
+            waitUntil(signed::get);
+            fx(() -> {
+                var table = (javafx.scene.control.TableView<?>) root.lookup("#fiscal-documents-table");
+                var document = (PosApiClient.FiscalDocumentSummary) table.getItems().getFirst();
+                assertEquals("BORRADOR_SIN_FIRMA", document.state());
+                assertFalse(((Button) root.lookup("#fiscal-documents-reload")).isDisabled());
+                return null;
+            });
+            releaseSignature.countDown();
+            // Esperar el resultado visible de la recarga, no solo la bandera del servidor.
+            waitUntil(() -> {
+                var table = (javafx.scene.control.TableView<?>) root.lookup("#fiscal-documents-table");
+                return !((Button) root.lookup("#fiscal-documents-reload")).isDisabled()
+                        && table.getItems().size() == 1
+                        && "FIRMADO_LOCAL".equals(((PosApiClient.FiscalDocumentSummary) table.getItems().getFirst()).state());
+            });
             fx(()->{javafx.stage.Window.getWindows().stream().filter(w->w instanceof javafx.stage.Stage).toList().forEach(w->((javafx.stage.Stage)w).close());
                 ((javafx.scene.control.TableView<?>)root.lookup("#fiscal-documents-table")).getSelectionModel().selectFirst();((Button)root.lookup("#fiscal-document-view")).fire();return null;});
             waitUntil(()->javafx.stage.Window.getWindows().stream().anyMatch(w->{var v=w.getScene().lookup("#fiscal-verify-local");return v!=null&&v.isVisible();}));
             fx(()->{var window=javafx.stage.Window.getWindows().stream().filter(w->w.getScene().lookup("#fiscal-verify-local")!=null).findFirst().orElseThrow();assertFalse(window.getScene().lookup("#fiscal-sign-local").isVisible());((Button)window.getScene().lookup("#fiscal-verify-local")).fire();return null;});
-            waitUntil(verified::get);assertEquals(0,unexpected.get());
-        }finally{fx(()->{javafx.stage.Window.getWindows().stream().filter(w->w instanceof javafx.stage.Stage).toList().forEach(w->((javafx.stage.Stage)w).close());return null;});server.stop(0);}
+            waitUntil(() -> verified.get() && javafx.stage.Window.getWindows().stream().anyMatch(w -> {
+                var button = w.getScene().lookup("#fiscal-verify-local");
+                return button != null && button.isVisible() && !button.isDisabled();
+            }));
+            assertEquals(0,unexpected.get());
+        }finally{releaseSignature.countDown();fx(()->{javafx.stage.Window.getWindows().stream().filter(w->w instanceof javafx.stage.Stage).toList().forEach(w->((javafx.stage.Stage)w).close());return null;});server.stop(0);}
     }
+    @Test void devolucionSeOperaConTecladoNumericoRevisaAntesDeGuardarYNoEnviaAutomaticamente()throws Exception {
+        try(var fixture=new AdjustmentUiFixture()){
+            VBox root=adjustmentView(fixture);
+            fx(()->{var field=(TextField)root.lookup("#adjustment-search");field.setText("FE123");field.fireEvent(new javafx.event.ActionEvent());return null;});
+            waitUntil(()->((Label)root.lookup("#adjustment-source")).getText().contains("FE123"));
+            fx(()->{assertTrue(((Button)root.lookup("#adjustment-save")).isDisabled());var operation=root.lookup("#adjustment-kind");
+                press(operation,KeyCode.NUMPAD3);assertTrue(((javafx.scene.control.TableView<?>)root.lookup("#adjustment-lines")).getColumns().getLast().isVisible());
+                press(operation,KeyCode.NUMPAD1);press(operation,KeyCode.ENTER);var table=(javafx.scene.control.TableView<?>)root.lookup("#adjustment-lines");assertEquals(0,table.getSelectionModel().getSelectedIndex());press(table,KeyCode.ADD);root.applyCss();root.layout();press(table,KeyCode.ENTER);return null;});
+            waitUntil(()->root.lookup("#adjustment-decimal-editor")!=null);
+            fx(()->{var editor=(TextField)root.lookup("#adjustment-decimal-editor");editor.setText("1,5");press(editor,KeyCode.ENTER);return null;});
+            fx(()->{press(root.lookup("#adjustment-observation"),KeyCode.ENTER);return null;});
+            waitUntil(()->!((Button)root.lookup("#adjustment-save")).isDisabled());assertEquals(1,fixture.reviews.get());assertEquals(0,fixture.saves.get());assertTrue(fixture.request.get().contains("\"quantity\":1.5"));
+            fx(()->{assertTrue(((Label)root.lookup("#adjustment-totals")).getText().contains("NC1"));snapshot(root,"adjustments-wide",1150,1150);snapshot(root,"adjustments-narrow",760,1320);press(root.lookup("#adjustment-save"),KeyCode.ENTER);return null;});
+            waitUntil(()->fixture.saves.get()==1&&((javafx.scene.control.TableView<?>)root.lookup("#adjustment-history")).getItems().size()==1&&!((Button)root.lookup("#adjustment-review")).isDisabled());
+            assertEquals(0,fixture.unexpected.get());
+            fx(()->{assertTrue(((Button)root.lookup("#adjustment-save")).isDisabled());assertFalse(((Button)root.lookup("#adjustment-send")).isDisabled());return null;});
+        }
+    }
+    @Test void anulacionRequiereConfirmacionExplicitaYSeConfirmaConFlechasYEnter()throws Exception {
+        try(var fixture=new AdjustmentUiFixture()){
+            VBox root=adjustmentView(fixture);fx(()->{var field=(TextField)root.lookup("#adjustment-search");field.setText("FE123");field.fireEvent(new javafx.event.ActionEvent());return null;});
+            waitUntil(()->((Label)root.lookup("#adjustment-source")).getText().contains("FE123"));
+            fx(()->{press(root.lookup("#adjustment-kind"),KeyCode.NUMPAD2);assertFalse(((javafx.scene.control.TableView<?>)root.lookup("#adjustment-lines")).isEditable());press(root.lookup("#adjustments-pane"),KeyCode.F6);return null;});
+            waitUntil(()->!((Button)root.lookup("#adjustment-save")).isDisabled());
+            fx(()->{press(root.lookup("#adjustments-pane"),KeyCode.F8);return null;});
+            waitUntil(()->javafx.stage.Window.getWindows().stream().anyMatch(w->w.getScene().getRoot() instanceof javafx.scene.control.DialogPane));assertEquals(0,fixture.saves.get());
+            fx(()->{var w=javafx.stage.Window.getWindows().stream().filter(v->v.getScene().getRoot() instanceof javafx.scene.control.DialogPane).findFirst().orElseThrow();press(w.getScene().getRoot(),KeyCode.ENTER);return null;});
+            assertEquals(0,fixture.saves.get());
+            fx(()->{press(root.lookup("#adjustments-pane"),KeyCode.F8);return null;});
+            waitUntil(()->javafx.stage.Window.getWindows().stream().anyMatch(w->w.getScene().getRoot() instanceof javafx.scene.control.DialogPane));
+            fx(()->{var w=javafx.stage.Window.getWindows().stream().filter(v->v.getScene().getRoot() instanceof javafx.scene.control.DialogPane).findFirst().orElseThrow();press(w.getScene().getRoot(),KeyCode.RIGHT);press(w.getScene().getRoot(),KeyCode.ENTER);return null;});
+            waitUntil(()->fixture.saves.get()>0);assertEquals(1,fixture.saves.get());assertEquals(0,fixture.unexpected.get());
+        }finally{fx(()->{javafx.stage.Window.getWindows().stream().filter(w->w instanceof javafx.stage.Stage).toList().forEach(w->((javafx.stage.Stage)w).close());return null;});}
+    }
+    private static VBox adjustmentView(AdjustmentUiFixture fixture)throws Exception{return fx(()->{VBox root=new VBox(new com.posdesktop.pos.fiscal.AdjustmentsPane(new PosApiClient(fixture.url()),true,true));var scene=new Scene(root,1150,1000);scene.getStylesheets().add(PosDesktopFxApplication.class.getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());root.applyCss();root.layout();return root;});}
+    private static void press(Node node,KeyCode key){Event.fireEvent(node,new KeyEvent(KeyEvent.KEY_PRESSED,"","",key,false,false,false,false));}
     private static void waitUntil(Callable<Boolean> condition) throws Exception {for(int i=0;i<150;i++){if(fx(condition))return;Thread.sleep(30);}fail("La vista fiscal no terminó de actualizarse.");}
     @Test
     void borradorDianExigeClasificacionExplicitaYGuardaSinPedirEnvio() throws Exception {

@@ -557,7 +557,7 @@ public class PosDesktopFxApplication extends Application {
     }
 
     private static boolean isElectronicOnlyScreen(String key) {
-        return key != null && Set.of("Configuración Dataico", "Configuración electrónica", "Documentos fiscales").contains(key);
+        return key != null && Set.of("Configuración Dataico", "Configuración electrónica", "Documentos fiscales", "Devolución y Anulación").contains(key);
     }
 
     private Node createFiscalSettingsScreen() {
@@ -570,6 +570,11 @@ public class PosDesktopFxApplication extends Application {
         VBox root = createScreenContainer("Documentos fiscales", "Consulta snapshots, XML locales y el estado de los intentos de envío.");
         root.getChildren().add(new com.posdesktop.pos.fiscal.FiscalDocumentsPane(posApiClient,hasPermission(PERM_VENTAS_EDIT)));
         return root;
+    }
+    private Node createAdjustmentsScreen() {
+        VBox root=createScreenContainer("Devolución y Anulación","Ajusta una factura existente y conserva su trazabilidad.");
+        boolean admin=authenticatedSession!=null&&authenticatedSession.roles()!=null&&authenticatedSession.roles().contains("ADMIN");
+        root.getChildren().add(new com.posdesktop.pos.fiscal.AdjustmentsPane(posApiClient,hasPermission(PERM_VENTAS_EDIT),admin));return root;
     }
 
     private void showScreen(String key) {
@@ -613,6 +618,7 @@ public class PosDesktopFxApplication extends Application {
         if (hasPermission(PERM_VENTAS_VIEW)) {
             screenFactories.put("Facturas electrónicas", this::createElectronicInvoicesScreen);
             screenFactories.put("Documentos fiscales", this::createFiscalDocumentsScreen);
+            screenFactories.put("Devolución y Anulación", this::createAdjustmentsScreen);
         }
         if (authenticatedSession != null && authenticatedSession.roles() != null && authenticatedSession.roles().contains("ADMIN")) {
             screenFactories.put("Configuración Dataico", this::createDataicoSettingsScreen);

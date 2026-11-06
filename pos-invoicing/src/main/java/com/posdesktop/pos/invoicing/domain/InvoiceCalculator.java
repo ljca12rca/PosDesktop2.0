@@ -41,6 +41,14 @@ public final class InvoiceCalculator {
         BigDecimal netTotal = BigDecimal.ZERO;
         BigDecimal taxTotal = BigDecimal.ZERO;
         for (var line : invoice.lines()) {
+            var calculated=calculateLine(line);
+            lines.add(calculated);netTotal=netTotal.add(calculated.net());
+            taxTotal=taxTotal.add(calculated.taxes().stream().map(TaxAmount::amount).reduce(BigDecimal.ZERO,BigDecimal::add));
+        }
+        return finish(invoice,lines,netTotal,taxTotal);
+    }
+
+    public LineAmounts calculateLine(FiscalInvoice.Line line) {
             BigDecimal gross = Amounts.money(line.quantity().multiply(line.unitPrice()));
             if (line.discount().compareTo(gross) > 0) throw new InvoiceValidationException(
                     "line.discount", "DISCOUNT_BASE", "Descuento superior al importe bruto.");
@@ -53,11 +61,11 @@ public final class InvoiceCalculator {
                         : tax.perUnit().quantity().multiply(tax.perUnit().rate())
                             .divide(tax.perUnit().referenceQuantity(), Amounts.SCALE, Amounts.ROUNDING);
                 taxes.add(new TaxAmount(tax, net, amount));
-                taxTotal = taxTotal.add(amount);
             }
-            lines.add(new LineAmounts(line, net, taxes));
-            netTotal = netTotal.add(net);
-        }
+            return new LineAmounts(line,net,List.copyOf(taxes));
+    }
+
+    private Totals finish(FiscalInvoice invoice,List<LineAmounts> lines,BigDecimal netTotal,BigDecimal taxTotal) {
         BigDecimal allowances = invoice.adjustments().stream().filter(a -> !a.charge()).map(FiscalInvoice.Adjustment::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal charges = invoice.adjustments().stream().filter(FiscalInvoice.Adjustment::charge).map(FiscalInvoice.Adjustment::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal inclusive = Amounts.money(netTotal.add(taxTotal));

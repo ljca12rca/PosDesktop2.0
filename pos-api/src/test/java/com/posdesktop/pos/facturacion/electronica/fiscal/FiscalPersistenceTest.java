@@ -8,6 +8,9 @@ import com.posdesktop.pos.facturacion.electronica.config.*;
 import com.posdesktop.pos.facturacion.electronica.domain.*;
 import com.posdesktop.pos.facturacion.electronica.infraestructura.dataico.DataicoApiException;
 import com.posdesktop.pos.facturacion.electronica.integration.SaleFiscalSnapshotMapper;
+import com.posdesktop.pos.facturacion.electronica.adjustments.*;
+import com.posdesktop.pos.invoicing.domain.AdjustmentCalculator;
+import com.posdesktop.pos.invoicing.domain.AdjustmentKind;
 import com.posdesktop.pos.invoicing.domain.FiscalInvoice;
 import com.posdesktop.pos.invoicing.infrastructure.xml.DianInvoiceDraftGenerator;
 import com.posdesktop.pos.repositorio.relacional.*;
@@ -56,6 +59,7 @@ class FiscalPersistenceTest {
     @AfterAll static void close() {if(context!=null)context.close();}
     @BeforeEach void resetProvider() {
         reset(remote); jdbc.update("UPDATE facturacion_configuracion SET proveedor='DATAICO',version=version+1 WHERE id=1");
+        reset(context.getBean(AdjustmentGateway.class));
         jdbc.update("INSERT INTO dataico_consecutivos(prefijo,siguiente_numero) VALUES ('FISCALTEST',1) ON CONFLICT DO NOTHING");
         jdbc.update("UPDATE dataico_configuracion SET habilitado=NULL,account_id=NULL,version=version+1 WHERE id=1");
     }
@@ -67,7 +71,8 @@ class FiscalPersistenceTest {
     @Configuration @EnableTransactionManagement @org.springframework.data.jpa.repository.config.EnableJpaAuditing
     @EnableJpaRepositories(basePackageClasses=FiscalDocumentRepository.class)
     @Import({FiscalJson.class,FiscalSettingsService.class,FiscalEmissionTransactions.class,DataicoFiscalSender.class,
-            FacturacionVentaService.class,FiscalDraftService.class,FiscalSignatureService.class,SaleFiscalSnapshotMapper.class,DataicoConfiguracionService.class})
+            FacturacionVentaService.class,FiscalDraftService.class,FiscalSignatureService.class,SaleFiscalSnapshotMapper.class,DataicoConfiguracionService.class,
+            AdjustmentTransactions.class,AdjustmentService.class,AdjustmentSourceResolver.class})
     static class Config {
         @Bean DataSource dataSource(){return source();}
         @Bean LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource source){
@@ -77,6 +82,7 @@ class FiscalPersistenceTest {
         }
         @Bean PlatformTransactionManager transactionManager(EntityManagerFactory emf){return new JpaTransactionManager(emf);}
         @Bean FacturacionElectronicaService remote(){return mock(FacturacionElectronicaService.class);}
+        @Bean AdjustmentGateway adjustmentGateway(){return mock(AdjustmentGateway.class);}
         @Bean DataicoProperties properties(){return new DataicoProperties(true,DataicoProperties.DEFAULT_BASE_URL,"11111111-1111-4111-8111-111111111111",null,"token-ficticio-test","FISCALTEST","18760000001","1",false,"PRUEBAS",Duration.ofSeconds(1),Duration.ofSeconds(1));}
         @Bean DataicoTokenCipher dataicoTokenCipher(){return new DataicoTokenCipher(keys.resolve("dataico.key").toString());}
         @Bean FiscalSecretVault vault(FiscalJson json){return new FiscalSecretVault(keys.resolve("fiscal.key").toString(),json);}
@@ -224,6 +230,59 @@ class FiscalPersistenceTest {
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM facturacion_operaciones WHERE venta_id=?",Integer.class,s.saleId));
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM facturas_electronicas WHERE venta_id=?",Integer.class,s.saleId));
         assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM documentos_fiscales WHERE venta_id=?",Integer.class,s.saleId));verifyNoInteractions(remote);
+    }
+    private AdjustmentSource noteSource(){
+        var c=configuration();String prefix="P"+UUID.randomUUID().toString().replace("-","").substring(0,9).toUpperCase(Locale.ROOT);
+        var config=new DianConfiguration(c.softwareName(),c.softwareId(),c.testSetId(),c.providerNit(),c.providerDv(),c.issuer(),c.issuerOrganization(),new FiscalInvoice.Numbering(prefix,"18760000001",LocalDate.of(2026,1,1),LocalDate.of(2026,12,31),1,100),1);
+        var old=settings().dian("PRUEBAS");var saved=settings().saveDian("PRUEBAS",new FiscalSettingsService.SaveDian(old.version(),config,"test-tech","test-pin",null,null));
+        var sale=seed();jdbc.update("UPDATE detalle_venta SET cantidad=3,subtotal=300,total=300 WHERE venta_id=?",sale.saleId);jdbc.update("UPDATE ventas SET subtotal=300,total=300 WHERE id=?",sale.saleId);
+        var r=new FiscalDraftService.Request(sale.customerId,"PRUEBAS",saved.version(),1,"R-99-PN","ZZ","1","10",LocalDate.of(2026,10,30),List.of(new FiscalDraftService.LineClassification(1,"94",List.of(new FiscalInvoice.Tax(FiscalInvoice.Treatment.EXCLUDED,"01","IVA",BigDecimal.ZERO)))),List.of(),List.of());
+        var d=context.getBean(FiscalDraftService.class).generate(sale.saleId,r);var source=context.getBean(AdjustmentSourceResolver.class).resolve("DIAN_DIRECT",d.id());configureNotes(source);return source;
+    }
+    private AdjustmentTransactions notes(){return context.getBean(AdjustmentTransactions.class);}
+    private void configureNotes(AdjustmentSource source){var n=notes().numbering(source);notes().configure(source,new AdjustmentTransactions.Configure(n.version(),n.creditPrefix(),n.creditNext(),n.debitPrefix(),n.debitNext()));}
+    private AdjustmentTransactions.Request noteRequest(AdjustmentSource s,AdjustmentKind kind,String qty){return new AdjustmentTransactions.Request(UUID.randomUUID(),s.provider(),s.id(),s.hash(),kind,"Motivo de prueba",List.of(new AdjustmentCalculator.Selection(1,new BigDecimal(qty),kind==AdjustmentKind.INCREASE?BigDecimal.TEN:BigDecimal.ZERO)));}
+    @Test void devolucionReservaCantidadesConIdempotenciaYNoCambiaVenta(){
+        var s=noteSource();var r=noteRequest(s,AdjustmentKind.RETURN,"1");var row=notes().create(s,r);assertEquals(row.getId(),notes().create(s,r).getId());
+        assertThrows(FiscalConflictException.class,()->notes().create(s,new AdjustmentTransactions.Request(r.requestId(),r.provider(),r.sourceId(),r.sourceHash(),r.kind(),"otro",r.lines())));
+        assertEquals(new BigDecimal("1"),notes().reservations(s).getFirst().line().quantity());
+        assertThrows(IllegalArgumentException.class,()->notes().create(s,noteRequest(s,AdjustmentKind.RETURN,"3")));
+        assertThrows(IllegalArgumentException.class,()->notes().create(s,noteRequest(s,AdjustmentKind.CANCELLATION,"0")));
+        assertEquals(new BigDecimal("300.00"),jdbc.queryForObject("SELECT total FROM ventas WHERE id=?",BigDecimal.class,s.saleId()));
+        long sequence=notes().numbering(s).creditNext();notes().discard(row.getId());assertTrue(notes().reservations(s).isEmpty());assertEquals(sequence,notes().numbering(s).creditNext());
+        assertThrows(RuntimeException.class,()->jdbc.update("UPDATE ajustes_fiscales SET snapshot_json='{}' WHERE id=?",row.getId()));
+        assertThrows(RuntimeException.class,()->jdbc.update("DELETE FROM ajustes_fiscales WHERE id=?",row.getId()));verifyNoInteractions(remote,context.getBean(AdjustmentGateway.class));
+    }
+    @Test void dosDevolucionesConcurrentesNoExcedenCantidadOriginal()throws Exception{
+        var s=noteSource();var tasks=Executors.newFixedThreadPool(2);var start=new CountDownLatch(1);
+        try{var a=tasks.submit(()->{start.await();try{notes().create(s,noteRequest(s,AdjustmentKind.RETURN,"2"));return true;}catch(IllegalArgumentException e){return false;}});
+            var b=tasks.submit(()->{start.await();try{notes().create(s,noteRequest(s,AdjustmentKind.RETURN,"2"));return true;}catch(IllegalArgumentException e){return false;}});start.countDown();assertNotEquals(a.get(15,TimeUnit.SECONDS),b.get(15,TimeUnit.SECONDS));
+            assertEquals(1,notes().reservations(s).size());assertEquals(new BigDecimal("2"),notes().reservations(s).getFirst().line().quantity());
+        }finally{tasks.shutdownNow();}
+    }
+    @Test void anulacionEIncrementoGeneranXmlDistintosSinTransporte(){
+        var s=noteSource();var cancel=notes().create(s,noteRequest(s,AdjustmentKind.CANCELLATION,"0"));var doc=context.getBean(FiscalDocumentRepository.class).findById(cancel.getDocumentId()).orElseThrow();
+        assertEquals(new BigDecimal("300.00"),cancel.getTotal());assertTrue(doc.getXml().contains("CreditNote"));assertTrue(doc.getXml().contains(s.cufe()));assertThrows(IllegalArgumentException.class,()->notes().create(s,noteRequest(s,AdjustmentKind.RETURN,"1")));
+        var other=noteSource();var increase=notes().create(other,noteRequest(other,AdjustmentKind.INCREASE,"1"));var debit=context.getBean(FiscalDocumentRepository.class).findById(increase.getDocumentId()).orElseThrow();assertTrue(debit.getXml().contains("DebitNote"));assertTrue(debit.getXml().contains("RequestedMonetaryTotal"));assertEquals(new BigDecimal("10.00"),increase.getTotal());
+        assertThrows(IllegalArgumentException.class,()->notes().claim(increase.getId(),false));verifyNoInteractions(remote,context.getBean(AdjustmentGateway.class));
+    }
+    private AdjustmentSource dataicoNoteSource(){
+        var seed=seed();var line=new FiscalInvoice.Line("SKU","ORIGINAL",new BigDecimal("3"),"94",new BigDecimal("100"),BigDecimal.ZERO,BigDecimal.ZERO,List.of(new FiscalInvoice.Tax(FiscalInvoice.Treatment.EXCLUDED,"01","Sin tributos",BigDecimal.ZERO)));
+        var s=new AdjustmentSource(UUID.randomUUID(),seed.saleId,seed.customerId,"DATAICO","PRUEBAS","test-note-account",DataicoProperties.DEFAULT_BASE_URL,"FEE"+UUID.randomUUID(),"remote-original",null,LocalDate.of(2026,10,30),"Cliente",new BigDecimal("300"),List.of(line),null,Map.of("items",List.of(Map.of("sku","SKU","description","ORIGINAL","quantity",3,"price",100))),"a".repeat(64));configureNotes(s);return s;
+    }
+    @Test void timeoutDataicoBloqueaSegundoPostYConsultaSinReenviar(){
+        var s=dataicoNoteSource();var note=notes().create(s,noteRequest(s,AdjustmentKind.RETURN,"1"));var gateway=context.getBean(AdjustmentGateway.class);var service=context.getBean(AdjustmentService.class);
+        when(gateway.send(any())).thenThrow(new ResourceAccessException("timeout"));assertEquals("INCIERTO",service.send(note.getId(),false).state());assertThrows(FiscalConflictException.class,()->service.send(note.getId(),false));
+        when(gateway.consult(any())).thenReturn(new AdjustmentGateway.Result("remote-note",note.getNumber(),"DIAN_ACEPTADO",null,null,"OK"));assertEquals("RECIBIDO",service.send(note.getId(),true).state());
+        when(gateway.consult(any())).thenThrow(new ResourceAccessException("consulta timeout"));assertEquals("RECIBIDO",service.send(note.getId(),true).state());verify(gateway,times(1)).send(any());
+        assertThrows(IllegalArgumentException.class,()->notes().discard(note.getId()));
+    }
+    @Test void rechazoSeguroReutilizaNumeroYSnapshotAunqueCambieVenta(){
+        var s=dataicoNoteSource();var note=notes().create(s,noteRequest(s,AdjustmentKind.INCREASE,"1"));var gateway=context.getBean(AdjustmentGateway.class);var service=context.getBean(AdjustmentService.class);
+        when(gateway.send(any())).thenThrow(HttpClientErrorException.create(HttpStatus.UNAUTHORIZED,"unauthorized",HttpHeaders.EMPTY,new byte[0],null));assertEquals("ERROR_SEGURO",service.send(note.getId(),false).state());
+        jdbc.update("UPDATE detalle_venta SET descripcion='CAMBIADO' WHERE venta_id=?",s.saleId());
+        doAnswer(i->{AdjustmentSnapshot snapshot=i.getArgument(0);assertEquals(note.getNumber(),snapshot.number());assertEquals("ORIGINAL",snapshot.plan().allocations().getFirst().line().description());return new AdjustmentGateway.Result("remote-note",snapshot.number(),"DIAN_PENDIENTE",null,null,"OK");}).when(gateway).send(any());
+        assertEquals("RECIBIDO",service.send(note.getId(),false).state());verify(gateway,times(2)).send(any());
     }
     private static DianConfiguration configuration(){
         var party=new FiscalInvoice.Party("31","860324218","1","EMPRESA FICTICIA","R-99-PN","ZZ","No aplica",new FiscalInvoice.Address("Calle ficticia","05001","Medellin","05","Antioquia","CO"));
