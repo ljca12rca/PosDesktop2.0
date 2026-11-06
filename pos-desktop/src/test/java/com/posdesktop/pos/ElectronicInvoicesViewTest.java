@@ -136,6 +136,182 @@ class ElectronicInvoicesViewTest {
     }
 
     @Test
+    void articuloSugierePorPrecioYTextoYConservaElPrecioDigitadoAlSeleccionar() throws Exception {
+        AtomicReference<String> consulta = new AtomicReference<>();
+        var fixture = fx(() -> new ArticulosFixture((texto, precio) -> {
+            consulta.set(texto + ":" + precio.toPlainString());
+            return java.util.List.of(new PosApiClient.SugerenciaArticuloResponse("1", "Café grande", new java.math.BigDecimal("5000")));
+        }));
+        try {
+            esperarSugerencias(fixture, "Café grande");
+            assertEquals(":3000", consulta.get());
+            fx(() -> {
+                snapshot(fixture.root, "article-autocomplete-table", 760, 440);
+                guardarImagen(fixture.popup().getScene().getRoot().snapshot(null, null), "article-autocomplete-options");
+                fixture.editor().setText("Caf");
+                return null;
+            });
+            esperarSugerencias(fixture, "Café grande");
+            assertEquals("CAF:3000", consulta.get());
+            fx(() -> {
+                fixture.tecla(KeyCode.DOWN);
+                fixture.tecla(KeyCode.ENTER);
+                assertEquals("CAFÉ GRANDE", fixture.table.getItems().getFirst().nombre());
+                assertEquals(new java.math.BigDecimal("3000"), fixture.table.getItems().getFirst().precio());
+                return null;
+            });
+        } finally { fx(() -> { fixture.stage.close(); return null; }); }
+    }
+
+    @Test
+    void articuloConservaTextoLibreConSugerenciasYConfirmaAlSalirDelCampo() throws Exception {
+        var fixture = fx(() -> new ArticulosFixture((texto, precio) -> java.util.List.of(
+                new PosApiClient.SugerenciaArticuloResponse("1", "Café grande", java.math.BigDecimal.TEN))));
+        try {
+            esperarSugerencias(fixture, "Café grande");
+            fx(() -> {
+                fixture.editor().setText("café especial");
+                assertEquals("CAFÉ ESPECIAL", fixture.editor().getText());
+                fixture.editor().replaceText(5, 13, "niño");
+                assertEquals("CAFÉ NIÑO", fixture.editor().getText());
+                assertEquals(9, fixture.editor().getCaretPosition());
+                fixture.editor().setText("Café especial");
+                return null;
+            });
+            esperarSugerencias(fixture, "Café grande");
+            fx(() -> {
+                // Enter sin elegir con flechas no sustituye el nombre digitado.
+                fixture.tecla(KeyCode.ENTER);
+                assertEquals("CAFÉ ESPECIAL", fixture.table.getItems().getFirst().nombre());
+                return null;
+            });
+            fx(() -> { fixture.editar(); return null; });
+            esperarSugerencias(fixture, "Café grande");
+            fx(() -> {
+                fixture.editor().setText("Nombre antes de cobrar");
+                fixture.otroCampo.requestFocus();
+                assertEquals("NOMBRE ANTES DE COBRAR", fixture.table.getItems().getFirst().nombre());
+                return null;
+            });
+        } finally { fx(() -> { fixture.stage.close(); return null; }); }
+    }
+
+    @Test
+    void articuloPermiteEscrituraSiFallaBusquedaYEscapeCancelaSinGuardar() throws Exception {
+        var fixture = fx(() -> new ArticulosFixture((texto, precio) -> { throw new IllegalStateException("Sin conexión"); }));
+        try {
+            esperarSugerencias(fixture, "Sugerencias no disponibles");
+            fx(() -> {
+                fixture.editor().setText("Nombre cancelado");
+                fixture.tecla(KeyCode.ESCAPE);
+                assertEquals("Artículo manual", fixture.table.getItems().getFirst().nombre());
+                fixture.editar();
+                return null;
+            });
+            esperarSugerencias(fixture, "Sugerencias no disponibles");
+            fx(() -> {
+                fixture.editor().setText("Nombre nuevo");
+                fixture.tecla(KeyCode.ENTER);
+                assertEquals("NOMBRE NUEVO", fixture.table.getItems().getFirst().nombre());
+                return null;
+            });
+        } finally { fx(() -> { fixture.stage.close(); return null; }); }
+    }
+
+    @Test
+    void articuloIgnoraRespuestaAntiguaDespuesDeEscribirOtroNombre() throws Exception {
+        CountDownLatch primera = new CountDownLatch(1);
+        CountDownLatch liberar = new CountDownLatch(1);
+        var fixture = fx(() -> new ArticulosFixture((texto, precio) -> {
+            if (texto.isEmpty()) {
+                primera.countDown();
+                try { assertTrue(liberar.await(10, TimeUnit.SECONDS)); }
+                catch (InterruptedException e) { throw new RuntimeException(e); }
+                return java.util.List.of(new PosApiClient.SugerenciaArticuloResponse("1", "Respuesta vieja", java.math.BigDecimal.TEN));
+            }
+            return java.util.List.of(new PosApiClient.SugerenciaArticuloResponse("2", "Respuesta nueva", java.math.BigDecimal.TEN));
+        }));
+        try {
+            assertTrue(primera.await(5, TimeUnit.SECONDS));
+            fx(() -> { fixture.editor().setText("nueva"); return null; });
+            esperarSugerencias(fixture, "Respuesta nueva");
+            liberar.countDown();
+            // Dejar que llegue el resultado tardío antes de comprobar la selección visible.
+            Thread.sleep(150);
+            fx(() -> {
+                assertTrue(fixture.textoPopup().contains("Respuesta nueva"));
+                fixture.tecla(KeyCode.DOWN);
+                fixture.tecla(KeyCode.ENTER);
+                assertEquals("RESPUESTA NUEVA", fixture.table.getItems().getFirst().nombre());
+                return null;
+            });
+        } finally {
+            liberar.countDown();
+            fx(() -> { fixture.stage.close(); return null; });
+        }
+    }
+
+    private record ArticuloPrueba(String nombre, java.math.BigDecimal precio) { }
+
+    private static final class ArticulosFixture {
+        final javafx.stage.Stage stage = new javafx.stage.Stage();
+        final javafx.scene.control.TableView<ArticuloPrueba> table = new javafx.scene.control.TableView<>();
+        final javafx.scene.control.TableColumn<ArticuloPrueba, String> columna = new javafx.scene.control.TableColumn<>("Artículo");
+        final TextField otroCampo = new TextField();
+        final VBox root = new VBox(12);
+
+        ArticulosFixture(java.util.function.BiFunction<String, java.math.BigDecimal,
+                java.util.List<PosApiClient.SugerenciaArticuloResponse>> buscar) {
+            table.setEditable(true);
+            table.setColumnResizePolicy(javafx.scene.control.TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+            columna.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(cell.getValue().nombre()));
+            columna.setCellFactory(column -> new com.posdesktop.pos.control.ArticuloAutocompleteCell<>(
+                    ArticuloPrueba::precio, buscar, otroCampo::requestFocus));
+            columna.setOnEditCommit(event -> table.getItems().set(event.getTablePosition().getRow(),
+                    new ArticuloPrueba(event.getNewValue(), event.getRowValue().precio())));
+            table.getColumns().add(columna);
+            table.getItems().add(new ArticuloPrueba("Artículo manual", new java.math.BigDecimal("3000")));
+            root.getChildren().addAll(new Label("Venta de prueba"), table, otroCampo);
+            Scene scene = new Scene(root, 760, 440);
+            scene.getStylesheets().add(PosDesktopFxApplication.class.getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+            stage.setScene(scene);
+            stage.show();
+            editar();
+        }
+
+        void editar() {
+            table.requestFocus();
+            table.getSelectionModel().select(0);
+            table.getFocusModel().focus(0, columna);
+            table.applyCss();
+            table.layout();
+            table.edit(0, columna);
+        }
+
+        TextField editor() { return (TextField) table.lookup(".text-field"); }
+        void tecla(KeyCode key) { Event.fireEvent(editor(), new KeyEvent(KeyEvent.KEY_PRESSED, "", "", key, false, false, false, false)); }
+        javafx.scene.control.ContextMenu popup() {
+            return javafx.stage.Window.getWindows().stream().filter(javafx.scene.control.ContextMenu.class::isInstance)
+                    .map(javafx.scene.control.ContextMenu.class::cast).filter(javafx.scene.control.ContextMenu::isShowing)
+                    .findFirst().orElse(null);
+        }
+        String textoPopup() {
+            var popup = popup();
+            return popup == null ? "" : popup.getItems().stream().map(item ->
+                    ((Label) ((javafx.scene.control.CustomMenuItem) item).getContent()).getText())
+                    .collect(java.util.stream.Collectors.joining("\n"));
+        }
+    }
+
+    private static void esperarSugerencias(ArticulosFixture fixture, String texto) throws Exception {
+        for (int i = 0; i < 100; i++) {
+            if (fx(() -> fixture.textoPopup().contains(texto))) return;
+            Thread.sleep(50);
+        }
+        fail("No se mostraron las sugerencias: " + texto);
+    }
+
+    @Test
     void configuracionDataicoCargaGuardaYExigeConfirmacionExplicita() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         AtomicReference<String> body = new AtomicReference<>();
@@ -550,6 +726,10 @@ class ElectronicInvoicesViewTest {
         view.applyCss();
         view.layout();
         WritableImage image = view.snapshot(null, null);
+        guardarImagen(image, name);
+    }
+
+    private static void guardarImagen(WritableImage image, String name) throws Exception {
         BufferedImage png = new BufferedImage((int) image.getWidth(), (int) image.getHeight(), BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < png.getHeight(); y++) {
             for (int x = 0; x < png.getWidth(); x++) png.setRGB(x, y, image.getPixelReader().getArgb(x, y));
