@@ -2,6 +2,7 @@ package com.posdesktop.pos;
 
 import com.posdesktop.pos.integration.PosApiClient;
 import com.posdesktop.pos.integration.DataicoPdfPrinter;
+import com.posdesktop.pos.integration.DataicoReceiptPrinter;
 import com.posdesktop.pos.printing.ReceiptPaper;
 import java.awt.Desktop;
 import com.posdesktop.pos.mockfx.MockData;
@@ -12,7 +13,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
@@ -152,6 +152,7 @@ public class PosDesktopFxApplication extends Application {
     private final BooleanProperty apiProbeInProgress = new SimpleBooleanProperty(false);
     private final BooleanProperty electronicInvoicingEnabled = new SimpleBooleanProperty(false);
     private final ObservableSet<String> facturasElectronicasEnEnvio = FXCollections.observableSet();
+    private final ObservableSet<String> facturasElectronicasEnImpresion = FXCollections.observableSet();
     private final PauseTransition apiRetryPause = new PauseTransition(API_RETRY_DELAY);
     private StackPane apiStartupOverlay;
     private Label apiStartupStatusLabel;
@@ -1576,7 +1577,7 @@ public class PosDesktopFxApplication extends Application {
                     "M4 5 H20 Q22 5 22 7 V17 Q22 19 20 19 H4 Q2 19 2 17 V7 Q2 5 4 5 Z M3 7 L12 13 L21 7",
                     "Enviar factura por correo");
             private final Button pdf = createElectronicInvoiceIconButton(
-                    "M6 2 H14 L20 8 V22 H6 Z M14 2 V8 H20", "Visualizar PDF");
+                    "M6 2 H14 L20 8 V22 H6 Z M14 2 V8 H20", "Imprimir PDF");
             private final HBox actions = new HBox(8, dian, email, pdf);
             {
                 actions.setAlignment(Pos.CENTER);
@@ -1603,7 +1604,11 @@ public class PosDesktopFxApplication extends Application {
                     if (invoice != null) showElectronicInvoiceSendPopup(email, invoice, true,
                             updated -> updateElectronicInvoiceRow(getTableView(), updated));
                 });
-                pdf.setOnAction(event -> openElectronicInvoicePdf(getItem()));
+                pdf.disableProperty().bind(Bindings.createBooleanBinding(
+                        () -> getItem() == null || optionalText(getItem().pdfUrl()) == null
+                                || facturasElectronicasEnImpresion.contains(getItem().id()),
+                        itemProperty(), facturasElectronicasEnImpresion));
+                pdf.setOnAction(event -> printElectronicInvoicePdf(pdf, getItem()));
             }
             @Override protected void updateItem(PosApiClient.FacturaElectronicaListadoResponse item, boolean empty) {
                 super.updateItem(item, empty);
@@ -1612,8 +1617,7 @@ public class PosDesktopFxApplication extends Application {
                 updateElectronicInvoiceActionState(dian, "DIAN", item.estadoDian(), item.dianAceptada());
                 updateElectronicInvoiceActionState(email, "Correo", item.estadoCorreo(), item.correoEnviado());
                 boolean hasPdf = optionalText(item.pdfUrl()) != null;
-                pdf.setDisable(!hasPdf);
-                pdf.setTooltip(new Tooltip(hasPdf ? "Visualizar PDF" : "PDF no disponible"));
+                pdf.setTooltip(new Tooltip(hasPdf ? "Imprimir PDF automáticamente en la impresora predeterminada" : "PDF no disponible"));
                 setGraphic(actions);
                 setAlignment(Pos.CENTER);
             }
@@ -1728,16 +1732,34 @@ public class PosDesktopFxApplication extends Application {
         popup.show(anchor, Side.LEFT, -8, 0);
     }
 
-    private void openElectronicInvoicePdf(PosApiClient.FacturaElectronicaListadoResponse invoice) {
+    private void printElectronicInvoicePdf(Button anchor, PosApiClient.FacturaElectronicaListadoResponse invoice) {
         if (invoice == null || invoice.pdfUrl() == null || invoice.pdfUrl().isBlank()) {
             showInfo("PDF no disponible", "Dataico no devolvió una URL de PDF para esta factura.");
             return;
         }
-        try {
-            Desktop.getDesktop().browse(URI.create(invoice.pdfUrl()));
-        } catch (Exception exception) {
-            showError("PDF de factura", "No fue posible abrir el PDF de la factura.");
-        }
+        if (!facturasElectronicasEnImpresion.add(invoice.id())) return;
+        ContextMenu popup = new ContextMenu();
+        Label feedback = new Label("Imprimiendo factura " + safeText(invoice.numeroFactura(), "") + "...");
+        feedback.setWrapText(true);
+        feedback.setMaxWidth(310);
+        VBox content = new VBox(10, feedback);
+        content.getStyleClass().add("send-popover-content");
+        popup.getItems().add(new CustomMenuItem(content, false));
+        popup.show(anchor, Side.LEFT, -8, 0);
+        runAsync(
+                () -> printDataicoPdf(invoice.pdfUrl(), invoice.numeroFactura()),
+                impresora -> {
+                    facturasElectronicasEnImpresion.remove(invoice.id());
+                    setSalesStatusSuccess(feedback, "Factura enviada a la impresora: " + impresora);
+                },
+                exception -> {
+                    facturasElectronicasEnImpresion.remove(invoice.id());
+                    setSalesStatusError(feedback, "No se pudo imprimir la factura. " + exception.getMessage());
+                    if (!popup.isShowing() && anchor.getScene() != null && anchor.getScene().getWindow().isShowing()) {
+                        popup.show(anchor, Side.LEFT, -8, 0);
+                    }
+                }
+        );
     }
 
     private Node createInvoicesScreen() {
@@ -2440,6 +2462,31 @@ public class PosDesktopFxApplication extends Application {
                             + exception.getMessage()));
                 }
         );
+    }
+
+    private void printDataicoReceipt(Label statusLabel, PosApiClient.ResultadoFacturaElectronicaResponse invoice) {
+        if (optionalText(invoice.pdfUrl()) == null) {
+            setSalesStatusWarning(statusLabel, "Factura enviada. No se imprimió: PDF aún no disponible.");
+            statusLabel.setTooltip(new Tooltip("Puedes consultar el PDF posteriormente en Facturas electrónicas."));
+            return;
+        }
+        setSalesStatusInfo(statusLabel, "Factura enviada. Imprimiendo PDF de Dataico...");
+        runAsync(
+                () -> printDataicoPdf(invoice.pdfUrl(), invoice.numero()),
+                impresora -> {
+                    setSalesStatusSuccess(statusLabel, "Factura enviada a Dataico y a la impresora.");
+                    statusLabel.setTooltip(new Tooltip("Impresora: " + impresora));
+                },
+                exception -> {
+                    setSalesStatusWarning(statusLabel, "Factura enviada. No se pudo imprimir automáticamente.");
+                    statusLabel.setTooltip(new Tooltip("La venta y la factura siguen guardadas. Puedes reintentar la impresión con el botón PDF en Facturas electrónicas.\n"
+                            + exception.getMessage()));
+                }
+        );
+    }
+
+    protected String printDataicoPdf(String pdfUrl, String numero) throws Exception {
+        return new DataicoReceiptPrinter(RECEIPT_PAPER_WIDTH_POINTS).imprimir(pdfUrl, numero);
     }
 
     private void recalculateSaleTotal(SaleTabContext context) {

@@ -136,6 +136,83 @@ class ElectronicInvoicesViewTest {
     }
 
     @Test
+    void ventaYBotonPdfUsanImpresionAutomaticaEnSegundoPlano() throws Exception {
+        var llamadas = new java.util.concurrent.atomic.AtomicInteger();
+        var liberar = new CountDownLatch(1);
+        var segundaImpresion = new CountDownLatch(1);
+        var app = fx(() -> new PosDesktopFxApplication() {
+            @Override protected String printDataicoPdf(String url, String numero) throws Exception {
+                assertFalse(Platform.isFxApplicationThread());
+                assertEquals("https://example.test/factura.pdf", url);
+                assertEquals("FEE123", numero);
+                if (llamadas.incrementAndGet() == 2) {
+                    segundaImpresion.countDown();
+                    assertTrue(liberar.await(10, TimeUnit.SECONDS));
+                }
+                return "Térmica de prueba";
+            }
+        });
+        Label estado = fx(() -> {
+            Label label = new Label();
+            Method imprimir = PosDesktopFxApplication.class.getDeclaredMethod("printDataicoReceipt", Label.class,
+                    PosApiClient.ResultadoFacturaElectronicaResponse.class);
+            imprimir.setAccessible(true);
+            imprimir.invoke(app, label, new PosApiClient.ResultadoFacturaElectronicaResponse(
+                    "uuid", "FEE123", "DIAN_ACEPTADO", null, null, null, "https://example.test/factura.pdf"));
+            return label;
+        });
+        for (int i = 0; i < 100 && !fx(() -> estado.getText().contains("y a la impresora")); i++) Thread.sleep(50);
+        assertTrue(fx(() -> estado.getText().contains("y a la impresora")));
+        var stage = fx(() -> {
+            Method crear = PosDesktopFxApplication.class.getDeclaredMethod("createElectronicInvoicesTable");
+            crear.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            var table = (javafx.scene.control.TableView<PosApiClient.FacturaElectronicaListadoResponse>) crear.invoke(app);
+            table.getItems().add(new PosApiClient.FacturaElectronicaListadoResponse("id", null, "FEE", "FEE123", "Cliente", "123",
+                    java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, java.math.BigDecimal.TEN,
+                    "DIAN_ACEPTADO", null, null, null, null, "https://example.test/factura.pdf", null));
+            var window = new javafx.stage.Stage();
+            window.setScene(new Scene(new VBox(table), 1150, 500));
+            window.show();
+            window.getScene().getRoot().applyCss();
+            window.getScene().getRoot().layout();
+            Button pdf = table.lookupAll(".button").stream().filter(Button.class::isInstance).map(Button.class::cast)
+                    .filter(button -> "Imprimir PDF".equals(button.getAccessibleText())).findFirst().orElseThrow();
+            assertFalse(pdf.isDisabled());
+            pdf.fire();
+            assertTrue(pdf.isDisabled());
+            pdf.fire();
+            return window;
+        });
+        try {
+            assertTrue(segundaImpresion.await(5, TimeUnit.SECONDS));
+            assertEquals(2, llamadas.get());
+        } finally {
+            liberar.countDown();
+            fx(() -> { stage.hide(); return null; });
+        }
+    }
+
+    @Test
+    void facturaSinPdfInformaQueNoSeImprimio() throws Exception {
+        fx(() -> {
+            var app = new PosDesktopFxApplication() {
+                @Override protected String printDataicoPdf(String url, String numero) {
+                    throw new AssertionError("No debe imprimir sin PDF");
+                }
+            };
+            Label label = new Label();
+            Method imprimir = PosDesktopFxApplication.class.getDeclaredMethod("printDataicoReceipt", Label.class,
+                    PosApiClient.ResultadoFacturaElectronicaResponse.class);
+            imprimir.setAccessible(true);
+            imprimir.invoke(app, label, new PosApiClient.ResultadoFacturaElectronicaResponse(
+                    "uuid", "FEE123", null, null, null, null, null));
+            assertTrue(label.getText().contains("No se imprimió"));
+            return null;
+        });
+    }
+
+    @Test
     void articuloSugierePorPrecioYTextoYConservaElPrecioDigitadoAlSeleccionar() throws Exception {
         AtomicReference<String> consulta = new AtomicReference<>();
         var fixture = fx(() -> new ArticulosFixture((texto, precio) -> {
