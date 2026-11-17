@@ -33,7 +33,7 @@ public class ModuleCatalogService {
                 module("separados", "Separados", ApiPaths.SEPARADOS, "BOOTSTRAP", "Preparado para apartados, abonos y saldo pendiente."),
                 module("proveedores", "Proveedores", ApiPaths.PROVEEDORES, "LIVE", "Permite crear y consultar proveedores con su saldo agregado."),
                 module("facturas-proveedor", "Facturas proveedor", ApiPaths.FACTURAS, "LIVE", "Permite crear facturas, consultar cartera, registrar abonos y guardar soportes."),
-                module("articulos", "Articulos", ApiPaths.ARTICULOS, "BOOTSTRAP", "Preparado para catalogo e integracion futura con ventas.")
+                module("articulos", "Articulos", ApiPaths.ARTICULOS, "LIVE", "Sugerencias por nombre y precio; aprendizaje desde ventas manuales sin gestionar inventario.")
         );
     }
 

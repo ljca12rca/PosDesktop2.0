@@ -81,6 +81,14 @@ public final class PosApiClient {
         }).data();
     }
 
+    public List<SugerenciaArticuloResponse> sugerirArticulos(String texto, BigDecimal precio) {
+        String path = "/articulos/sugerencias?q=" + encode(texto == null ? "" : texto);
+        if (precio != null) path += "&precio=" + encode(precio.toPlainString());
+        return get(path, new TypeReference<ApiResponseEnvelope<List<SugerenciaArticuloResponse>>>() { }).data();
+    }
+
+    public record SugerenciaArticuloResponse(String id, String nombre, BigDecimal precioBase) { }
+
     public VentaRegistradaResponse consultarVenta(String ventaId) {
         return get("/ventas/" + encode(ventaId), new TypeReference<ApiResponseEnvelope<VentaRegistradaResponse>>() {
         }).data();

@@ -47,6 +47,19 @@ erDiagram
 - la misma venta puede generar uno o mas `DetalleVenta`, incluso si hoy solo se usa una linea manual
 - cuando entren articulos en el futuro, el mismo `DetalleVenta` seguira funcionando con `tipoDetalle=ARTICULO`
 
+### Sugerencias de artículos en caja y facturación electrónica
+
+- Ambos modos comparten el editor del nombre del artículo en la tabla de ventas. Doble clic abre un campo libre con sugerencias; al añadir una fila en modo electrónico se abre automáticamente.
+- `GET /api/v1/articulos/sugerencias?q=texto&precio=3000` consulta hasta 12 artículos activos. Sin texto busca el precio unitario exacto; con texto busca coincidencias en el nombre, priorizando el precio informado. No consulta todo el catálogo si no hay filtros.
+- Flechas arriba/abajo permiten elegir una opción; Enter confirma la opción elegida o conserva el texto manual. Escape cancela la edición y salir del campo confirma el nombre. Seleccionar una sugerencia no cambia el precio ni la cantidad digitados.
+- El editor convierte automáticamente a mayúsculas los nombres escritos, pegados o seleccionados antes de confirmarlos, conservando tildes y el límite de 200 caracteres.
+- `SugerenciasArticulosService` es independiente de una futura gestión de existencias. Aprende nombres únicamente dentro de la transacción de registro de la venta, antes de la emisión electrónica; cancelar el borrador o revertir la venta no crea artículos. Los abonos de separados no generan artículos.
+- Un nombre nuevo se crea en `articulos` con el precio unitario de la venta y SKU automático estable `AUTO-…`. Inserciones concurrentes del mismo nombre usan `ON CONFLICT` para evitar duplicados.
+- La comparación de nombres ignora mayúsculas y espacios repetidos. Si el nombre existe, se reutiliza sin cambiar su SKU, precio base ni estado. No se reactivan artículos inactivos. Los nombres genéricos `Artículo manual` y `Venta manual` no se aprenden.
+- La referencia `DetalleVenta.articulo` es auxiliar y opcional; el detalle conserva `tipoDetalle=MANUAL`, descripción, precio y cantidad propios. No se descuentan existencias. Un catálogo de inventario futuro puede aportar artículos al mismo buscador sin cambiar este flujo.
+- Migración Flyway `V24__sugerencias_articulos.sql`: amplía el nombre a 200 caracteres y agrega índices para precio y nombre normalizado.
+- Pruebas PostgreSQL opcionales: `mvn -pl pos-api -am test -Dpos.test.jdbc-url=jdbc:postgresql://localhost:PUERTO/postgres` contra una base de pruebas. Crean y eliminan un esquema aislado. Usuario y clave configurables con `pos.test.jdbc-user` y `pos.test.jdbc-password`.
+
 ### Separados
 
 - `Separado` representa el compromiso comercial del articulo apartado y no el movimiento de caja

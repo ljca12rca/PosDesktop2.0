@@ -21,7 +21,7 @@ public class Articulo extends EntidadAuditable {
     @Column(nullable = false, unique = true, length = 50)
     private String sku;
 
-    @Column(nullable = false, length = 150)
+    @Column(nullable = false, length = 200)
     private String nombre;
 
     @Column(length = 500)
