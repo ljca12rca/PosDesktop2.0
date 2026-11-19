@@ -24,6 +24,10 @@ public final class PosDesktopConfig {
     }
 
     public String apiBaseUrl() {
-        return properties.getProperty("pos.api.base-url", DEFAULT_API_BASE_URL);
+        try {
+            return "http://localhost:" + LocalSettings.apiPort() + "/api/v1";
+        } catch (IOException | IllegalArgumentException exception) {
+            return properties.getProperty("pos.api.base-url", DEFAULT_API_BASE_URL);
+        }
     }
 }

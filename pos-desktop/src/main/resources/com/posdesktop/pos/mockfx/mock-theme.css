@@ -698,6 +698,81 @@
         linear-gradient(to bottom right, #faf6ef, #f0ece2);
 }
 
+.login-settings-button {
+    -fx-font-size: 13px;
+    -fx-padding: 9 16;
+}
+
+.settings-dialog {
+    -fx-background-color: #faf6ef;
+    -fx-padding: 8;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+}
+
+.settings-dialog > .header-panel {
+    -fx-background-color: transparent;
+    -fx-padding: 20 24 8 24;
+}
+
+.settings-dialog > .header-panel .label {
+    -fx-text-fill: #1b4150;
+    -fx-font-size: 22px;
+    -fx-font-weight: 700;
+    -fx-wrap-text: true;
+}
+
+.settings-dialog > .content {
+    -fx-padding: 12 24 16 24;
+}
+
+.settings-dialog > .button-bar > .container {
+    -fx-padding: 8 24 20 24;
+    -fx-spacing: 12;
+}
+
+.settings-description {
+    -fx-text-fill: #536768;
+    -fx-font-size: 13px;
+    -fx-line-spacing: 3;
+}
+
+.settings-section-label {
+    -fx-text-fill: #1b4150;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+}
+
+.settings-port-guide {
+    -fx-background-color: #e8f0ed;
+    -fx-background-radius: 12;
+    -fx-padding: 12 16;
+    -fx-text-fill: #235b5b;
+    -fx-font-size: 12px;
+}
+
+.settings-yaml-editor {
+    -fx-font-family: "Consolas", "Courier New";
+    -fx-font-size: 13px;
+    -fx-text-fill: #213b43;
+    -fx-padding: 6;
+}
+
+.settings-yaml-editor .content {
+    -fx-padding: 14;
+}
+
+.settings-error {
+    -fx-text-fill: #9e382a;
+    -fx-font-size: 13px;
+}
+
+.settings-dialog .button:focused {
+    -fx-border-color: #176c6b;
+    -fx-border-width: 2;
+    -fx-border-radius: 18;
+}
+
 .invoice-workspace {
     -fx-spacing: 10;
     -fx-padding: 14;

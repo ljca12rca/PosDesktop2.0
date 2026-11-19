@@ -2,7 +2,7 @@ spring:
   application:
     name: posdesktop-backend
   datasource:
-    url: ${POS_PG_URL:jdbc:postgresql://localhost:55432/posdesktop}
+    url: ${POS_PG_URL:jdbc:postgresql://localhost:15432/posdesktop}
     username: ${POS_PG_USERNAME:pos}
     password: ${POS_PG_PASSWORD:pos123}
   jpa:
@@ -33,6 +33,9 @@ management:
         include: health,info
 
 pos:
+  configuracion:
+    # Definir antes de generar el instalador; vacía deshabilita el acceso a configuración.
+    password: '123456'
   timezone: ${POS_TIMEZONE:America/Bogota}
   ventas:
     local-prefix: ${POS_VENTAS_LOCAL_PREFIX:VTA}

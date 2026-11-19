@@ -20,6 +20,7 @@ $desktopTargetDir = Join-Path $desktopModuleDir "target"
 $installerRoot = Join-Path $desktopTargetDir "installer"
 $installerInput = Join-Path $installerRoot "input"
 $installerDist = Join-Path $installerRoot "dist"
+$runtimeImage = Join-Path $installerRoot "runtime"
 
 function Write-Step {
     param([string]$Message)
@@ -218,8 +219,10 @@ Remove-DirectorySafe $installerRoot
 Ensure-Directory $installerInput
 Ensure-Directory $installerDist
 
-Write-Step "Compilando el modulo desktop"
-Invoke-Maven -MavenCmd $mavenCmd -Arguments @("-pl", "pos-desktop", "-am", "clean", "package", "-DskipTests")
+Write-Step "Compilando la API y el modulo desktop"
+Invoke-Maven -MavenCmd $mavenCmd -Arguments @("-pl", "pos-api,pos-desktop", "-am", "clean", "package", "-DskipTests")
+Ensure-Directory $installerInput
+Ensure-Directory $installerDist
 
 Write-Step "Copiando dependencias runtime del desktop"
 Invoke-Maven -MavenCmd $mavenCmd -Arguments @("-pl", "pos-desktop", "dependency:copy-dependencies", "-DincludeScope=runtime", "-DoutputDirectory=target/installer/input")
@@ -231,6 +234,13 @@ if (-not (Test-Path $desktopJar)) {
 }
 
 Copy-Item -Path $desktopJar -Destination (Join-Path $installerInput $desktopJarName) -Force
+# La version del POM puede ser una version de lanzamiento o SNAPSHOT.
+[xml]$rootPom = Get-Content (Join-Path $repoRoot "pom.xml")
+$apiJar = Join-Path $repoRoot "pos-api/target/pos-api-$($rootPom.project.version).jar"
+if (-not (Test-Path $apiJar)) {
+    throw "No se encontro el JAR ejecutable de la API en $apiJar."
+}
+Copy-Item -Path $apiJar -Destination (Join-Path $installerInput "pos-api-local.jar") -Force
 
 $appVersion = Get-ProjectVersion
 $appName = "POS Desktop"
@@ -240,6 +250,12 @@ $iconPath = Join-Path $installerRoot "pos-desktop.ico"
 if (Test-Path $iconSourcePath) {
     Write-Step "Convirtiendo icono PNG a ICO"
     Convert-PngToIco -PngPath $iconSourcePath -IcoPath $iconPath
+}
+
+Write-Step "Preparando runtime Java para escritorio y API"
+& (Join-Path $JavaHome "bin/jlink.exe") --module-path (Join-Path $JavaHome "jmods") --add-modules ALL-MODULE-PATH --output $runtimeImage --no-header-files --no-man-pages
+if ($LASTEXITCODE -ne 0) {
+    throw "No se pudo generar el runtime Java."
 }
 
 $jpackageArgs = @(
@@ -253,6 +269,7 @@ $jpackageArgs = @(
     "--vendor", "ljca12rca",
     "--description", "POS Desktop UI",
     "--copyright", "Copyright 2026",
+    "--runtime-image", $runtimeImage,
     "--java-options", "-Dfile.encoding=UTF-8"
 )
 

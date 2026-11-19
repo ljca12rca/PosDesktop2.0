@@ -120,10 +120,10 @@ public class PosDesktopFxApplication extends Application {
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
     private static final DateTimeFormatter RECEIPT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter RECEIPT_TIME_FORMATTER = DateTimeFormatter.ofPattern("hh:mm a");
-    private static final String RECEIPT_BUSINESS_NAME = "GRAN MILENAZO DONMATIAS";
-    private static final String RECEIPT_OWNER_NAME = "KELI MONSALVE";
-    private static final String RECEIPT_ADDRESS = "CALLE 28 # 29-18";
-    private static final String RECEIPT_NIT = "NIT. 1.035.833.243-6";
+    private static final String RECEIPT_BUSINESS_NAME = "EL ANDINAZO";
+    private static final String RECEIPT_OWNER_NAME = "SHIRLEY RUIZ";
+    private static final String RECEIPT_ADDRESS = "CR 50 A 5059 LC 102";
+    private static final String RECEIPT_NIT = "CC. 21715113";
     private static final String RECEIPT_CASHIER = "Caja principal";
     private static final String SALES_PAYMENT_CASH = "EFECTIVO";
     private static final String SALES_PAYMENT_TRANSFER_QR = "TRANSFERENCIA (QR)";
@@ -162,6 +162,11 @@ public class PosDesktopFxApplication extends Application {
     private PosApiClient.AuthSessionResponse authenticatedSession;
     private Node cachedSalesScreen;
     private String currentScreenKey;
+
+    @Override
+    public void init() {
+        com.posdesktop.pos.integration.LocalApiProcess.startIfPackaged();
+    }
 
     @Override
     public void start(Stage stage) {
@@ -314,7 +319,13 @@ public class PosDesktopFxApplication extends Application {
         );
         form.getStyleClass().add("login-form");
 
-        card.getChildren().addAll(overline, title, subtitle, form, statusLabel, loginButton);
+        Button settingsButton = createActionButton("Configuración", "ghost-button");
+        settingsButton.getStyleClass().add("login-settings-button");
+        settingsButton.setMaxWidth(Double.MAX_VALUE);
+        settingsButton.setOnAction(event -> showLocalSettings());
+        settingsButton.setVisible(false);
+        settingsButton.setManaged(false);
+        card.getChildren().addAll(overline, title, subtitle, form, statusLabel, loginButton, settingsButton);
         layout.getChildren().addAll(hero, card);
         shell.getChildren().add(layout);
         Platform.runLater(usernameField::requestFocus);
@@ -402,6 +413,116 @@ public class PosDesktopFxApplication extends Application {
         }
     }
 
+    private void showLocalSettings() {
+        var passwordDialog = new javafx.scene.control.Dialog<String>();
+        passwordDialog.initOwner(primaryStage);
+        passwordDialog.setTitle("Configuración del sistema");
+        passwordDialog.setHeaderText("Configuración protegida");
+        PasswordField password = new PasswordField();
+        password.getStyleClass().add("soft-field");
+        password.setPromptText("Escribe tu contraseña");
+        Label help = new Label("Acceso protegido a las conexiones y ajustes del sistema.");
+        help.getStyleClass().add("settings-description");
+        help.setWrapText(true);
+        Label error = new Label();
+        error.getStyleClass().add("settings-error");
+        error.setWrapText(true);
+        error.setVisible(false);
+        error.managedProperty().bind(error.visibleProperty());
+        VBox content = new VBox(16, help, createFieldGroup("Contraseña de configuración", password, 400), error);
+        passwordDialog.getDialogPane().setContent(content);
+        var access = new javafx.scene.control.ButtonType("Acceder", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        passwordDialog.getDialogPane().getButtonTypes().addAll(access, javafx.scene.control.ButtonType.CANCEL);
+        styleSettingsDialog(passwordDialog, false);
+        passwordDialog.getDialogPane().lookupButton(access).addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            try {
+                if (!com.posdesktop.pos.integration.LocalSettings.authenticate(password.getText())) {
+                    event.consume();
+                    error.setText("Contraseña incorrecta o no configurada. Revisa el valor e intenta de nuevo.");
+                    error.setVisible(true);
+                    password.selectAll();
+                    password.requestFocus();
+                }
+            } catch (Exception exception) {
+                event.consume();
+                error.setText("No se pudo leer la configuración local.");
+                error.setVisible(true);
+            }
+        });
+        passwordDialog.setOnShown(event -> password.requestFocus());
+        passwordDialog.setResultConverter(button -> button == access ? password.getText() : null);
+        passwordDialog.showAndWait().ifPresent(value -> {
+            try {
+                showSettingsEditor();
+            } catch (Exception exception) {
+                showSettingsMessage(javafx.scene.control.Alert.AlertType.ERROR, "No se pudo leer la configuración: " + exception.getMessage());
+            }
+        });
+    }
+
+    private void showSettingsEditor() throws java.io.IOException {
+        var dialog = new javafx.scene.control.Dialog<javafx.scene.control.ButtonType>();
+        dialog.initOwner(primaryStage);
+        dialog.setTitle("Configuración del sistema");
+        dialog.setHeaderText("Configuración de la API y bases de datos");
+        Label instructions = new Label("Ajusta las conexiones y los parámetros del sistema. Los cambios se aplicarán al volver a abrir el POS.");
+        instructions.getStyleClass().add("settings-description");
+        instructions.setWrapText(true);
+        TextArea editor = new TextArea(com.posdesktop.pos.integration.LocalSettings.read());
+        editor.getStyleClass().addAll("soft-area", "settings-yaml-editor");
+        editor.setAccessibleText("Configuración del sistema en formato YAML");
+        editor.setWrapText(false);
+        editor.setPrefColumnCount(65);
+        editor.setPrefRowCount(18);
+        Label editorLabel = new Label("Archivo de configuración · YAML");
+        editorLabel.getStyleClass().add("settings-section-label");
+        editorLabel.setLabelFor(editor);
+        Label portGuide = new Label("API: server.port   ·   PostgreSQL: spring.datasource.url   ·   MongoDB: spring.mongodb.port");
+        portGuide.getStyleClass().add("settings-port-guide");
+        portGuide.setWrapText(true);
+        VBox content = new VBox(12, instructions, portGuide, editorLabel, editor);
+        VBox.setVgrow(editor, Priority.ALWAYS);
+        dialog.getDialogPane().setContent(content);
+        var save = new javafx.scene.control.ButtonType("Guardar", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(save, javafx.scene.control.ButtonType.CANCEL);
+        styleSettingsDialog(dialog, true);
+        dialog.setResizable(true);
+        dialog.getDialogPane().lookupButton(save).addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            try {
+                com.posdesktop.pos.integration.LocalSettings.save(editor.getText());
+            } catch (Exception exception) {
+                event.consume();
+                showSettingsMessage(javafx.scene.control.Alert.AlertType.ERROR, "No se pudo guardar. Revisa el YAML: " + exception.getMessage());
+            }
+        });
+        if (dialog.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) == save) {
+            showSettingsMessage(javafx.scene.control.Alert.AlertType.INFORMATION, "Configuración guardada. Cierra y vuelve a abrir el POS para aplicarla.");
+        }
+    }
+
+    private void showSettingsMessage(javafx.scene.control.Alert.AlertType type, String message) {
+        var alert = new javafx.scene.control.Alert(type, message, javafx.scene.control.ButtonType.OK);
+        alert.initOwner(primaryStage);
+        alert.setHeaderText(null);
+        styleSettingsDialog(alert, false);
+        alert.showAndWait();
+    }
+
+    private void styleSettingsDialog(javafx.scene.control.Dialog<?> dialog, boolean editor) {
+        var pane = dialog.getDialogPane();
+        pane.getStylesheets().add(getClass().getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());
+        pane.getStyleClass().add("settings-dialog");
+        pane.setGraphic(null);
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        pane.setPrefWidth(Math.min(editor ? 880 : 460, bounds.getWidth() * 0.9));
+        if (editor) pane.setPrefHeight(Math.min(720, bounds.getHeight() * 0.88));
+        for (var type : pane.getButtonTypes()) {
+            Node button = pane.lookupButton(type);
+            boolean primary = type.getButtonData() == javafx.scene.control.ButtonBar.ButtonData.OK_DONE;
+            button.getStyleClass().add(primary ? "primary-button" : "ghost-button");
+        }
+    }
+
     private void configureGlobalShortcuts(Scene scene) {
         scene.addEventFilter(KeyEvent.KEY_TYPED, event -> {
             if (event.isConsumed() || authenticatedSession == null || !apiAvailable.get()
@@ -453,7 +574,8 @@ public class PosDesktopFxApplication extends Application {
     private void handleApiAvailabilityFailure(Throwable throwable) {
         apiProbeInProgress.set(false);
         apiAvailable.set(false);
-        updateApiStartupStatus("Cargando...", false);
+        String localError = com.posdesktop.pos.integration.LocalApiProcess.startupError();
+        updateApiStartupStatus(localError == null ? "Cargando..." : localError, localError != null);
         apiStartupProgressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
         apiRetryPause.playFromStart();
     }

@@ -16,6 +16,10 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>3.0.8</version>
@@ -41,6 +45,10 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource><directory>src/main/resources</directory></resource>
+            <resource><directory>../pos-api/src/main/resources</directory><includes><include>application.yml</include></includes></resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.openjfx</groupId>

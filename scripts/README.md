@@ -38,7 +38,7 @@ API
 
 PostgreSQL
   host: localhost
-  port: 55432
+  port: 15432
   database: posdesktop
   user: pos
   password: pos123
@@ -124,35 +124,38 @@ Detiene la infraestructura:
 
 ## Ejecutar la API por fuera de Docker
 
-Cuando Maven este disponible en la maquina:
+El script compila la API con sus dependencias y la ejecuta con Java. Busca Maven en el sistema o en `.tools`:
 
 ```powershell
 .\scripts\run-api.ps1
 ```
 
-Comando equivalente:
+Compilación manual (después ejecuta el JAR generado en `pos-api/target`):
 
 ```powershell
-mvn -pl pos-api spring-boot:run
+mvn -pl pos-api -am package -DskipTests
 ```
 
 La API expone por defecto en `http://localhost:8083`.
 
 ## Ejecutar el POS Desktop
 
+Este script prepara el JAR de la API y abre el escritorio. La API se inicia automáticamente si el puerto configurado está libre; no hace falta iniciar el contenedor de la API. Las bases de datos deben estar disponibles.
+
 ```powershell
 .\scripts\run-desktop.ps1
 ```
 
-Comando equivalente:
+Si ejecutas el escritorio desde el IDE o directamente con Maven, compila primero la API:
 
 ```powershell
+mvn -pl pos-api -am package -DskipTests
 mvn -pl pos-desktop javafx:run
 ```
 
 ## Generar instalador del POS Desktop
 
-Genera un instalador de Windows para la interfaz del POS:
+Genera un instalador de Windows para la interfaz y la API local, sin Docker ni Java instalado por separado:
 
 ```powershell
 .\scripts\build-desktop-installer.ps1
@@ -171,10 +174,15 @@ Detalles del flujo:
 ```text
 - descarga Maven si no esta instalado
 - descarga WiX si no esta instalado y el tipo es exe o msi
-- compila pos-desktop
+- compila pos-desktop y pos-api
 - copia dependencias runtime
+- incluye el JAR de la API y un runtime Java
 - ejecuta jpackage
 ```
+
+Al abrir el POS instalado se inicia la API local automáticamente; al cerrar el POS se detiene la API iniciada por esa instancia. Si ya hay un servicio en el puerto 8083 se utiliza la conexión existente. Los mensajes de la API se guardan en `posdesktop-media/logs/api.log` dentro de la carpeta del usuario. PostgreSQL y MongoDB deben estar disponibles con los valores de conexión de `pos-api/src/main/resources/application.yml`. Los documentos permanecen en `posdesktop-media`.
+
+La contraseña para abrir Configuración se define antes de generar el instalador en `pos-api/src/main/resources/application.yml`, propiedad `pos.configuracion.password` (entre comillas). Vacía deshabilita el acceso. En el primer inicio se crea `%USERPROFILE%/posdesktop-media/config/application.yml`; las ejecuciones posteriores conservan ese archivo incluso si se actualiza la aplicación. Para instalaciones existentes la contraseña debe definirse en ese archivo local. Desde Configuración se edita el YAML completo y hay que reiniciar el POS para aplicar los cambios. Es un control de acceso de la interfaz: quien pueda leer o modificar el archivo local puede consultar o cambiar su contenido.
 
 Salida esperada:
 
