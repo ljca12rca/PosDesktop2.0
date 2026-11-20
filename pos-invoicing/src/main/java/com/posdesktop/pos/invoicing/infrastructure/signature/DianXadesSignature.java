@@ -32,7 +32,7 @@ public final class DianXadesSignature {
             requireInvoice(root);
             if(doc.getElementsByTagNameNS(DS,"Signature").getLength()!=0)throw new IllegalArgumentException("El documento ya contiene una firma.");
             Element extensions=direct(root,DianInvoiceDraftGenerator.EXT,"UBLExtensions");
-            if(elements(extensions).size()!=1)throw new IllegalArgumentException("El borrador debe contener una sola extension DIAN antes de firmar.");
+            if(elements(extensions).size()!=("AttachedDocument".equals(root.getLocalName())?0:1))throw new IllegalArgumentException("Numero de extensiones incompatible con el documento antes de firmar.");
             Element content=add(add(extensions,DianInvoiceDraftGenerator.EXT,"ext:UBLExtension",null),DianInvoiceDraftGenerator.EXT,"ext:ExtensionContent",null);
             String id="sig-"+UUID.randomUUID(), propsId=id+"-props", keyId=id+"-key", refId=id+"-document";
             var factory=XMLSignatureFactory.getInstance("DOM");
@@ -83,7 +83,7 @@ public final class DianXadesSignature {
             var signatures=doc.getElementsByTagNameNS(DS,"Signature");check(signatures.getLength()==1,"Debe existir una sola firma.");
             Element signature=(Element)signatures.item(0);
             Element extensions=direct(root,DianInvoiceDraftGenerator.EXT,"UBLExtensions");
-            var ext=elements(extensions);check(ext.size()==2 && direct(ext.get(1),DianInvoiceDraftGenerator.EXT,"ExtensionContent")==signature.getParentNode(),"Ubicacion de firma invalida.");
+            var ext=elements(extensions);int expectedExtensions="AttachedDocument".equals(root.getLocalName())?1:2;check(ext.size()==expectedExtensions && direct(ext.get(expectedExtensions-1),DianInvoiceDraftGenerator.EXT,"ExtensionContent")==signature.getParentNode(),"Ubicacion de firma invalida.");
             check(elements((Element)signature.getParentNode()).size()==1,"Extension de firma invalida.");
             Element keyInfo=direct(signature,DS,"KeyInfo");Element x509=direct(keyInfo,DS,"X509Data");
             List<X509Certificate> chain=new ArrayList<>();
@@ -139,7 +139,7 @@ public final class DianXadesSignature {
             return new Validation(true,false,false,HexFormat.of().formatHex(sha256(cert.getEncoded())),List.of());
         }catch(Exception e){return new Validation(false,false,false,null,List.of("Firma local invalida o XML incompatible con el perfil XAdES implementado."));}
     }
-    private static void requireInvoice(Element root){check(Set.of("Invoice","CreditNote","DebitNote").contains(root.getLocalName())&&("urn:oasis:names:specification:ubl:schema:xsd:"+root.getLocalName()+"-2").equals(root.getNamespaceURI()),"Tipo de documento UBL no admitido.");}
+    private static void requireInvoice(Element root){check(Set.of("Invoice","CreditNote","DebitNote","AttachedDocument").contains(root.getLocalName())&&("urn:oasis:names:specification:ubl:schema:xsd:"+root.getLocalName()+"-2").equals(root.getNamespaceURI()),"Tipo de documento UBL no admitido.");}
     private static Document parse(String xml)throws Exception{if(xml==null||xml.length()>5_000_000)throw new IllegalArgumentException("XML demasiado grande.");return DianInvoiceDraftGenerator.parse(xml);}
     private static void registerIds(Element e,DOMValidateContext ctx,Set<String> ids){
         if(e.hasAttribute("Id")){String id=e.getAttribute("Id");check(!id.isBlank()&&ids.add(id),"Identificador duplicado.");ctx.setIdAttributeNS(e,null,"Id");}

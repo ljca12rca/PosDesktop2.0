@@ -1,6 +1,8 @@
 # DIAN directa — base XML, actualizada 2026-10-30
 
 **Estado: implementados los incrementos de base y puntos 1–11 del listado de pendientes.**
+Numeracion de migraciones actualizada: ver [compatibilidad con master](migraciones-fiscales-compatibilidad.md).
+Los incrementos posteriores estan en [transporte](dian-transporte-habilitacion.md) y [PDF/entrega](dian-entrega-local.md).
 No instalar como sustituto de Dataico ni transmitir los borradores generados.
 Detalle normativo, pruebas y limitaciones del incremento: [Reglas DIAN 1.9](dian19-rules.md).
 Persistencia, configuración segura, reintentos y POS: [Puntos 7–11](dian-persistencia-pos.md).
@@ -151,11 +153,12 @@ delegación Dataico sin alterar documento, bloqueo de emisión directa, XML dete
 caracteres especiales, errores XSD y bloqueo XXE. No se usan servicios DIAN/Dataico reales.
 
 La firma XML XAdES y verificacion local se incorporaron en el punto 12:
-ver [Firma local](dian-firma-local.md). No implementados todavia: empaquetado/transporte/respuestas DIAN y
-habilitación. Tampoco operaciones especiales
+ver [Firma local](dian-firma-local.md). El empaquetado, transporte y respuestas se describen
+en [Transporte en PRUEBAS](dian-transporte-habilitacion.md). Sigue pendiente la
+habilitación oficial con certificado confiable. Tampoco se cubren operaciones especiales
 (exportación, AIU, mandatos, transporte, moneda extranjera o documentos gratuitos).
 Los contratos de esas operaciones deben añadirse cuando exista una implementación real
 que los consuma; no se crean clases vacías ni simulaciones de aceptación.
 
-Siguiente incremento (punto 13): empaquetado y transporte. Hasta verificar confianza del
-certificado real y completar transporte y habilitación, el borrador no es expedible.
+El punto 13 permite ensayar ZIP y SOAP sin red. Hasta verificar confianza del
+certificado real y completar las pruebas oficiales, el borrador no es expedible.

@@ -1,5 +1,9 @@
 # Devolucion y Anulacion
 
+Actualizacion: las copias firmadas DIAN ya disponen de [ZIP, transporte y seguimiento
+en PRUEBAS](dian-transporte-habilitacion.md). La simulacion local no acredita aceptacion
+oficial. Las referencias a "sin transporte" siguientes describen el incremento inicial.
+
 ## Experiencia acordada para la implementacion
 
 Una pantalla con una tarea principal: preparar un ajuste sobre una factura existente.

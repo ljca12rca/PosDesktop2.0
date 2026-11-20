@@ -13,7 +13,7 @@ import java.util.*;
 public final class FiscalSettingsPane extends VBox {
     private final PosApiClient api;
     private final Label status=note("Cargando configuración…"),secretState=note(""),providerState=note("");
-    private final ComboBox<Choice> provider=choices("DATAICO","Dataico","DIAN_DIRECT","DIAN directa · solo borradores");
+    private final ComboBox<Choice> provider=choices("DATAICO","Dataico","DIAN_DIRECT","DIAN directa · pruebas");
     private final ComboBox<Choice> environment=choices("PRUEBAS","Pruebas / habilitación","PRODUCCION","Producción");
     private final ComboBox<Choice> nature=choices("1","Persona jurídica","2","Persona natural");
     private final ComboBox<Choice> tax=choices("01","IVA","04","INC","ZA","IVA e INC","ZZ","No aplica");
@@ -39,11 +39,11 @@ public final class FiscalSettingsPane extends VBox {
         saveProvider.setOnAction(e->{ if(loadedProvider==null||provider.getValue()==null) return; providerBusy.set(true);
             async(()->api.guardarProveedorFiscal(selected(provider),loadedProvider.version()),r->{loadedProvider=r;providerBusy.set(false);providerState.setText("Selección guardada. DIAN directa permanece sin envío real.");},error->{providerBusy.set(false);providerState.setText("No se confirmó la selección: "+error.getMessage()+" Vuelve a abrir la vista para recargar.");}); });
         VBox mode=card("Proveedor para nuevas ventas",row(group("Proveedor",provider,330),saveProvider),
-                note("Dataico conserva el envío actual. DIAN directa permite guardar XML sin firma; no envía facturas ni imprime un comprobante fiscal."),providerState);
+                note("Dataico conserva el envío actual. DIAN directa permite preparar, firmar y probar documentos desde Documentos fiscales; el envío real requiere completar la validación del certificado."),providerState);
         for(String id:List.of("name","nit","dv","street","duties","software-name","software-id","test-set-id","provider-nit","provider-dv","prefix","resolution","range-from","range-to","preview-number"))
             fields.put(id,field("dian-"+id,""));
         fields.get("duties").setPromptText("Ej. R-99-PN; códigos separados por ;");
-        fields.get("software-id").setPromptText("UUID entregado por DIAN"); fields.get("test-set-id").setPromptText("UUID de habilitación (opcional)");
+        fields.get("software-id").setPromptText("UUID entregado por DIAN"); fields.get("test-set-id").setPromptText("UUID requerido para preparar ZIP");
         fields.get("preview-number").setPromptText("No reserva un consecutivo");
         cities.stream().map(c->new Choice(c.departmentCode(),c.department())).distinct().sorted(Comparator.comparing(Choice::label)).forEach(department.getItems()::add);
         department.setOnAction(e->{city.getItems().clear(); if(department.getValue()!=null) city.getItems().addAll(cities.stream().filter(c->c.departmentCode().equals(department.getValue().code())).toList());});
@@ -68,10 +68,19 @@ public final class FiscalSettingsPane extends VBox {
         reload.disableProperty().bind(busy); environment.disableProperty().bind(busy);
         issuer.disableProperty().bind(busy);software.disableProperty().bind(busy);numbering.disableProperty().bind(busy);credentials.disableProperty().bind(busy);
         reload.setOnAction(e->load()); save.setOnAction(e->save());
-        getChildren().addAll(mode,card("Configuración DIAN por ambiente",row(group("Ambiente",environment,320),reload),status),issuer,software,numbering,credentials,row(save));
+        getChildren().addAll(mode,transportSettings(),new FiscalDeliverySettingsPane(api),card("Configuración DIAN por ambiente",row(group("Ambiente",environment,320),reload),status),issuer,software,numbering,credentials,row(save));
         environment.getSelectionModel().selectFirst();
         environment.setOnAction(e->load());load();
         async(api::consultarProveedorFiscal,r->{loadedProvider=r;providerReady.set(true);select(provider,r.provider());providerState.setText("Proveedor activo: "+r.provider()+". La selección se conserva para nuevas ventas.");},error->providerState.setText("No se pudo consultar el proveedor: "+error.getMessage()+" Vuelve a abrir esta vista para reintentar."));
+    }
+    private VBox transportSettings(){
+        ComboBox<Choice> transport=choices("SIMULACION","Simulación local · sin red","HABILITACION","DIAN · habilitación");transport.setId("dian-transport-mode");
+        Label message=note("Cargando transporte…");Button store=button("Guardar modo",false),refresh=button("Recargar modo",false);var working=new SimpleBooleanProperty();var ready=new SimpleBooleanProperty();
+        final PosApiClient.DianTransportSettings[] current={null};
+        transport.disableProperty().bind(working.or(ready.not()));store.disableProperty().bind(working.or(ready.not()));refresh.disableProperty().bind(working);
+        Runnable loadMode=()->{working.set(true);async(api::consultarTransporteDian,r->{current[0]=r;select(transport,r.mode());message.setText(r.explanation());ready.set(true);working.set(false);},error->{working.set(false);status(message,error.getMessage(),true);});};
+        refresh.setOnAction(e->loadMode.run());store.setOnAction(e->{working.set(true);async(()->api.guardarTransporteDian(selected(transport),current[0].version()),r->{current[0]=r;working.set(false);status(message,"Modo guardado. "+r.explanation(),false);},error->{working.set(false);ready.set(false);status(message,error.getMessage()+" Recarga el modo antes de guardar.",true);});});
+        loadMode.run();return card("Transporte DIAN en PRUEBAS",row(group("Modo para nuevos paquetes",transport,330),store,refresh),message,note("Los paquetes existentes conservan su destino. Producción permanece deshabilitada; el certificado local permite simular sin comprar todavía el certificado real."));
     }
     private void load() {
         loaded=null;loadedReady.set(false);clear(); busy.set(true); status(status,"Cargando configuración del ambiente seleccionado…",false);

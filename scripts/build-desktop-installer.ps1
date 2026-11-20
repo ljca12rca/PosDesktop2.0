@@ -63,7 +63,15 @@ function Ensure-Directory {
 function Remove-DirectorySafe {
     param([string]$Path)
     if (Test-Path $Path) {
-        Remove-Item -Recurse -Force $Path
+        if ((Get-Item -LiteralPath $Path).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw 'No se limpiara un enlace de directorio de empaquetado.'
+        }
+        $resolved = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $Path).Path).TrimEnd('\','/')
+        $expected = [IO.Path]::GetFullPath((Join-Path $desktopTargetDir 'installer')).TrimEnd('\','/')
+        if (-not $resolved.Equals($expected,[StringComparison]::OrdinalIgnoreCase)) {
+            throw "Se rechazo limpiar una ruta fuera de target/installer: $resolved"
+        }
+        Remove-Item -LiteralPath $resolved -Recurse -Force
     }
 }
 

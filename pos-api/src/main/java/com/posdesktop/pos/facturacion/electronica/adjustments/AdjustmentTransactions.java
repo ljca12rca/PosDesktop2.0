@@ -19,9 +19,10 @@ public class AdjustmentTransactions {
     private final FiscalAdjustmentRepository adjustments;private final AdjustmentNumberingRepository numbering;
     private final VentaRepositorio sales;private final FiscalDocumentRepository documents;private final FiscalEventRepository events;
     private final DianSettingsRepository dian;private final FiscalSecretVault vault;private final FiscalJson json;
+    private final DianSubmissionRepository submissions;
     public AdjustmentTransactions(FiscalAdjustmentRepository adjustments,AdjustmentNumberingRepository numbering,VentaRepositorio sales,
-            FiscalDocumentRepository documents,FiscalEventRepository events,DianSettingsRepository dian,FiscalSecretVault vault,FiscalJson json){
-        this.adjustments=adjustments;this.numbering=numbering;this.sales=sales;this.documents=documents;this.events=events;this.dian=dian;this.vault=vault;this.json=json;
+            FiscalDocumentRepository documents,FiscalEventRepository events,DianSettingsRepository dian,FiscalSecretVault vault,FiscalJson json,DianSubmissionRepository submissions){
+        this.adjustments=adjustments;this.numbering=numbering;this.sales=sales;this.documents=documents;this.events=events;this.dian=dian;this.vault=vault;this.json=json;this.submissions=submissions;
     }
     public record Request(UUID requestId,String provider,UUID sourceId,String sourceHash,AdjustmentKind kind,String observation,List<AdjustmentCalculator.Selection> lines) { }
     public record Numbering(boolean configured,long version,String creditPrefix,long creditNext,String debitPrefix,long debitNext) { }
@@ -89,7 +90,7 @@ public class AdjustmentTransactions {
         if(!s.provider().equals(r.provider())||!s.id().equals(r.sourceId())||!s.hash().equals(r.sourceHash()))throw new FiscalConflictException("La factura cambio. Buscala nuevamente antes de revisar el ajuste.");
     }
     @Transactional(propagation=Propagation.REQUIRES_NEW) public Claim claim(UUID id,boolean consult){
-        var a=lock(id);if(!"DATAICO".equals(a.getProvider()))throw new IllegalArgumentException("El transporte DIAN directo sigue pendiente. Puedes guardar y firmar el XML local.");
+        var a=lock(id);if(!"DATAICO".equals(a.getProvider()))throw new IllegalArgumentException("Para DIAN directa, abre la copia firmada y usa Transporte DIAN en Documentos fiscales.");
         if(consult){if(!Set.of("INCIERTO","EN_CURSO","RECIBIDO").contains(a.getState()))throw new IllegalArgumentException("Este ajuste no tiene un envio para consultar.");if("EN_CURSO".equals(a.getState())&&a.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(3)))throw new FiscalConflictException("El envio sigue en curso. Espera antes de consultar.");}
         else if(!Set.of("BORRADOR","ERROR_SEGURO").contains(a.getState()))throw new FiscalConflictException("No se permite otro envio. Consulta el intento existente.");
         UUID owner=UUID.randomUUID();String previousState=a.getState(),previousResponse=a.getResponse();a.transition("EN_CURSO",owner,a.getResponse());adjustments.saveAndFlush(a);events.save(new FiscalEvent(a.getDocumentId(),consult?"AJUSTE_CONSULTA":"AJUSTE_ENVIO","Intento sobre el snapshot y numero previamente guardados."));return new Claim(a.getId(),owner,snapshot(a),previousState,previousResponse);
@@ -98,7 +99,7 @@ public class AdjustmentTransactions {
     @Transactional(propagation=Propagation.REQUIRES_NEW) public FiscalAdjustmentRecord failure(Claim claim,boolean certain,String message){var a=owned(claim);
         if("RECIBIDO".equals(claim.previousState()))a.transition("RECIBIDO",null,claim.previousResponse());else a.transition(certain?"ERROR_SEGURO":"INCIERTO",null,json.write(new AdjustmentGateway.Result(null,a.getNumber(),null,null,null,message)));
         events.save(new FiscalEvent(a.getDocumentId(),"AJUSTE_SIN_CONFIRMAR",certain?"Solicitud rechazada sin confirmacion de registro.":"Consulta o envio sin confirmar. No repetir un envio registrado."));return adjustments.saveAndFlush(a);}
-    @Transactional public FiscalAdjustmentRecord discard(UUID id){var found=adjustments.findById(id).orElseThrow();sales.findForFiscalUpdate(found.getSaleId()).orElseThrow();var a=lock(id);if(!Set.of("BORRADOR","ERROR_SEGURO").contains(a.getState()))throw new IllegalArgumentException("Solo puedes descartar un borrador o rechazo seguro sin envio confirmado.");a.transition("DESCARTADO",null,a.getResponse());events.save(new FiscalEvent(a.getDocumentId(),"AJUSTE_DESCARTADO","Cantidades liberadas. El numero y la evidencia se conservan."));return adjustments.saveAndFlush(a);}
+    @Transactional public FiscalAdjustmentRecord discard(UUID id){var found=adjustments.findById(id).orElseThrow();sales.findForFiscalUpdate(found.getSaleId()).orElseThrow();var a=lock(id);if(submissions.existsBySourceDocumentIdAndStateIn(a.getDocumentId(),Set.of("EN_CURSO","RECIBIDO","PENDIENTE","ACEPTADO","INCIERTO")))throw new FiscalConflictException("El ajuste tiene un envio DIAN registrado. Consulta su resultado antes de descartarlo.");if(!Set.of("BORRADOR","ERROR_SEGURO").contains(a.getState()))throw new IllegalArgumentException("Solo puedes descartar un borrador o rechazo seguro sin envio confirmado.");a.transition("DESCARTADO",null,a.getResponse());events.save(new FiscalEvent(a.getDocumentId(),"AJUSTE_DESCARTADO","Cantidades liberadas. El numero y la evidencia se conservan."));return adjustments.saveAndFlush(a);}
     @Transactional(readOnly=true) public List<FiscalAdjustmentRecord> history(){return adjustments.findTop100ByOrderByCreatedAtDesc();}
     @Transactional(readOnly=true) public FiscalAdjustmentRecord get(UUID id){return adjustments.findById(id).orElseThrow(()->new ResourceNotFoundException("No existe el ajuste."));}
     private FiscalAdjustmentRecord owned(Claim claim){var a=lock(claim.id());if(!"EN_CURSO".equals(a.getState())||!Objects.equals(a.getOwner(),claim.owner()))throw new FiscalConflictException("El intento pertenece a otra operacion. Consulta el historial.");return a;}

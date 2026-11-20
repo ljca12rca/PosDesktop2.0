@@ -6,7 +6,7 @@
         <groupId>com.posdesktop</groupId><artifactId>pos-root</artifactId><version>0.0.39-SNAPSHOT</version>
     </parent>
     <artifactId>pos-invoicing</artifactId>
-    <description>Snapshots fiscales y previsualizacion UBL local, sin transporte ni persistencia</description>
+    <description>Dominio fiscal, UBL, firmas, ZIP y contratos SOAP DIAN; sin red ni persistencia</description>
     <dependencies>
         <dependency>
             <groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope>

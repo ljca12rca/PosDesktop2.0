@@ -2,7 +2,8 @@
 
 Implementado en `codex/dian-direct-base-xml`, sin adquirir certificados ni llamar a DIAN/Dataico.
 La firma es criptografica real sobre XML; el certificado autofirmado de desarrollo no acredita
-identidad fiscal ni sirve para la habilitacion. No existe transporte en esta etapa.
+identidad fiscal ni sirve para la habilitacion. El incremento original de firma no incluia
+transporte; ahora se integra con [el flujo de pruebas](dian-transporte-habilitacion.md).
 
 ## Uso desde el POS
 
@@ -74,8 +75,9 @@ API:
 - `POST /api/v1/facturacion/documentos/{id}/firma-local`
 - `GET /api/v1/facturacion/documentos/{id}/firma-local/validacion`
 
-El siguiente incremento es el punto 13: empaquetado y transporte. El certificado real puede
-adquirirse despues del desarrollo local, antes de las pruebas oficiales.
+El punto 13 ya incorpora [empaquetado, transporte y respuestas](dian-transporte-habilitacion.md)
+con simulacion local explicita. El certificado real puede adquirirse despues del desarrollo
+local, antes de las pruebas oficiales; la firma local no habilita envios reales.
 
 ## Verificacion del incremento
 

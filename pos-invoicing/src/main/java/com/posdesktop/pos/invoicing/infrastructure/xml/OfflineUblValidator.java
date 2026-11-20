@@ -34,6 +34,7 @@ public final class OfflineUblValidator {
     public static OfflineUblValidator dian19() { return new OfflineUblValidator(true, true); }
     public static OfflineUblValidator dian19Published() { return new OfflineUblValidator(true, false); }
     public static OfflineUblValidator dian19Note(boolean credit) { return new OfflineUblValidator(true,true,credit?"CreditNote":"DebitNote"); }
+    public static OfflineUblValidator dian19Container() { return new OfflineUblValidator(true,true,"AttachedDocument"); }
 
     private OfflineUblValidator(boolean dian, boolean corrected) {
         this(dian,corrected,"Invoice");

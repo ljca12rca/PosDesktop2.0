@@ -15,6 +15,9 @@
     <description>API Spring Boot para el sistema POS</description>
 
     <dependencies>
+        <dependency><groupId>org.apache.pdfbox</groupId><artifactId>pdfbox</artifactId><version>3.0.8</version></dependency>
+        <dependency><groupId>com.google.zxing</groupId><artifactId>core</artifactId><version>3.5.3</version></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-mail</artifactId></dependency>
         <dependency>
             <groupId>com.posdesktop</groupId>
             <artifactId>pos-invoicing</artifactId>

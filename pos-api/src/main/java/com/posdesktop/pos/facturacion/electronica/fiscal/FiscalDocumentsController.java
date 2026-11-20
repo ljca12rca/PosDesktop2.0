@@ -23,9 +23,10 @@ public class FiscalDocumentsController {
     private final VentaRepositorio saleRepository;
     private final FiscalSignatureService signatures;
     private final FiscalAdjustmentRepository adjustments;
+    private final DianSubmissionRepository submissions;
     public FiscalDocumentsController(FiscalDraftService drafts,FiscalDocumentRepository documents,FiscalOperationRepository operations,FiscalEventRepository events,
-            com.posdesktop.pos.ventas.service.VentasService sales,VentaRepositorio saleRepository,FiscalSignatureService signatures,FiscalAdjustmentRepository adjustments) {
-        this.drafts=drafts; this.documents=documents; this.operations=operations; this.events=events; this.sales=sales; this.saleRepository=saleRepository;this.signatures=signatures;this.adjustments=adjustments;
+            com.posdesktop.pos.ventas.service.VentasService sales,VentaRepositorio saleRepository,FiscalSignatureService signatures,FiscalAdjustmentRepository adjustments,DianSubmissionRepository submissions) {
+        this.drafts=drafts; this.documents=documents; this.operations=operations; this.events=events; this.sales=sales; this.saleRepository=saleRepository;this.signatures=signatures;this.adjustments=adjustments;this.submissions=submissions;
     }
     public record Summary(UUID id,UUID saleId,UUID customerId,String provider,String purpose,String environment,String number,String customer,
             BigDecimal total,String state,LocalDateTime createdAt) { }
@@ -62,6 +63,7 @@ public class FiscalDocumentsController {
         var found=documents.findTop200ByOrderByCreadoEnDesc();
         var states=adjustments.findByDocumentIdIn(found.stream().map(FiscalDocumentRecord::getId).toList()).stream()
                 .collect(java.util.stream.Collectors.toMap(FiscalAdjustmentRecord::getDocumentId,FiscalAdjustmentRecord::getState));
+        submissions.findByDocumentIdIn(found.stream().map(FiscalDocumentRecord::getId).toList()).stream().sorted(Comparator.comparing(DianSubmission::getUpdatedAt)).forEach(s->states.put(s.getDocumentId(),transportState(s)));
         return ApiResponse.success("Ultimos 200 documentos fiscales.",request.getRequestURI(),found.stream().map(d->summary(d,states.get(d.getId()))).toList());
     }
     @GetMapping("/documentos/{id}") @RequiresPermissions(PermisosSistema.VENTAS_VIEW)
@@ -69,6 +71,7 @@ public class FiscalDocumentsController {
         var doc = documents.findById(id).orElseThrow(() -> new ResourceNotFoundException("No existe el documento fiscal."));
         var history = events.findByDocumentoIdOrderByCreadoEnAsc(id).stream().map(e -> new Event(e.getTipo(),e.getDetalle(),e.getCreadoEn())).toList();
         String adjustmentState=adjustments.findByDocumentId(id).map(FiscalAdjustmentRecord::getState).orElse(null);
+        var transport=submissions.findByDocumentIdOrderByCreatedAtDesc(id);if(!transport.isEmpty())adjustmentState=transportState(transport.getFirst());
         return ApiResponse.success("Evidencia fiscal consultada.",request.getRequestURI(),new Detail(summary(doc,adjustmentState),doc.getFormato(),doc.getSnapshotJson(),doc.getXml(),doc.getHuella(),history));
     }
     private Summary summary(FiscalDocumentRecord doc,String adjustmentState) {
@@ -77,4 +80,5 @@ public class FiscalDocumentsController {
         if(adjustmentState!=null)state=adjustmentState;
         return new Summary(doc.getId(),doc.getVentaId(),doc.getClienteId(),doc.getProveedor(),doc.getProposito(),doc.getAmbiente(),doc.getNumero(),doc.getClienteNombre(),doc.getTotal(),state,doc.getCreadoEn());
     }
+    private static String transportState(DianSubmission s){return "SIMULACION".equals(s.getMode())?"SIMULACION_"+("ACEPTADO".equals(s.getState())?"VALIDADO":s.getState()):"DIAN_"+s.getState();}
 }

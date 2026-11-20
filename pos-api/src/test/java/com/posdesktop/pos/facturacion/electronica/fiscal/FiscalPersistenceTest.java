@@ -9,6 +9,8 @@ import com.posdesktop.pos.facturacion.electronica.domain.*;
 import com.posdesktop.pos.facturacion.electronica.infraestructura.dataico.DataicoApiException;
 import com.posdesktop.pos.facturacion.electronica.integration.SaleFiscalSnapshotMapper;
 import com.posdesktop.pos.facturacion.electronica.adjustments.*;
+import com.posdesktop.pos.facturacion.electronica.dian.transport.*;
+import com.posdesktop.pos.facturacion.electronica.delivery.*;
 import com.posdesktop.pos.invoicing.domain.AdjustmentCalculator;
 import com.posdesktop.pos.invoicing.domain.AdjustmentKind;
 import com.posdesktop.pos.invoicing.domain.FiscalInvoice;
@@ -38,7 +40,7 @@ import org.springframework.web.client.*;
 import org.springframework.http.*;
 
 /** PostgreSQL real y desechable: nunca admite URL de la base de trabajo o de produccion. */
-@EnabledIfSystemProperty(named="pos.fiscal.test.url",matches="jdbc:postgresql://127\\.0\\.0\\.1:55439/posdesktop_fiscal_test")
+@EnabledIfSystemProperty(named="pos.fiscal.test.url",matches="jdbc:postgresql://127\\.0\\.0\\.1:(55439|55445)/posdesktop_fiscal_test")
 class FiscalPersistenceTest {
     @TempDir static Path keys;
     private static AnnotationConfigApplicationContext context;
@@ -47,7 +49,7 @@ class FiscalPersistenceTest {
     private static final UUID LEGACY_SALE=UUID.fromString("aaaaaaaa-1111-4111-8111-111111111111");
     @BeforeAll static void start() {
         DataSource ds=source(); jdbc=new JdbcTemplate(ds);
-        Flyway.configure().dataSource(ds).locations("classpath:db/migration").target("23").load().migrate();
+        Flyway.configure().dataSource(ds).locations("classpath:db/migration").target("24").load().migrate();
         jdbc.update("INSERT INTO ventas(id,numero_venta,fecha_venta,estado,origen,total) VALUES (?,'VTA-LEGACY-FISCAL','2026-10-29 10:00:00','REGISTRADA','MANUAL',100) ON CONFLICT DO NOTHING",LEGACY_SALE);
         jdbc.update("INSERT INTO facturas_electronicas(venta_id,fecha_emision,numero_factura,cliente_nombre,cliente_identificacion,total,estado_dian,estado_cliente,estado_correo,identificador_dataico) VALUES (?,'2026-10-29 10:00:00','LEGACY1','CLIENTE HISTORICO','1234',100,'DIAN_ACEPTADO','REGISTRADO','NO_SOLICITADO','legacy-remote') ON CONFLICT DO NOTHING",LEGACY_SALE);
         Flyway.configure().dataSource(ds).locations("classpath:db/migration").load().migrate();
@@ -59,20 +61,23 @@ class FiscalPersistenceTest {
     @AfterAll static void close() {if(context!=null)context.close();}
     @BeforeEach void resetProvider() {
         reset(remote); jdbc.update("UPDATE facturacion_configuracion SET proveedor='DATAICO',version=version+1 WHERE id=1");
+        jdbc.update("UPDATE dian_transporte_configuracion SET modo='SIMULACION',version=version+1 WHERE id=1");
+        jdbc.update("UPDATE fiscal_entrega_configuracion SET datos_json=NULL,secreto_cifrado=NULL,version=version+1 WHERE id=1");reset(context.getBean(FiscalMailGateway.class));
         reset(context.getBean(AdjustmentGateway.class));
         jdbc.update("INSERT INTO dataico_consecutivos(prefijo,siguiente_numero) VALUES ('FISCALTEST',1) ON CONFLICT DO NOTHING");
         jdbc.update("UPDATE dataico_configuracion SET habilitado=NULL,account_id=NULL,version=version+1 WHERE id=1");
     }
     private static DataSource source() {
         String url=System.getProperty("pos.fiscal.test.url");
-        if(!"jdbc:postgresql://127.0.0.1:55439/posdesktop_fiscal_test".equals(url))throw new IllegalStateException("Solo base desechable.");
+        if(!Set.of("jdbc:postgresql://127.0.0.1:55439/posdesktop_fiscal_test","jdbc:postgresql://127.0.0.1:55445/posdesktop_fiscal_test").contains(url))throw new IllegalStateException("Solo base desechable.");
         return new DriverManagerDataSource(url,"fiscal_test","fiscal_test_only");
     }
     @Configuration @EnableTransactionManagement @org.springframework.data.jpa.repository.config.EnableJpaAuditing
     @EnableJpaRepositories(basePackageClasses=FiscalDocumentRepository.class)
     @Import({FiscalJson.class,FiscalSettingsService.class,FiscalEmissionTransactions.class,DataicoFiscalSender.class,
             FacturacionVentaService.class,FiscalDraftService.class,FiscalSignatureService.class,SaleFiscalSnapshotMapper.class,DataicoConfiguracionService.class,
-            AdjustmentTransactions.class,AdjustmentService.class,AdjustmentSourceResolver.class})
+            AdjustmentTransactions.class,AdjustmentService.class,AdjustmentSourceResolver.class,DianTransportTransactions.class,DianTransportService.class,DianTransportSettingsService.class,DianTransportGateways.class,DianSimulationGateway.class,
+            FiscalPdfRenderer.class,FiscalDocumentFiles.class,FiscalContainerService.class,FiscalMailTransactions.class,FiscalMailService.class})
     static class Config {
         @Bean DataSource dataSource(){return source();}
         @Bean LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource source){
@@ -83,6 +88,9 @@ class FiscalPersistenceTest {
         @Bean PlatformTransactionManager transactionManager(EntityManagerFactory emf){return new JpaTransactionManager(emf);}
         @Bean FacturacionElectronicaService remote(){return mock(FacturacionElectronicaService.class);}
         @Bean AdjustmentGateway adjustmentGateway(){return mock(AdjustmentGateway.class);}
+        @Bean DianTransportGateway habilitationGateway(){var gateway=mock(DianTransportGateway.class);when(gateway.mode()).thenReturn("HABILITACION");return gateway;}
+        @Bean FiscalDeliverySettingsService deliverySettings(FiscalDeliverySettingsRepository repository,FiscalJson json){return new FiscalDeliverySettingsService(repository,json,keys.resolve("delivery.key").toString());}
+        @Bean FiscalMailGateway fiscalMailGateway(){return mock(FiscalMailGateway.class);}
         @Bean DataicoProperties properties(){return new DataicoProperties(true,DataicoProperties.DEFAULT_BASE_URL,"11111111-1111-4111-8111-111111111111",null,"token-ficticio-test","FISCALTEST","18760000001","1",false,"PRUEBAS",Duration.ofSeconds(1),Duration.ofSeconds(1));}
         @Bean DataicoTokenCipher dataicoTokenCipher(){return new DataicoTokenCipher(keys.resolve("dataico.key").toString());}
         @Bean FiscalSecretVault vault(FiscalJson json){return new FiscalSecretVault(keys.resolve("fiscal.key").toString(),json);}
@@ -102,6 +110,8 @@ class FiscalPersistenceTest {
     private void accept(){when(remote.emitir(eq("dataico"),any())).thenAnswer(i->result(i.getArgument(1)));}
 
     @Test void migracionConservaHistorialYProveedorAunqueCambieSeleccion(){
+        assertEquals("V24__sugerencias_articulos.sql",jdbc.queryForObject("SELECT script FROM flyway_schema_history WHERE version='24'",String.class));
+        assertEquals(4,jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE version LIKE '20261119.%' AND success",Integer.class));
         assertEquals("DATAICO",jdbc.queryForObject("SELECT proveedor FROM facturas_electronicas WHERE venta_id=?",String.class,LEGACY_SALE));
         settings().saveProvider(new FiscalSettingsService.SaveProvider("DIAN_DIRECT",settings().provider().version()));
         var cached=workflow().emitir(LEGACY_SALE,UUID.randomUUID());assertEquals("legacy-remote",cached.identificadorExterno());verifyNoInteractions(remote);
@@ -284,8 +294,111 @@ class FiscalPersistenceTest {
         doAnswer(i->{AdjustmentSnapshot snapshot=i.getArgument(0);assertEquals(note.getNumber(),snapshot.number());assertEquals("ORIGINAL",snapshot.plan().allocations().getFirst().line().description());return new AdjustmentGateway.Result("remote-note",snapshot.number(),"DIAN_PENDIENTE",null,null,"OK");}).when(gateway).send(any());
         assertEquals("RECIBIDO",service.send(note.getId(),false).state());verify(gateway,times(2)).send(any());
     }
+    private void transportCertificate()throws Exception{
+        Path file=keys.resolve("transport-"+UUID.randomUUID()+".p12");
+        String executable=Path.of(System.getProperty("java.home"),"bin",System.getProperty("os.name").startsWith("Windows")?"keytool.exe":"keytool").toString();
+        var builder=new ProcessBuilder(executable,"-genkeypair","-alias","test","-keyalg","RSA","-keysize","2048","-dname","CN=SOLO TEST TRANSPORTE, C=CO","-startdate","-1d","-validity","90","-storetype","PKCS12","-keystore",file.toString(),"-storepass:env","POS_FISCAL_TEST_PASS","-noprompt").redirectErrorStream(true);builder.environment().put("POS_FISCAL_TEST_PASS","test-only-password");var p=builder.start();String output=new String(p.getInputStream().readAllBytes());assertEquals(0,p.waitFor(),output);
+        var c=settings().dian("PRUEBAS");settings().saveDian("PRUEBAS",new FiscalSettingsService.SaveDian(c.version(),c.configuration(),null,null,Base64.getEncoder().encodeToString(java.nio.file.Files.readAllBytes(file)),"test-only-password"));
+    }
+    private DianTransportTransactions transport(){return context.getBean(DianTransportTransactions.class);}
+    private DianTransportService transportService(){return context.getBean(DianTransportService.class);}
+    @Test void transporteSimulaFacturaDevolucionYAjusteSinCambiarVentasNiDataico()throws Exception{
+        var source=noteSource();transportCertificate();var signatures=context.getBean(FiscalSignatureService.class);
+        var credit=notes().create(source,noteRequest(source,AdjustmentKind.RETURN,"1"));var debit=notes().create(source,noteRequest(source,AdjustmentKind.INCREASE,"1"));
+        for(UUID document:List.of(source.id(),credit.getDocumentId(),debit.getDocumentId())){
+            var signed=signatures.sign(document);var packet=transport().prepare(signed.id());assertEquals(packet.getId(),transport().prepare(signed.id()).getId());
+            assertEquals("PREPARADO",packet.getState());assertEquals("SIMULACION",packet.getMode());
+            assertEquals("RECIBIDO",transportService().execute(packet.getId(),false).getState());
+            assertThrows(FiscalConflictException.class,()->transportService().execute(packet.getId(),false));
+            assertEquals("PENDIENTE",transportService().execute(packet.getId(),true).getState());assertEquals("ACEPTADO",transportService().execute(packet.getId(),true).getState());
+            assertEquals(3,transport().history(packet.getId()).size());assertTrue(transport().get(packet.getId()).getTrackId().startsWith("SIM-"));
+            assertThrows(RuntimeException.class,()->jdbc.update("UPDATE dian_envios SET contenido_zip=? WHERE id=?",new byte[]{1},packet.getId()));
+            assertThrows(RuntimeException.class,()->jdbc.update("DELETE FROM dian_intercambios WHERE envio_id=?",packet.getId()));
+        }
+        assertThrows(FiscalConflictException.class,()->notes().discard(credit.getId()));
+        assertEquals(new BigDecimal("300.00"),jdbc.queryForObject("SELECT total FROM ventas WHERE id=?",BigDecimal.class,source.saleId()));verifyNoInteractions(remote,context.getBean(AdjustmentGateway.class));
+    }
+    @Test void prepararEsConcurrenteYUnTimeoutSoloPermiteConsultaSinReenvio()throws Exception{
+        var source=noteSource();transportCertificate();UUID signed=context.getBean(FiscalSignatureService.class).sign(source.id()).id();
+        try(var executor=Executors.newVirtualThreadPerTaskExecutor()){
+            var a=executor.submit(()->transport().prepare(signed));var b=executor.submit(()->transport().prepare(signed));assertEquals(a.get(15,TimeUnit.SECONDS).getId(),b.get(15,TimeUnit.SECONDS).getId());
+        }
+        var packet=transport().list(signed).getFirst();var claim=transport().claim(packet.getId(),false);
+        assertThrows(FiscalConflictException.class,()->transport().claim(packet.getId(),false));assertThrows(FiscalConflictException.class,()->transport().claim(packet.getId(),true));
+        transport().complete(claim,"SendTestSetAsync","<request/>",null,null,new com.posdesktop.pos.invoicing.infrastructure.transport.DianSoapResponseParser.Reply(com.posdesktop.pos.invoicing.infrastructure.transport.DianSoapResponseParser.State.UNKNOWN,null,null,"Timeout",List.of(),null));
+        assertEquals("INCIERTO",transport().get(packet.getId()).getState());assertThrows(FiscalConflictException.class,()->transport().claim(packet.getId(),false));
+        var settings=context.getBean(DianTransportSettingsService.class);settings.save(new DianTransportSettingsService.Save("HABILITACION",settings.get().version()));
+        assertEquals("PENDIENTE",transportService().execute(packet.getId(),true).getState());assertEquals("SIMULACION",transport().get(packet.getId()).getMode());
+        assertEquals("ACEPTADO",transportService().execute(packet.getId(),true).getState());
+        assertTrue(transport().history(packet.getId()).get(1).getResponseXml().contains("GetStatusResponse"));
+        var another=context.getBean(FiscalSignatureService.class).sign(source.id());
+        settings.save(new DianTransportSettingsService.Save("SIMULACION",settings.get().version()));assertThrows(FiscalConflictException.class,()->transport().prepare(another.id()));
+    }
+    @Test void certificadoLocalNoPermiteRedRealYVersionDeModoImpideSobrescribir()throws Exception{
+        var source=noteSource();transportCertificate();UUID signed=context.getBean(FiscalSignatureService.class).sign(source.id()).id();
+        var settings=context.getBean(DianTransportSettingsService.class);var old=settings.get();settings.save(new DianTransportSettingsService.Save("HABILITACION",old.version()));assertThrows(FiscalConflictException.class,()->settings.save(new DianTransportSettingsService.Save("SIMULACION",old.version())));
+        var packet=transport().prepare(signed);assertThrows(IllegalArgumentException.class,()->transportService().execute(packet.getId(),false));assertEquals("PREPARADO",transport().get(packet.getId()).getState());assertTrue(transport().history(packet.getId()).isEmpty());
+        var real=context.getBean("habilitationGateway",DianTransportGateway.class);verify(real,never()).exchange(any(),any());
+        transport().cancel(packet.getId());assertEquals("CANCELADO",transport().get(packet.getId()).getState());assertThrows(FiscalConflictException.class,()->transport().prepare(signed));
+        var corrected=context.getBean(FiscalSignatureService.class).sign(source.id());assertEquals("PREPARADO",transport().prepare(corrected.id()).getState());
+    }
+    @Test void ajusteDescartadoBloqueaPaqueteYaPreparado()throws Exception{
+        var source=noteSource();transportCertificate();var note=notes().create(source,noteRequest(source,AdjustmentKind.RETURN,"1"));var signed=context.getBean(FiscalSignatureService.class).sign(note.getDocumentId());var packet=transport().prepare(signed.id());notes().discard(note.getId());assertThrows(IllegalArgumentException.class,()->transport().claim(packet.getId(),false));
+    }
+    @Test void pdfYPaqueteConservanDatosXmlYCorreoSimuladoEsIdempotente()throws Exception{
+        var source=noteSource();var files=context.getBean(FiscalDocumentFiles.class);var mail=context.getBean(FiscalMailService.class);var gateway=context.getBean(FiscalMailGateway.class);
+        jdbc.update("UPDATE detalle_venta SET descripcion='CAMBIO QUE NO DEBE IMPRIMIRSE' WHERE venta_id=?",source.saleId());
+        try(var pdf=org.apache.pdfbox.Loader.loadPDF(files.pdf(source.id(),FiscalPdfRenderer.Paper.MM80))){String text=new org.apache.pdfbox.text.PDFTextStripper().getText(pdf);assertTrue(text.contains("ARTICULO ORIGINAL"));assertFalse(text.contains("CAMBIO QUE NO DEBE IMPRIMIRSE"));assertTrue(text.contains("SIN VALIDEZ FISCAL"));}
+        UUID requestId=UUID.randomUUID();var request=new FiscalMailService.Request(requestId,"recipient@example.test",FiscalPdfRenderer.Paper.MM80);
+        try(var executor=Executors.newVirtualThreadPerTaskExecutor()){var a=executor.submit(()->mail.send(source.id(),request));var b=executor.submit(()->mail.send(source.id(),request));assertEquals(a.get(20,TimeUnit.SECONDS).getId(),b.get(20,TimeUnit.SECONDS).getId());}
+        var attempt=context.getBean(FiscalMailTransactions.class).get(requestId);assertEquals("SIMULADO",attempt.getState());assertEquals(attempt.getId(),mail.send(source.id(),request).getId());
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM fiscal_correos WHERE documento_id=?",Integer.class,source.id()));
+        try(var zip=new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(attempt.getBundle()))){boolean foundXml=false,foundPdf=false;for(java.util.zip.ZipEntry entry;(entry=zip.getNextEntry())!=null;){byte[] data=zip.readAllBytes();if(entry.getName().endsWith(".xml")){assertEquals(files.document(source.id()).getXml(),new String(data,java.nio.charset.StandardCharsets.UTF_8));foundXml=true;}if(entry.getName().endsWith(".pdf"))foundPdf=true;}assertTrue(foundXml&&foundPdf);}
+        assertThrows(RuntimeException.class,()->jdbc.update("UPDATE fiscal_correos SET paquete=? WHERE id=?",new byte[]{1},requestId));
+        assertThrows(FiscalConflictException.class,()->mail.send(source.id(),new FiscalMailService.Request(requestId,"other@example.test",FiscalPdfRenderer.Paper.MM80)));verifyNoInteractions(gateway,remote);
+    }
+    private void smtpSettings(){var service=context.getBean(FiscalDeliverySettingsService.class);var loaded=service.get();service.save(new FiscalDeliverySettingsService.Save(new FiscalDeliverySettingsService.Configuration("SMTP","smtp.example.test",587,"STARTTLS","test-user","sender@example.test","Empresa de prueba",Set.of()),loaded.version(),"smtp-secret-only-test"));}
+    @Test void smtpCifraCredencialesYTimeoutNoDisparaOtroEnvio()throws Exception{
+        var source=noteSource();smtpSettings();String encrypted=jdbc.queryForObject("SELECT secreto_cifrado FROM fiscal_entrega_configuracion WHERE id=1",String.class);assertFalse(encrypted.contains("smtp-secret-only-test"));assertFalse(context.getBean(FiscalJson.class).write(context.getBean(FiscalDeliverySettingsService.class).get()).contains("smtp-secret-only-test"));
+        var gateway=context.getBean(FiscalMailGateway.class);doThrow(new IllegalStateException("Timeout de prueba")).when(gateway).send(any(),any(),anyString(),anyString(),any());
+        var request=new FiscalMailService.Request(UUID.randomUUID(),"recipient@example.test",FiscalPdfRenderer.Paper.A4);var mail=context.getBean(FiscalMailService.class);assertEquals("INCIERTO",mail.send(source.id(),request).getState());assertEquals("INCIERTO",mail.send(source.id(),request).getState());
+        assertThrows(FiscalConflictException.class,()->mail.send(source.id(),new FiscalMailService.Request(UUID.randomUUID(),request.recipient(),request.paper())));verify(gateway,times(1)).send(any(),any(),anyString(),anyString(),any());
+    }
+    @Test void smtpAutenticacionRechazadaPermiteCorregirSinReutilizarLaSolicitud(){
+        var source=noteSource();smtpSettings();var gateway=context.getBean(FiscalMailGateway.class);doThrow(new FiscalMailAuthenticationException()).doNothing().when(gateway).send(any(),any(),anyString(),anyString(),any());var mail=context.getBean(FiscalMailService.class);var request=new FiscalMailService.Request(UUID.randomUUID(),"recipient@example.test",FiscalPdfRenderer.Paper.A4);assertEquals("RECHAZADO",mail.send(source.id(),request).getState());assertEquals("RECHAZADO",mail.send(source.id(),request).getState());assertEquals("ENVIADO",mail.send(source.id(),new FiscalMailService.Request(UUID.randomUUID(),request.recipient(),request.paper())).getState());verify(gateway,times(2)).send(any(),any(),anyString(),anyString(),any());
+    }
+    @Test void configuracionEntregaExigeTlsHuellasValidasYVersion(){
+        var service=context.getBean(FiscalDeliverySettingsService.class);var initial=service.get();var invalid=new FiscalDeliverySettingsService.Configuration("SMTP","smtp.example.test",25,"LOCAL","","sender@example.test","Prueba",Set.of());assertThrows(IllegalArgumentException.class,()->service.save(new FiscalDeliverySettingsService.Save(invalid,initial.version(),null)));
+        service.save(new FiscalDeliverySettingsService.Save(FiscalDeliverySettingsService.defaults(),initial.version(),null));assertThrows(FiscalConflictException.class,()->service.save(new FiscalDeliverySettingsService.Save(FiscalDeliverySettingsService.defaults(),initial.version(),null)));
+    }
+    private String signedResponseFixture(String sourceXml)throws Exception{
+        var identity=com.posdesktop.pos.invoicing.infrastructure.transport.DianDocumentIdentity.read(sourceXml);
+        String cbc=DianInvoiceDraftGenerator.CBC,cac=DianInvoiceDraftGenerator.CAC,ext=DianInvoiceDraftGenerator.EXT;
+        String xml="<ApplicationResponse xmlns=\"urn:oasis:names:specification:ubl:schema:xsd:ApplicationResponse-2\" xmlns:cbc=\""+cbc+"\" xmlns:cac=\""+cac+"\" xmlns:ext=\""+ext+"\"><ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent/></ext:UBLExtension></ext:UBLExtensions><cbc:ID>AR-SOLO-PRUEBAS</cbc:ID><cbc:IssueDate>"+LocalDate.now(java.time.ZoneOffset.ofHours(-5))+"</cbc:IssueDate><cbc:IssueTime>10:00:00-05:00</cbc:IssueTime><cac:DocumentResponse><cac:Response><cbc:ResponseCode>02</cbc:ResponseCode></cac:Response><cac:DocumentReference><cbc:ID>"+identity.number()+"</cbc:ID><cbc:UUID>"+identity.key()+"</cbc:UUID></cac:DocumentReference></cac:DocumentResponse></ApplicationResponse>";
+        var row=context.getBean(DianSettingsRepository.class).findById("PRUEBAS").orElseThrow();var secrets=context.getBean(FiscalSecretVault.class).decrypt(row.getSecretosCifrados(),"PRUEBAS");
+        var store=java.security.KeyStore.getInstance("PKCS12");char[] password=secrets.certificatePassword().toCharArray();try{store.load(new java.io.ByteArrayInputStream(Base64.getDecoder().decode(secrets.certificateBase64())),password);
+            var doc=DianInvoiceDraftGenerator.parse(xml);var factory=javax.xml.crypto.dsig.XMLSignatureFactory.getInstance("DOM");var digest=factory.newDigestMethod(javax.xml.crypto.dsig.DigestMethod.SHA256,null);
+            var ref=factory.newReference("",digest,List.of(factory.newTransform(javax.xml.crypto.dsig.Transform.ENVELOPED,(javax.xml.crypto.dsig.spec.TransformParameterSpec)null),factory.newTransform(javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE,(javax.xml.crypto.dsig.spec.TransformParameterSpec)null)),null,null);
+            var info=factory.newSignedInfo(factory.newCanonicalizationMethod(javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE,(javax.xml.crypto.dsig.spec.C14NMethodParameterSpec)null),factory.newSignatureMethod(javax.xml.crypto.dsig.SignatureMethod.RSA_SHA256,null),List.of(ref));var keyInfo=factory.getKeyInfoFactory().newKeyInfo(List.of(factory.getKeyInfoFactory().newX509Data(List.of(store.getCertificate("test")))));
+            var signing=new javax.xml.crypto.dsig.dom.DOMSignContext(store.getKey("test",password),doc.getElementsByTagNameNS(ext,"ExtensionContent").item(0));signing.setDefaultNamespacePrefix("ds");factory.newXMLSignature(info,keyInfo).sign(signing);var out=new java.io.StringWriter();javax.xml.transform.TransformerFactory.newInstance().newTransformer().transform(new javax.xml.transform.dom.DOMSource(doc),new javax.xml.transform.stream.StreamResult(out));return out.toString();
+        }finally{Arrays.fill(password,'\0');}
+    }
+    @Test void respuestaFirmadaContenedorYCorreoSmtpRecorrenElFlujoCompletoLocal()throws Exception{
+        var source=noteSource();transportCertificate();UUID documentId=context.getBean(FiscalSignatureService.class).sign(source.id()).id();var files=context.getBean(FiscalDocumentFiles.class);String xml=files.document(documentId).getXml();String ar=signedResponseFixture(xml);
+        var packet=transport().prepare(documentId);var send=transport().claim(packet.getId(),false);var parser=new com.posdesktop.pos.invoicing.infrastructure.transport.DianSoapResponseParser();
+        transport().complete(send,"SendTestSetAsync","<request-prueba/>","<response-prueba/>",200,new com.posdesktop.pos.invoicing.infrastructure.transport.DianSoapResponseParser.Reply(com.posdesktop.pos.invoicing.infrastructure.transport.DianSoapResponseParser.State.RECEIVED,"SIM-PIPELINE",null,"SIMULACION LOCAL",List.of(),null));
+        String soap="<s:Envelope xmlns:s=\""+com.posdesktop.pos.invoicing.infrastructure.transport.DianSoapResponseParser.SOAP+"\"><s:Body><GetStatusZipResponse xmlns=\""+com.posdesktop.pos.invoicing.infrastructure.transport.DianSoapResponseParser.WCF+"\"><GetStatusZipResult xmlns:r=\""+com.posdesktop.pos.invoicing.infrastructure.transport.DianSoapResponseParser.RESPONSE+"\"><r:DianResponse><r:IsValid>true</r:IsValid><r:StatusCode>00</r:StatusCode><r:StatusMessage>SIMULACION LOCAL</r:StatusMessage><r:XmlDocumentKey>"+packet.getDocumentKey()+"</r:XmlDocumentKey><r:XmlFileName>"+packet.getXmlName()+"</r:XmlFileName><r:XmlBase64Bytes>"+Base64.getEncoder().encodeToString(ar.getBytes(java.nio.charset.StandardCharsets.UTF_8))+"</r:XmlBase64Bytes></r:DianResponse></GetStatusZipResult></GetStatusZipResponse></s:Body></s:Envelope>";
+        var result=parser.status(soap,"GetStatusZip",packet.getDocumentKey(),packet.getXmlName());assertEquals(com.posdesktop.pos.invoicing.infrastructure.transport.DianSoapResponseParser.State.ACCEPTED,result.state());transport().complete(transport().claim(packet.getId(),true),"GetStatusZip","<query-prueba/>",soap,200,result);
+        var verified=files.verifyResponses(documentId).getFirst().signature();assertTrue(verified.signatureValid());assertTrue(verified.correlated());assertFalse(verified.trusted());
+        try(var smtp=new LocalSmtpFixture()){
+            var settings=context.getBean(FiscalDeliverySettingsService.class);var loaded=settings.get();settings.save(new FiscalDeliverySettingsService.Save(new FiscalDeliverySettingsService.Configuration("SMTP","127.0.0.1",smtp.port(),"LOCAL","","sender@example.test","PRUEBAS LOCALES",Set.of()),loaded.version(),null));
+            var gateway=context.getBean(FiscalMailGateway.class);doAnswer(i->{new SmtpFiscalMailGateway().send(i.getArgument(0),i.getArgument(1),i.getArgument(2),i.getArgument(3),i.getArgument(4));return null;}).when(gateway).send(any(),any(),anyString(),anyString(),any());
+            var mail=context.getBean(FiscalMailService.class).send(documentId,new FiscalMailService.Request(UUID.randomUUID(),"receiver@example.test",FiscalPdfRenderer.Paper.MM80));assertEquals("ENVIADO",mail.getState());var message=smtp.message();assertTrue(message.getSubject().contains("SIN VALIDEZ FISCAL"));var multipart=(jakarta.mail.Multipart)message.getContent();byte[] attachment=null;for(int i=0;i<multipart.getCount();i++)if(multipart.getBodyPart(i).getFileName()!=null)attachment=multipart.getBodyPart(i).getInputStream().readAllBytes();assertNotNull(attachment);assertArrayEquals(mail.getBundle(),attachment);
+            boolean containerFound=false;try(var zip=new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(attachment))){for(java.util.zip.ZipEntry entry;(entry=zip.getNextEntry())!=null;){byte[] bytes=zip.readAllBytes();if(entry.getName().endsWith("-AttachedDocument.xml")){containerFound=true;String container=new String(bytes,java.nio.charset.StandardCharsets.UTF_8);assertTrue(new com.posdesktop.pos.invoicing.infrastructure.signature.DianXadesSignature().verify(container,Instant.now()).valid());assertTrue(com.posdesktop.pos.invoicing.infrastructure.xml.OfflineUblValidator.dian19Container().validate(container).structurallyValid());var content=DianInvoiceDraftGenerator.parse(container);var descriptions=content.getElementsByTagNameNS(DianInvoiceDraftGenerator.CBC,"Description");assertTrue(java.util.stream.IntStream.range(0,descriptions.getLength()).anyMatch(j->xml.equals(descriptions.item(j).getTextContent())));assertTrue(java.util.stream.IntStream.range(0,descriptions.getLength()).anyMatch(j->ar.equals(descriptions.item(j).getTextContent())));}}}assertTrue(containerFound);
+        }
+    }
     private static DianConfiguration configuration(){
         var party=new FiscalInvoice.Party("31","860324218","1","EMPRESA FICTICIA","R-99-PN","ZZ","No aplica",new FiscalInvoice.Address("Calle ficticia","05001","Medellin","05","Antioquia","CO"));
-        return new DianConfiguration("Software ficticio",UUID.fromString("11111111-1111-4111-8111-111111111111"),null,"860324218","1",party,"1",new FiscalInvoice.Numbering("PRUEBA","18760000001",LocalDate.of(2026,1,1),LocalDate.of(2026,12,31),1,100),1);
+        return new DianConfiguration("Software ficticio",UUID.fromString("11111111-1111-4111-8111-111111111111"),UUID.fromString("22222222-2222-4222-8222-222222222222"),"860324218","1",party,"1",new FiscalInvoice.Numbering("PRUEBA","18760000001",LocalDate.of(2026,1,1),LocalDate.of(2026,12,31),1,100),1);
     }
 }

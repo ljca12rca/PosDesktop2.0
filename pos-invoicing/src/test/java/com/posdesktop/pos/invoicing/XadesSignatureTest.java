@@ -39,6 +39,43 @@ class XadesSignatureTest {
         }
     }
     String signed(){return signer.sign(draft(),Pkcs12SigningKey.load(p12,PASSWORD,NOW),NOW);}
+    static String response(String source,String code)throws Exception{
+        var identity=com.posdesktop.pos.invoicing.infrastructure.transport.DianDocumentIdentity.read(source);
+        String raw="<ApplicationResponse xmlns=\"urn:oasis:names:specification:ubl:schema:xsd:ApplicationResponse-2\" xmlns:cbc=\""+DianInvoiceDraftGenerator.CBC+"\" xmlns:cac=\""+DianInvoiceDraftGenerator.CAC+"\" xmlns:ext=\""+DianInvoiceDraftGenerator.EXT+"\"><ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent/></ext:UBLExtension></ext:UBLExtensions><cbc:ID>AR-TEST</cbc:ID><cbc:IssueDate>"+java.time.LocalDate.now(java.time.ZoneOffset.ofHours(-5))+"</cbc:IssueDate><cbc:IssueTime>10:00:00-05:00</cbc:IssueTime><cac:DocumentResponse><cac:Response><cbc:ResponseCode>"+code+"</cbc:ResponseCode></cac:Response><cac:DocumentReference><cbc:ID>"+identity.number()+"</cbc:ID><cbc:UUID>"+identity.key()+"</cbc:UUID></cac:DocumentReference></cac:DocumentResponse></ApplicationResponse>";
+        var d=DianInvoiceDraftGenerator.parse(raw);var ks=java.security.KeyStore.getInstance("PKCS12");ks.load(new java.io.ByteArrayInputStream(p12),PASSWORD);var certificate=ks.getCertificate("local");var factory=javax.xml.crypto.dsig.XMLSignatureFactory.getInstance("DOM");var digest=factory.newDigestMethod(javax.xml.crypto.dsig.DigestMethod.SHA256,null);var reference=factory.newReference("",digest,List.of(factory.newTransform(javax.xml.crypto.dsig.Transform.ENVELOPED,(javax.xml.crypto.dsig.spec.TransformParameterSpec)null),factory.newTransform(javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE,(javax.xml.crypto.dsig.spec.TransformParameterSpec)null)),null,null);var info=factory.newSignedInfo(factory.newCanonicalizationMethod(javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE,(javax.xml.crypto.dsig.spec.C14NMethodParameterSpec)null),factory.newSignatureMethod(javax.xml.crypto.dsig.SignatureMethod.RSA_SHA256,null),List.of(reference));var keyInfo=factory.getKeyInfoFactory().newKeyInfo(List.of(factory.getKeyInfoFactory().newX509Data(List.of(certificate))));var context=new javax.xml.crypto.dsig.dom.DOMSignContext(ks.getKey("local",PASSWORD),d.getElementsByTagNameNS(DianInvoiceDraftGenerator.EXT,"ExtensionContent").item(0));context.setDefaultNamespacePrefix("ds");factory.newXMLSignature(info,keyInfo).sign(context);var output=new java.io.StringWriter();javax.xml.transform.TransformerFactory.newInstance().newTransformer().transform(new javax.xml.transform.dom.DOMSource(d),new javax.xml.transform.stream.StreamResult(output));return output.toString();
+    }
+    @Test void verifiesApplicationResponseWithoutTrustingItsEmbeddedCertificate()throws Exception{
+        String source=draft(),ar=response(source,"02");var identity=com.posdesktop.pos.invoicing.infrastructure.transport.DianDocumentIdentity.read(source);var verifier=new ApplicationResponseVerifier();
+        var unknown=verifier.verify(ar,identity.number(),identity.key(),Set.of(),NOW);assertTrue(unknown.signatureValid());assertTrue(unknown.correlated());assertFalse(unknown.trusted());
+        assertTrue(verifier.verify(ar,identity.number(),identity.key(),Set.of(unknown.certificateSha256()),NOW).trusted());
+        assertFalse(verifier.verify(ar,identity.number(),"b".repeat(96),Set.of(unknown.certificateSha256()),NOW).correlated());
+        assertFalse(verifier.verify(ar.replace("AR-TEST","AR-TAMPERED"),identity.number(),identity.key(),Set.of(unknown.certificateSha256()),NOW).signatureValid());
+        assertFalse(verifier.verify(ar,identity.number(),identity.key(),Set.of(unknown.certificateSha256()),NOW.plusSeconds(400L*86400)).signatureValid());
+        assertFalse(verifier.verify("<!DOCTYPE x [<!ENTITY e SYSTEM 'file:///invalid'>]>"+ar,identity.number(),identity.key(),Set.of(),NOW).signatureValid());
+    }
+    @Test void containerPreservesOriginalXmlAndCorrelatedResponseAndSignsLocally()throws Exception{
+        String source=signed(),ar=response(source,"02");var generator=new DianAttachedDocumentGenerator();var material=Pkcs12SigningKey.load(p12,PASSWORD,NOW);
+        String container=signer.sign(generator.generate(source,ar,UUID.randomUUID(),NOW),material,NOW);assertTrue(signer.verify(container,NOW).valid());var result=OfflineUblValidator.dian19Container().validate(container);assertTrue(result.structurallyValid(),result.issues().toString());
+        var d=DianInvoiceDraftGenerator.parse(container);var descriptions=d.getElementsByTagNameNS(DianInvoiceDraftGenerator.CBC,"Description");assertTrue(java.util.stream.IntStream.range(0,descriptions.getLength()).anyMatch(i->source.equals(descriptions.item(i).getTextContent())));assertTrue(java.util.stream.IntStream.range(0,descriptions.getLength()).anyMatch(i->ar.equals(descriptions.item(i).getTextContent())));
+        assertThrows(IllegalArgumentException.class,()->generator.generate(source,response(source,"04"),UUID.randomUUID(),NOW));
+        Path output=Path.of("target/signature-review");Files.createDirectories(output);Files.writeString(output.resolve("ApplicationResponse.xml"),ar);Files.writeString(output.resolve("AttachedDocument.xml"),container);
+    }
+    @Test void containersSupportCreditAndDebitNotesWithTheirCude()throws Exception{for(var kind:List.of(AdjustmentKind.RETURN,AdjustmentKind.INCREASE)){String source=signer.sign(AdjustmentTest.xml(kind),Pkcs12SigningKey.load(p12,PASSWORD,NOW),NOW);String container=signer.sign(new DianAttachedDocumentGenerator().generate(source,response(source,"02"),UUID.randomUUID(),NOW),Pkcs12SigningKey.load(p12,PASSWORD,NOW),NOW);assertTrue(signer.verify(container,NOW).valid());assertTrue(container.contains("CUDE-SHA384"));assertTrue(OfflineUblValidator.dian19Container().validate(container).structurallyValid());}}
+    @Test void soapSignsDestinationTimestampBodyAndActionAndDetectsTampering()throws Exception {
+        var envelope=new DianSoapEnvelope();var endpoint=java.net.URI.create("https://vpfe-hab.dian.gov.co/WcfDianCustomerServices.svc");
+        var archive=new com.posdesktop.pos.invoicing.infrastructure.transport.DianZipPackage().create(signed(),11,2026);
+        var key=Pkcs12SigningKey.load(p12,PASSWORD,NOW);UUID testSet=UUID.randomUUID();
+        var request=envelope.send(endpoint,archive,testSet,key,NOW);
+        assertTrue(envelope.verify(request.xml(),endpoint,NOW));
+        assertFalse(envelope.verify(request.xml().replace(testSet.toString(),UUID.randomUUID().toString()),endpoint,NOW));
+        assertFalse(envelope.verify(request.xml(),java.net.URI.create("https://example.invalid"),NOW));
+        assertFalse(envelope.verify(request.xml(),endpoint,NOW.plusSeconds(301)));
+        assertFalse(envelope.verify(request.xml().replace("SendTestSetAsync","GetStatus"),endpoint,NOW));
+        assertTrue(envelope.verify(envelope.status(endpoint,"SIM-123",true,key,NOW).xml(),endpoint,NOW));
+        assertTrue(envelope.verify(envelope.status(endpoint,"a".repeat(96),false,key,NOW).xml(),endpoint,NOW));
+        assertFalse(request.xml().contains(new String(PASSWORD)));assertFalse(request.xml().contains("PRIVATE KEY"));
+        Path review=Path.of("target/signature-review");Files.createDirectories(review);Files.writeString(review.resolve("SoapEnvelope.xml"),request.xml());Files.write(review.resolve(archive.zipName()),archive.bytes());
+    }
     @Test void signsReparsedDianXmlAndValidatesAllThreeReferences()throws Exception {
         String xml=signed();var validation=signer.verify(xml,NOW);
         assertTrue(validation.valid());assertFalse(validation.trustVerified());assertFalse(validation.readyToTransmit());

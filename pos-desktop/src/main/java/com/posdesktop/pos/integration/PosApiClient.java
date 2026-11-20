@@ -130,6 +130,37 @@ public final class PosApiClient {
     public FiscalSignatureValidation validarFirmaLocal(String id) {
         return get("/facturacion/documentos/"+encode(id)+"/firma-local/validacion",new TypeReference<ApiResponseEnvelope<FiscalSignatureValidation>>() { }).data();
     }
+    public DianTransportSettings consultarTransporteDian(){return get("/facturacion/dian/transporte/configuracion",new TypeReference<ApiResponseEnvelope<DianTransportSettings>>(){}).data();}
+    public DianTransportSettings guardarTransporteDian(String mode,long version){return put("/facturacion/dian/transporte/configuracion",new DianTransportSave(mode,version),new TypeReference<ApiResponseEnvelope<DianTransportSettings>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public List<DianSubmission> listarEnviosDian(String id){return get("/facturacion/dian/transporte/documentos/"+encode(id),new TypeReference<ApiResponseEnvelope<List<DianSubmission>>>(){}).data();}
+    public DianSubmission prepararEnvioDian(String id){return post("/facturacion/dian/transporte/documentos/"+encode(id),new EmptyRequest(),new TypeReference<ApiResponseEnvelope<DianSubmission>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public DianSubmission accionEnvioDian(String id,boolean query){return post("/facturacion/dian/transporte/"+encode(id)+(query?"/consultar":"/enviar"),new EmptyRequest(),new TypeReference<ApiResponseEnvelope<DianSubmission>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public DianTransportDetail consultarEnvioDian(String id){return get("/facturacion/dian/transporte/"+encode(id),new TypeReference<ApiResponseEnvelope<DianTransportDetail>>(){}).data();}
+    public DianSubmission descartarPaqueteDian(String id){return post("/facturacion/dian/transporte/"+encode(id)+"/descartar",new EmptyRequest(),new TypeReference<ApiResponseEnvelope<DianSubmission>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public byte[] descargarZipDian(String id){
+        var builder=HttpRequest.newBuilder().uri(URI.create(baseUrl+"/facturacion/dian/transporte/"+encode(id)+"/zip")).timeout(ELECTRONIC_INVOICE_REQUEST_TIMEOUT).header("Accept","application/zip").GET();applyAuthHeader(builder);
+        try{var response=httpClient.send(builder.build(),HttpResponse.BodyHandlers.ofByteArray());if(response.statusCode()!=200)throw new PosApiException("No se pudo descargar el paquete ZIP.");return response.body();}
+        catch(InterruptedException e){Thread.currentThread().interrupt();throw new PosApiException("Descarga interrumpida.",e);}catch(IOException e){throw new PosApiException("No se pudo descargar el paquete ZIP.",e);}
+    }
+    public record DianTransportSettings(String mode,long version,String explanation){}
+    public record DianTransportSave(String mode,long version){}
+    public record DianSubmission(String id,String documentId,String mode,String state,String number,String zipName,String trackId,String message,boolean canSend,boolean canQuery,boolean canCancel,LocalDateTime updatedAt){}
+    public record DianReply(String state,String trackId,String code,String message,List<String> errors,String applicationResponse){}
+    public record DianExchange(String action,Integer httpStatus,String diagnosis,String responseXml,LocalDateTime createdAt){}
+    public record DianTransportDetail(DianSubmission summary,DianReply result,List<DianExchange> exchanges){}
+    public FiscalDeliverySettings consultarEntregaFiscal(){return get("/facturacion/entrega/configuracion",new TypeReference<ApiResponseEnvelope<FiscalDeliverySettings>>(){}).data();}
+    public FiscalDeliverySettings guardarEntregaFiscal(FiscalDeliverySave request){return put("/facturacion/entrega/configuracion",request,new TypeReference<ApiResponseEnvelope<FiscalDeliverySettings>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public FiscalDeliveryPreparation prepararEntregaFiscal(String id){return get("/facturacion/entrega/documentos/"+encode(id),new TypeReference<ApiResponseEnvelope<FiscalDeliveryPreparation>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public FiscalMail enviarCorreoFiscal(String id,FiscalMailRequest request){return post("/facturacion/entrega/documentos/"+encode(id)+"/correo",request,new TypeReference<ApiResponseEnvelope<FiscalMail>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
+    public byte[] descargarArchivoFiscal(String id,String paper,boolean bundle){if(!List.of("A4","MM80","MM58").contains(paper))throw new IllegalArgumentException("Formato de papel invalido.");var builder=HttpRequest.newBuilder().uri(URI.create(baseUrl+"/facturacion/entrega/documentos/"+encode(id)+(bundle?"/paquete":"/pdf")+"?paper="+paper)).timeout(ELECTRONIC_INVOICE_REQUEST_TIMEOUT).GET();applyAuthHeader(builder);try{var response=httpClient.send(builder.build(),HttpResponse.BodyHandlers.ofByteArray());if(response.statusCode()!=200)throw new PosApiException("No fue posible descargar el archivo fiscal de prueba.");return response.body();}catch(InterruptedException e){Thread.currentThread().interrupt();throw new PosApiException("Descarga interrumpida.",e);}catch(IOException e){throw new PosApiException("No fue posible descargar el archivo.",e);}}
+    public record FiscalDeliveryConfiguration(String mode,String host,int port,String security,String username,String from,String senderName,java.util.Set<String> responseCertificateFingerprints){}
+    public record FiscalDeliverySettings(FiscalDeliveryConfiguration configuration,long version,boolean passwordConfigured){}
+    public record FiscalDeliverySave(FiscalDeliveryConfiguration configuration,long version,String password){@Override public String toString(){return "FiscalDeliverySave[REDACTED]";}}
+    public record FiscalMailRequest(String requestId,String recipient,String paper){}
+    public record FiscalMail(String id,String recipient,String mode,String state,String message,String bundleHash,LocalDateTime createdAt){}
+    public record FiscalResponseSignature(boolean signatureValid,boolean correlated,boolean trusted,String certificateSha256,String responseCode,List<String> issues){}
+    public record FiscalResponseVerification(String submissionId,String mode,FiscalResponseSignature signature){}
+    public record FiscalDeliveryPreparation(String recipient,String mode,List<FiscalMail> history,List<FiscalResponseVerification> responses){}
     public List<AdjustmentCandidate> buscarFacturasAjuste(String query){return get("/ajustes/facturas?buscar="+encode(query),new TypeReference<ApiResponseEnvelope<List<AdjustmentCandidate>>>(){}).data();}
     public AdjustmentSource consultarOrigenAjuste(String provider,String id){return get("/ajustes/facturas/"+encode(provider)+"/"+encode(id),new TypeReference<ApiResponseEnvelope<AdjustmentSource>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}
     public AdjustmentQuote revisarAjuste(AdjustmentRequest r){return post("/ajustes/revisar",r,new TypeReference<ApiResponseEnvelope<AdjustmentQuote>>(){},ELECTRONIC_INVOICE_REQUEST_TIMEOUT).data();}

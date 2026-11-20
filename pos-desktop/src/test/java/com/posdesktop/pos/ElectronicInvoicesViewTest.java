@@ -712,6 +712,59 @@ class ElectronicInvoicesViewTest {
             waitUntil(()->saved.get()!=null);assertEquals("BORRADOR_SIN_FIRMA",saved.get());assertTrue(sent.get().contains("EXCLUDED"));assertTrue(sent.get().contains(customerId));assertEquals(0,unexpected.get());
         }finally{server.stop(0);}
     }
+    @Test void transporteDianSeOperaConTecladoSinConfundirSimulacionConAceptacionReal()throws Exception{
+        var phase=new java.util.concurrent.atomic.AtomicInteger(-1);var posts=new java.util.concurrent.atomic.AtomicInteger();var failRequest=new java.util.concurrent.atomic.AtomicBoolean();
+        HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        java.util.function.Supplier<String> summary=()->{
+            int p=phase.get();String state=p<=0?"PREPARADO":p==1?"RECIBIDO":p==2?"PENDIENTE":"VALIDADO";
+            return "{\"id\":\"packet-1\",\"documentId\":\"signed-1\",\"mode\":\"SIMULACION\",\"state\":\"SIMULACION_"+state+"\",\"number\":\"PRUEBA1\",\"zipName\":\"z08603242180002600000001.zip\",\"trackId\":"+(p>0?"\"SIM-1\"":"null")+",\"message\":\"Prueba local sin conexion con DIAN.\",\"canSend\":"+(p==0)+",\"canQuery\":"+(p==1||p==2)+",\"updatedAt\":\"2026-11-19T12:00:00\"}";
+        };
+        server.createContext("/facturacion/dian/transporte",e->{String path=e.getRequestURI().getPath(),body;
+            if("POST".equals(e.getRequestMethod())){posts.incrementAndGet();if(path.endsWith("/documentos/signed-1"))phase.set(0);else phase.incrementAndGet();}
+            if(path.endsWith("/configuracion"))body="{\"mode\":\"SIMULACION\",\"version\":0,\"explanation\":\"Prueba local sin red. No acredita aceptacion DIAN.\"}";
+            else if(path.endsWith("/documentos/signed-1")&&"GET".equals(e.getRequestMethod()))body=phase.get()<0?"[]":"["+summary.get()+"]";
+            else if(path.endsWith("/packet-1"))body="{\"summary\":"+summary.get()+",\"result\":null,\"exchanges\":[]}";
+            else body=summary.get();
+            body=failRequest.get()?"{\"success\":false,\"message\":\"Fallo de prueba\"}":"{\"success\":true,\"data\":"+body+"}";
+            try(e){byte[] bytes=body.getBytes(StandardCharsets.UTF_8);e.sendResponseHeaders(failRequest.get()?500:200,bytes.length);e.getResponseBody().write(bytes);}
+        });server.start();
+        try{
+            VBox root=fx(()->{VBox view=new VBox(new com.posdesktop.pos.fiscal.DianTransportPane(new PosApiClient("http://127.0.0.1:"+server.getAddress().getPort()),"signed-1",true,()->{}));Scene scene=new Scene(view,960,720);scene.getStylesheets().add(PosDesktopFxApplication.class.getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());return view;});
+            waitUntil(()->label(root,"#dian-transport-status").getText().startsWith("Sin paquetes"));assertEquals(0,posts.get());
+            fx(()->{snapshot(root,"dian-transport-empty",960,720);press(root.lookup("#dian-transport-pane"),KeyCode.F6);return null;});
+            waitUntil(()->!((Button)root.lookup("#dian-transport-send")).isDisabled());
+            fx(()->{press(root.lookup("#dian-transport-pane"),KeyCode.F9);return null;});
+            waitUntil(()->!((Button)root.lookup("#dian-transport-query")).isDisabled());assertEquals(2,posts.get());
+            fx(()->{assertTrue(((Button)root.lookup("#dian-transport-send")).isDisabled());snapshot(root,"dian-transport-wide",960,720);snapshot(root,"dian-transport-narrow",640,820);for(Node n:root.lookupAll(".fiscal-flow")){var row=(FlowPane)n;for(Node child:row.getChildren())assertTrue(child.getBoundsInParent().getMaxX()<=row.getWidth()+1);}press(root.lookup("#dian-transport-pane"),KeyCode.F10);return null;});
+            waitUntil(()->label(root,"#dian-transport-status").getText().contains("pendiente"));
+            fx(()->{press(root.lookup("#dian-transport-pane"),KeyCode.F10);return null;});
+            waitUntil(()->label(root,"#dian-transport-status").getText().contains("validado"));
+            fx(()->{assertTrue(label(root,"#dian-transport-status").getText().contains("Simulación local"));assertTrue(((Button)root.lookup("#dian-transport-query")).isDisabled());assertTrue(((Button)root.lookup("#dian-transport-send")).isDisabled());snapshot(root,"dian-transport-simulation-result",960,720);return null;});assertEquals(4,posts.get());
+            failRequest.set(true);fx(()->{((Button)root.lookup("#dian-transport-pane").lookupAll(".ghost-button").stream().filter(n->n instanceof Button b&&"Actualizar".equals(b.getText())).findFirst().orElseThrow()).fire();return null;});
+            waitUntil(()->label(root,"#dian-transport-status").getText().contains("Actualizar para revisar"));
+        }finally{server.stop(0);}
+    }
+    @Test void entregaFiscalPermiteSimularConF9SinEnviarAlAbrirYConservaResultado()throws Exception{
+        var mails=new java.util.concurrent.atomic.AtomicInteger();var request=new AtomicReference<String>();HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/facturacion/entrega",e->{String path=e.getRequestURI().getPath(),body;
+            String mail="{\"id\":\"mail-1\",\"recipient\":\"cliente@example.test\",\"mode\":\"SIMULACION\",\"state\":\"SIMULADO\",\"message\":\"Entrega simulada localmente. No se envio ningun correo.\",\"bundleHash\":\"hash-prueba\",\"createdAt\":\"2026-11-19T12:00:00\"}";
+            if(path.endsWith("/correo")){request.set(new String(e.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));mails.incrementAndGet();body=mail;}
+            else body="{\"recipient\":\"cliente@example.test\",\"mode\":\"SIMULACION\",\"history\":"+(mails.get()>0?"["+mail+"]":"[]")+",\"responses\":[]}";
+            try(e){byte[] bytes=("{\"success\":true,\"data\":"+body+"}").getBytes(StandardCharsets.UTF_8);e.sendResponseHeaders(200,bytes.length);e.getResponseBody().write(bytes);}
+        });server.start();try{
+            VBox root=fx(()->{VBox view=new VBox(new com.posdesktop.pos.fiscal.FiscalDeliveryPane(new PosApiClient("http://127.0.0.1:"+server.getAddress().getPort()),"document-1","PRUEBA1",true));Scene scene=new Scene(view,1000,740);scene.getStylesheets().add(PosDesktopFxApplication.class.getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());return view;});
+            waitUntil(()->!((Button)root.lookup("#fiscal-delivery-send")).isDisabled());assertEquals(0,mails.get());
+            fx(()->{assertEquals("cliente@example.test",((TextField)root.lookup("#fiscal-delivery-email")).getText());snapshot(root,"fiscal-delivery-wide",1000,740);snapshot(root,"fiscal-delivery-narrow",640,900);for(Node n:root.lookupAll(".fiscal-flow")){var row=(FlowPane)n;for(Node child:row.getChildren())assertTrue(child.getBoundsInParent().getMaxX()<=row.getWidth()+1);}press(root.lookup("#fiscal-delivery-pane"),KeyCode.F9);return null;});
+            waitUntil(()->label(root,"#fiscal-delivery-status").getText().contains("Historial actualizado"));assertEquals(1,mails.get());assertTrue(request.get().contains("cliente@example.test"));assertTrue(request.get().contains("requestId"));
+            fx(()->{assertTrue(((Button)root.lookup("#fiscal-delivery-send")).isDisabled());press(root.lookup("#fiscal-delivery-pane"),KeyCode.F9);return null;});assertEquals(1,mails.get());
+        }finally{server.stop(0);}
+    }
+    @Test void configuracionSmtpCargaSinExponerClaveYEnvuelveCampos()throws Exception{
+        var saved=new AtomicReference<String>();HttpServer server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);server.createContext("/facturacion/entrega/configuracion",e->{if("PUT".equals(e.getRequestMethod()))saved.set(new String(e.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));String body="{\"success\":true,\"data\":{\"configuration\":{\"mode\":\"SIMULACION\",\"host\":\"smtp.example.test\",\"port\":587,\"security\":\"STARTTLS\",\"username\":\"test-user\",\"from\":\"sender@example.test\",\"senderName\":\"POSDesktop pruebas\",\"responseCertificateFingerprints\":[]},\"version\":1,\"passwordConfigured\":true}}";try(e){byte[] bytes=body.getBytes(StandardCharsets.UTF_8);e.sendResponseHeaders(200,bytes.length);e.getResponseBody().write(bytes);}});server.start();
+        try{VBox root=fx(()->{VBox view=new VBox(new com.posdesktop.pos.fiscal.FiscalDeliverySettingsPane(new PosApiClient("http://127.0.0.1:"+server.getAddress().getPort())));Scene scene=new Scene(view,1000,800);scene.getStylesheets().add(PosDesktopFxApplication.class.getResource("/com/posdesktop/pos/mockfx/mock-theme.css").toExternalForm());return view;});waitUntil(()->!((Button)root.lookup("#delivery-settings-save")).isDisabled());
+            fx(()->{assertEquals("",((PasswordField)root.lookup("#delivery-smtp-password")).getText());snapshot(root,"fiscal-delivery-settings-wide",1000,850);snapshot(root,"fiscal-delivery-settings-narrow",640,1200);for(Node n:root.lookupAll(".fiscal-flow")){var row=(FlowPane)n;for(Node child:row.getChildren())assertTrue(child.getBoundsInParent().getMaxX()<=row.getWidth()+1);}((PasswordField)root.lookup("#delivery-smtp-password")).setText("TEST-ONLY-NEW-PASSWORD");((Button)root.lookup("#delivery-settings-save")).fire();return null;});waitUntil(()->saved.get()!=null&&!((Button)root.lookup("#delivery-settings-save")).isDisabled());assertTrue(saved.get().contains("TEST-ONLY-NEW-PASSWORD"));assertEquals("",fx(()->((PasswordField)root.lookup("#delivery-smtp-password")).getText()));
+        }finally{server.stop(0);}
+    }
     private static Button boton(VBox root) { return (Button) root.lookup(".electronic-invoice-filter-action"); }
 
     private static void esperarConsulta(VBox root) throws Exception {
