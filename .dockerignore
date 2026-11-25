@@ -1,6 +1,8 @@
 .git
 .idea
 .agents
+.tools
+build
 docs
 posdesktop-ui-mock
 **/target

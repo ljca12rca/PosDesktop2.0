@@ -17,7 +17,8 @@ $wixDir = Join-Path $toolsDir "wix-$wixVersion"
 $wixZip = Join-Path $toolsDir "wix$wixVersion-binaries.zip"
 $desktopModuleDir = Join-Path $repoRoot "pos-desktop"
 $desktopTargetDir = Join-Path $desktopModuleDir "target"
-$installerRoot = Join-Path $desktopTargetDir "installer"
+$buildId = (Get-Date -Format "yyyyMMdd-HHmmss") + "-" + ([guid]::NewGuid().ToString("N").Substring(0,8))
+$installerRoot = Join-Path $repoRoot "build/windows-installer/$buildId"
 $installerInput = Join-Path $installerRoot "input"
 $installerDist = Join-Path $installerRoot "dist"
 
@@ -57,21 +58,6 @@ function Ensure-Directory {
     param([string]$Path)
     if (-not (Test-Path $Path)) {
         New-Item -ItemType Directory -Path $Path | Out-Null
-    }
-}
-
-function Remove-DirectorySafe {
-    param([string]$Path)
-    if (Test-Path $Path) {
-        if ((Get-Item -LiteralPath $Path).Attributes -band [IO.FileAttributes]::ReparsePoint) {
-            throw 'No se limpiara un enlace de directorio de empaquetado.'
-        }
-        $resolved = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $Path).Path).TrimEnd('\','/')
-        $expected = [IO.Path]::GetFullPath((Join-Path $desktopTargetDir 'installer')).TrimEnd('\','/')
-        if (-not $resolved.Equals($expected,[StringComparison]::OrdinalIgnoreCase)) {
-            throw "Se rechazo limpiar una ruta fuera de target/installer: $resolved"
-        }
-        Remove-Item -LiteralPath $resolved -Recurse -Force
     }
 }
 
@@ -222,7 +208,6 @@ Write-Step "Validando WiX para jpackage"
 Ensure-Wix
 
 Write-Step "Preparando directorios de empaquetado"
-Remove-DirectorySafe $installerRoot
 Ensure-Directory $installerInput
 Ensure-Directory $installerDist
 
@@ -230,7 +215,7 @@ Write-Step "Compilando el modulo desktop"
 Invoke-Maven -MavenCmd $mavenCmd -Arguments @("-pl", "pos-desktop", "-am", "clean", "package", "-DskipTests")
 
 Write-Step "Copiando dependencias runtime del desktop"
-Invoke-Maven -MavenCmd $mavenCmd -Arguments @("-pl", "pos-desktop", "dependency:copy-dependencies", "-DincludeScope=runtime", "-DoutputDirectory=target/installer/input")
+Invoke-Maven -MavenCmd $mavenCmd -Arguments @("-pl", "pos-desktop", "dependency:copy-dependencies", "-DincludeScope=runtime", "-DoutputDirectory=$installerInput")
 
 $desktopJarName = Get-DesktopJarName
 $desktopJar = Join-Path $desktopTargetDir $desktopJarName

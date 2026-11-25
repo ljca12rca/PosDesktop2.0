@@ -2,7 +2,7 @@ spring:
   application:
     name: posdesktop-backend
   datasource:
-    url: ${POS_PG_URL:jdbc:postgresql://localhost:55432/posdesktop}
+    url: ${POS_PG_URL:jdbc:postgresql://localhost:${POS_PG_PORT:15432}/posdesktop}
     username: ${POS_PG_USERNAME:pos}
     password: ${POS_PG_PASSWORD:pos123}
   jpa:

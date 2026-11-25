@@ -38,7 +38,7 @@ API
 
 PostgreSQL
   host: localhost
-  port: 55432
+  port: 15432
   database: posdesktop
   user: pos
   password: pos123
@@ -51,6 +51,11 @@ MongoDB
   password: pos123
   authSource: posdesktop_media
 ```
+
+El API ejecutado desde el IDE usa el mismo puerto PostgreSQL publicado por Docker:
+`15432` por defecto. Para otro puerto, define `POS_PG_PORT` tanto al iniciar Compose
+como en la configuracion de ejecucion del IDE. `POS_PG_URL` permite indicar una URL JDBC
+completa y tiene prioridad. Dentro de Docker el API sigue usando `postgres:5432`.
 
 El compose crea:
 
@@ -179,27 +184,35 @@ Detalles del flujo:
 Salida esperada:
 
 ```text
-pos-desktop/target/installer/dist
+build/windows-installer/<fecha-id>/dist
 ```
+
+Cada empaquetado usa una carpeta nueva fuera de `target`, para conservar instaladores
+anteriores y permitir compilar aunque un `.exe` este abierto o sea de solo lectura.
 
 ## Empaquetado por modulo
 
 Compilar todo el proyecto:
 
 ```powershell
-mvn clean package
+.\mvnw.cmd clean verify
 ```
 
 Empaquetar solo la API:
 
 ```powershell
-mvn -pl pos-api -am clean package
+.\mvnw.cmd -pl pos-api -am clean package
 ```
 
 Empaquetar solo el desktop:
 
 ```powershell
-mvn -pl pos-desktop -am clean package
+.\mvnw.cmd -pl pos-desktop -am clean package
 ```
+
+El wrapper incluido fija Maven 3.9.9; no requiere instalar Maven en el PATH. Requiere
+JDK 25 en `JAVA_HOME`. En el IDE selecciona el wrapper del proyecto y JDK 25 para Maven.
+Los instaladores antiguos de `pos-desktop/target/installer` se conservan durante `clean`;
+las clases, recursos, JAR y reportes de prueba se siguen limpiando normalmente.
 
 La migracion inicial de la API corre automaticamente con Flyway al arrancar `pos-api`.

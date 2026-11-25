@@ -38,20 +38,6 @@
         </dependencies>
     </dependencyManagement>
 
-    <repositories>
-        <repository>
-            <id>local-m2-repository</id>
-            <url>file:///C:/Users/luis9/.m2/repository/</url>
-        </repository>
-    </repositories>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>local-m2-plugin-repository</id>
-            <url>file:///C:/Users/luis9/.m2/repository/</url>
-        </pluginRepository>
-    </pluginRepositories>
-
     <build>
         <pluginManagement>
             <plugins>

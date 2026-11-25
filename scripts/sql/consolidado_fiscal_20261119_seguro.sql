@@ -3,6 +3,22 @@
 -- Si se aplicaron antiguas V24-V27 fiscales, ejecutar primero el puente de compatibilidad.
 BEGIN;
 SET LOCAL search_path TO public, pg_catalog;
+-- Previo al consolidado fiscal, para tablas antiguas creadas por Hibernate.
+-- Solo completa defaults de metadatos; conserva las configuraciones existentes.
+DO $$
+DECLARE tabla TEXT;
+BEGIN
+ FOREACH tabla IN ARRAY ARRAY['facturacion_configuracion','dian_configuraciones','dian_transporte_configuracion','fiscal_entrega_configuracion']
+ LOOP
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=tabla AND column_name='version') THEN
+   EXECUTE format('ALTER TABLE public.%I ALTER COLUMN version SET DEFAULT 0',tabla);
+  END IF;
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='facturacion_configuracion' AND column_name='proveedor') THEN
+  ALTER TABLE public.facturacion_configuracion ALTER COLUMN proveedor SET DEFAULT 'DATAICO';
+ END IF;
+END $$;
+
 -- V20261119_1__persistencia_fiscal_y_configuracion_dian.sql
 -- Aditiva: no modifica ventas, clientes, numeros ni credenciales Dataico existentes.
 ALTER TABLE facturas_electronicas ADD COLUMN IF NOT EXISTS proveedor VARCHAR(20) NOT NULL DEFAULT 'DATAICO';
